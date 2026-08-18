@@ -1,6 +1,7 @@
 # Design Doc — B&A Build Loop MCP Server
 
 **Date:** 2026-08-18
+**Revision:** 2 — supersedes the original of the same date. Adds Decision 11 (`icm-architect` bundled as scaffolder; govern-vs-generate boundary), a fifth bundled component, the TBD-2 and TBD-4 escalations, and the orientation check folded into `doc_drift`.
 **Status:** Approved for build planning
 **Author:** B&A Solutions
 
@@ -63,8 +64,8 @@ Therefore: **the five gates ship as prompts, not tools.** Phase 1 ships four too
 | Tool | Role |
 |---|---|
 | `context_audit` | Acquisition hook. Reads the real `CLAUDE.md` / `CONTEXT.md` tree; scores routing bloat, orphan docs, drift. Cannot be faked — it reads actual files. |
-| `doc_drift` | Retention hook. Checks `ERD.md` / `API.md` against actual schema and handlers. Weekly re-run behaviour. |
-| `override_log` | Differentiation hook. Generates the risk statement and override prompt from the guidance-with-override gate model. |
+| `doc_drift` | Retention hook. Two checks in one tool: (a) schema-of-record — does `API.md` still match the code; (b) orientation — can a memoryless agent still orient in the workspace after drift (a continuous walk test, not a one-time scaffold-time check). Weekly re-run behaviour. |
+| `override_log` | Differentiation hook. Produces the audit record a scaffold-time walk test structurally cannot: the risk statement plus the logged decision to proceed past a known gap — who, when, on what basis. |
 
 **Tool (paid — one)**
 
@@ -73,6 +74,19 @@ Therefore: **the five gates ship as prompts, not tools.** Phase 1 ships four too
 | `export_record` | Persists any gate or audit output as a versioned, timestamped artifact. Requires a key. |
 
 **Explicitly out of Phase 1:** `build_buy_wait`, `vendor_vet`, `scope_to_estimate`. These are operator-facing decisions in developer clothing and belong to a later operator-facing server, not this one.
+
+### Positioning against `icm-architect`
+
+`icm-architect` (RinDig, MIT) is bundled as the workspace scaffolder — see Packaging. It owns **generation**: describe a process, get an ICM workspace, validated once by a scaffold-time walk test. Its scope ends there.
+
+B&A's surface owns **governance** — everything that happens inside the structure over time, which `icm-architect` does not attempt:
+
+- **The gate layer (five prompts).** `icm-architect` has no opinion on how work moves through a workspace. Problem-fit that can stop the engagement, resolve-or-defer decisions, guidance-with-override — none of it is ICM-generic, and none of it is in the scaffolder.
+- **Continuous verification (`doc_drift`).** The scaffolder's walk test runs once, at generation. `doc_drift` runs on every re-invocation, proving the workspace still orients after real drift. Generation is a moment; verification is a subscription — and that line is also the free/paid boundary.
+- **The override record (`override_log`).** The walk test asks "can an agent orient." It never asks "who authorized proceeding past a known gap, and why." That audit artifact is what a regulated buyer pays for, and it exists nowhere in the scaffolder's scope.
+- **Cross-session continuity (`/handoff`).** The scaffolder scaffolds and exits. It has no verified-truth-vs-recall discipline and no "does the record still match reality" check. `/handoff` is what keeps a workspace trustworthy across a multi-session build.
+
+The boundary is load-bearing: **B&A tools govern, they never generate.** Generation is a solved, free, 905-star problem; competing there adds nothing. This positioning is also why bundling the scaffolder does not undercut the paid product — the buyer pays for governance, not for the folder structure.
 
 ### Infrastructure
 
@@ -111,7 +125,7 @@ Three further reasons: the two artifacts have different deploy triggers (App Pla
 | `Data_Dictionary.md` | Cut here. Key issuance handles email; that entry belongs in the **site repo's** Data Dictionary, where it does not yet exist |
 | `src/ERD.md` | Cut — no database |
 | `src/API.md` | Keep, rescoped: the MCP surface — prompt definitions and tool JSON schemas. Same-commit rule intact. The tool schemas are the public contract |
-| `Integration_Spec.md` | Keep, promoted: cross-repo `export_record` contract plus four bundled components with pinned versions |
+| `Integration_Spec.md` | Keep, promoted: cross-repo `export_record` contract plus five bundled components with pinned versions (`icm-architect` added as scaffolder) |
 | `Requirements.md` | Deferred — the design doc covers it at this scope |
 | `ops/` | Reduced to a release runbook. Nothing deploys; `npm publish` on a semver tag |
 | `TDD.md`, `planning/decisions/`, `Roadmap.md`, all `CONTEXT.md` files | Unchanged |
@@ -142,6 +156,7 @@ The paid bundle ships third-party skills alongside B&A's original work, with pro
 | caveman | MIT | Copyright notice + license text |
 | claude-mem | Apache 2.0 | License text; retain copyright/patent/trademark/attribution notices; reproduce `NOTICE` contents if present; state modified files |
 | task-observer | CC-BY-4.0 | Creator, title, copyright notice, disclaimer, license link, material link, modification indication |
+| icm-architect (RinDig) | MIT | Copyright notice + license text. Bundled as the workspace scaffolder; B&A tools govern the structure it generates (see Positioning). |
 
 **`impeccable` is excluded from the bundle.**
 
@@ -162,9 +177,10 @@ Gating the download behind payment is permitted. Gating delivered files with DRM
 | 5 | Phase 1 tool count | Three free tools + `export_record` |
 | 6 | Key and record hosting | B&A infrastructure, not a marketplace |
 | 7 | Gates as prompts vs. tools | Prompts — context budget is the governing constraint |
-| 8 | Repository layout | New public repo for the server; `export_record` stays in the site repo |
-| 9 | Gate command source of truth | `prompts/` is source; `.claude/commands/` generated at build |
-| 10 | `REPO_STRUCTURE.md` v2 application | Applied with deviations — RBAC, Data Dictionary, ERD cut; API rescoped to MCP surface |
+| 8 | Repository topology | Separate public repo for the server; `export_record` stays in the site repo |
+| 9 | Repo structure | `REPO_STRUCTURE.md` v2 adapted — RBAC, Data Dictionary, ERD cut; API rescoped to MCP surface |
+| 10 | Gate command source of truth | `prompts/` is source; `.claude/commands/` generated at build |
+| 11 | `icm-architect` role | Bundled as scaffolder (owns generation). B&A tools govern, never generate — the boundary that blocks future scope creep. The orientation check — can a memoryless agent still orient in the workspace after drift — folds into `doc_drift`, not a new tool; tool count stays at three. |
 
 ---
 
@@ -221,7 +237,7 @@ Legal artifacts (notices file, EULA carve-out, sales-page disclosure) must exist
 
 The free tier has no dependency on either and could ship first. Not currently decided — see TBD-8.
 
-**Estimate risk:** `doc_drift` is the least bounded component. Checking `ERD.md` against a real schema means parsing migrations; checking `API.md` against handlers means parsing routes across arbitrary frameworks. If it resists, cut it to Phase 2 and ship two free tools — the acquisition and differentiation hooks survive; only the retention hook defers.
+**Estimate risk:** `doc_drift` is the least bounded component, and the orientation check widened it — it now carries both the schema-vs-code check and the orientation (walk-test) check. Parsing routes across arbitrary frameworks was already open-ended (TBD-9); the orientation check adds scope. If it resists, cut it to Phase 2 and ship two free tools — the acquisition (`context_audit`) and differentiation (`override_log`) hooks survive; only the retention hook defers. The scaffolder (`icm-architect`) and the gate layer are unaffected by that cut.
 
 ---
 
@@ -231,8 +247,8 @@ The free tier has no dependency on either and could ship first. Not currently de
 |---|---|---|
 | TBD-6 | Package and repo name | **Everything — nothing can be scaffolded unnamed** |
 | TBD-1 | Does claude-mem's upstream repo ship a `NOTICE` file? | Apache 2.0 compliance |
-| TBD-2 | Confirm licenses from each package's actual `LICENSE` / `plugin.json`, not third-party listings | All packaging |
-| TBD-4 | Do B&A docs reproduce ICM (Van Clief & McDermott, 2026) expression, or paraphrase it? | Publication |
+| TBD-2 | Confirm licenses from each of the **five** bundled packages' actual `LICENSE` / `plugin.json` (now includes `icm-architect`), not third-party listings | All packaging |
+| TBD-4 | Do B&A docs reproduce ICM (Van Clief & McDermott, 2026) expression, or paraphrase it? **Escalated:** `icm-architect` is a 905-star MIT expression of the same paper, now bundled — resolve before the notices file ships and before any copy claims the methodology as B&A-original | Publication |
 | TBD-5 | Paid tier price and structure (one-time vs. subscription) | Checkout build |
 | TBD-7 | Pinned Superpowers major version | Dependency stability |
 | TBD-8 | Split launch (free tier first) or single launch? | Sequencing |
