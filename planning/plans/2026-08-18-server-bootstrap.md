@@ -44,6 +44,9 @@ Every task's requirements implicitly include this section.
 - `src/API.md` — replace the raw JWT/roles/DB template with the MCP-surface shell.
 - `src/TDD.md` — migrate the Master TBD Tracker: clear placeholders, create `TBD-1…9`, record `TBD-6` resolved, append `TBD-10/11/12`.
 - `SESSION_HANDOFF.md` — correct the false `src/CONTEXT.md` claim; reflect that the server skeleton now exists.
+- `planning/Roadmap.md` — Phase 1 prerequisites update from four to five bundled components (adds `icm-architect`).
+- `planning/Integration_Spec.md` — §2 gains the `icm-architect` pinned-version row; lands same-commit with its `THIRD_PARTY_NOTICES.md` block (rule 4).
+- `THIRD_PARTY_NOTICES.md` — new `icm-architect` MIT stub block (paired with the Integration_Spec row; not finalized — see Out of scope).
 
 **Responsibility split:** `index.ts` owns process/transport wiring only; `server.ts` owns server construction and handler registration, so tool registration later has one obvious home. Tests live in `test/`, separate from `src/`, both compiled to `dist/`.
 
@@ -447,6 +450,63 @@ git commit -m "docs: correct SESSION_HANDOFF drift (CONTEXT.md now exists; serve
 
 ---
 
+## Task 7: Update the Roadmap for the fifth bundled component
+
+Added by the icm-architect ratchet (Decision 11). `planning/Roadmap.md`'s Phase 1 prerequisites assume four bundled components under TBD-2.
+
+**Files:**
+- Modify: `planning/Roadmap.md`
+
+**Interfaces:**
+- Consumes: Decision 11 (`planning/decisions/2026-08-18_icm-architect-scoping.md`); the design doc Revision 2 packaging table (five components).
+- Produces: a Roadmap whose Phase 1 prerequisites match the five-component reality.
+
+- [ ] **Step 1: Update the Phase 1 prerequisites** — the `TBD-2` prerequisite line assumes four bundled components. Change it to name **five**, adding `icm-architect` (RinDig, MIT) as the workspace scaffolder. Leave the other prerequisites unchanged.
+
+- [ ] **Step 2: Verify**
+
+Run: `grep -niE 'five|icm-architect' planning/Roadmap.md`
+Expected: a match showing the prerequisite now reflects five components / names `icm-architect`.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add planning/Roadmap.md
+git commit -m "docs: Roadmap Phase 1 prerequisites cover five bundled components"
+```
+
+---
+
+## Task 8: Add icm-architect to Integration_Spec §2 and THIRD_PARTY_NOTICES (single commit — rule 4)
+
+Added by the icm-architect ratchet (Decision 11). This adds **stub** entries only — full notices finalization (verified license text for all five) stays out of bootstrap (see Out of scope). Rule 4 requires the Integration_Spec row and the notices block to land in the **same commit**.
+
+**Files:**
+- Modify: `planning/Integration_Spec.md` (§2 bundled-components table)
+- Modify: `THIRD_PARTY_NOTICES.md` (new component block)
+
+**Interfaces:**
+- Consumes: Decision 11; the design doc Revision 2 packaging table.
+- Produces: a five-row §2 table and a matching notices file; both pinned-version fields carry `TODO: TBD-2` until license verification resolves.
+
+- [ ] **Step 1: Add the `icm-architect` row to `planning/Integration_Spec.md` §2** — component `icm-architect`, license `MIT`, pinned version `TODO: TBD-2 confirm`, notes: "Workspace scaffolder (Decision 11). B&A tools govern the structure it generates; they never generate."
+
+- [ ] **Step 2: Add the matching MIT notice block to `THIRD_PARTY_NOTICES.md`** — name (`icm-architect`, RinDig), license MIT, upstream URL, pinned version `TODO: TBD-2`, `TODO: TBD-2` marker where the verified license text will go, unmodified statement.
+
+- [ ] **Step 3: Verify both landed**
+
+Run: `grep -ni 'icm-architect' planning/Integration_Spec.md THIRD_PARTY_NOTICES.md`
+Expected: matches in both files.
+
+- [ ] **Step 4: Commit (single commit — rule 4)**
+
+```bash
+git add planning/Integration_Spec.md THIRD_PARTY_NOTICES.md
+git commit -m "docs: add icm-architect to Integration_Spec and THIRD_PARTY_NOTICES (five components)"
+```
+
+---
+
 ## Exit Criteria (verify all before declaring bootstrap done)
 
 - [ ] `npm run build` compiles clean.
@@ -456,6 +516,8 @@ git commit -m "docs: correct SESSION_HANDOFF drift (CONTEXT.md now exists; serve
 - [ ] `src/TDD.md` tracker holds `TBD-1…9` (no placeholders), `TBD-6` resolved, `TBD-10/11/12` appended with the `TBD-12` build guard.
 - [ ] `SESSION_HANDOFF.md` no longer asserts the false `CONTEXT.md`/no-server claims.
 - [ ] A `planning/decisions/` record exists for `TBD-6` resolved (created here or noted for `/handoff`).
+- [ ] `planning/Roadmap.md` Phase 1 prerequisites name five bundled components (`icm-architect` added).
+- [ ] `planning/Integration_Spec.md` §2 has the `icm-architect` row and `THIRD_PARTY_NOTICES.md` its MIT stub block, both `TODO: TBD-2`, in a single commit (rule 4).
 
 ---
 
@@ -474,5 +536,5 @@ git commit -m "docs: correct SESSION_HANDOFF drift (CONTEXT.md now exists; serve
 - **Registering the five gate prompts as MCP prompts** — the gates exist as content in `prompts/`; serving them over MCP is its own feature.
 - **The `.claude/commands/` generation build step** (rule 1) — generates commands from `prompts/` at build; separate feature.
 - **`context_audit` itself** — its own `writing-plans` pass, after this lands.
-- **`README`, `LICENSE`, `THIRD_PARTY_NOTICES.md` finalization** — README leads with a real `context_audit` run (later); the legal files are blocked on TBD-1/TBD-2.
+- **`README`, `LICENSE`, `THIRD_PARTY_NOTICES.md` *finalization*** — README leads with a real `context_audit` run (later); the legal files' verified content (real license text for all five components) is blocked on TBD-1/TBD-2. Bootstrap adds only the `icm-architect` **stub** block (Task 8) to keep rule 4 satisfied with the Integration_Spec row; it does not finalize the notices file.
 - **`npm publish`** — the release runbook (`ops/`), on a semver tag, after tools exist.
