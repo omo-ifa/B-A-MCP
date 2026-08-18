@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log*
+*.tgz
+.npm/
+
+# Env / secrets
+.env
+.env.*
+*.key
+
+# Editor
+.vscode/
+.idea/
+
+# Build output
+dist/
+build/
+
+# Generated at build time from prompts/ (do not commit hand-edited)
+.claude/commands/

@@ -1,0 +1,37 @@
+B&A MCP — LICENSE
+
+*** STUB — NOT FINAL. Do not ship. ***
+Blocked on: TBD-2 (verify bundled-component licenses), counsel review of the
+third-party carve-out. Resolve both, then replace this notice and confirm the
+SPDX identifier below.
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2026 Bobb Alexander Solutions
+
+B&A's original work in this repository — the five gate prompts in prompts/, the
+tool code in src/, and the accompanying documentation — is licensed under
+[SPDX: TODO — confirm MIT or Apache-2.0 for the original work].
+
+THIRD-PARTY CARVE-OUT
+
+This repository bundles third-party components that are NOT covered by the
+license above. Each remains under its own license, which governs in case of any
+conflict with these terms:
+
+  - Superpowers      — MIT
+  - caveman          — MIT
+  - claude-mem       — Apache-2.0
+  - task-observer    — CC-BY-4.0
+
+Full attribution, license text, upstream URLs, pinned versions, and
+modified/unmodified statements for each are in THIRD_PARTY_NOTICES.md.
+
+Nothing in this license imposes additional terms or technological measures that
+restrict a recipient's exercise of rights granted by those third-party licenses.
+In particular, the CC-BY-4.0 component (task-observer) may be redistributed by
+you under its own terms; no term here overrides that.
+
+------------------------------------------------------------------------------
+
+[Full license body — TODO once SPDX confirmed.]
