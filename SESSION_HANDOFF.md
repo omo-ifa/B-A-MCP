@@ -1,51 +1,86 @@
 # SESSION_HANDOFF.md
 
-**Purpose.** Verified continuity between sessions. This file is *confirmed truth* — what is actually done and what is next. When it conflicts with claude-mem recall, this file wins. Update it at every `/handoff`. Never assert anything here that wasn't checked.
+**Purpose.** Verified continuity between Claude Code sessions. Every field is checked from inside the repo, never asserted. When this conflicts with claude-mem recall, this file wins. Updated at every `/handoff`.
 
 ---
 
-## Current state — as of 2026-08-18 (post server-bootstrap; tools unbuilt)
+## Repo state
 
-The repo has been scaffolded and the planning layer is in place. The `server-bootstrap` step has since run: an installable, `npx`-runnable stdio MCP server registering **zero tools** now exists under `src/` (`index.ts` stdio entry, `server.ts` `createServer()` factory returning `tools/list` → `[]`), verified by `test/server.test.ts` (client-over-stdio lists zero tools) and `test/packaging.test.ts` (packed tarball installs and lists zero tools). Both test files exist and pass locally. No actual tool (`context_audit`, `doc_drift`, `override_log`) has been built yet — `context_audit` is next.
-
-**Confirmed present and correct:**
-- `CLAUDE.md` — Layer 0 identity + routing, adapted to the MCP server (no DB, no auth, no UI).
-- `prompts/` — five gate prompts: `problem-fit.md`, `intake.md`, `decisions.md`, `design-doc.md`, `handoff.md`.
-- `src/` — `index.ts` + `server.ts`: the zero-tool stdio server skeleton (see above). `API.md` rescoped from the REST/JWT/DB template to the MCP surface. `CONTEXT.md` **created this bootstrap** with the context-budget ledger — a prior version of this file claimed `CONTEXT.md` was already present and populated; it was not. That gap was the exact drift this bootstrap corrected. `TDD.md` tracker migrated to real `TBD-1…9` (`TBD-6` resolved, `TBD-10/11/12` appended). No `ERD.md`. `src/tools/` and `src/client/` do **not** exist yet — `tools/` gets its first file with `context_audit`, `client/` with `export_record` in Phase 2.
-- `planning/designs/2026-08-18_ba-mcp-server-design.md` — the approved design doc.
-- `planning/` support docs: `CONTEXT.md`, `Roadmap.md`, `Integration_Spec.md`.
-- Root: `WORKFLOW.md`, `LICENSE` (stub), `THIRD_PARTY_NOTICES.md` (stub).
-
-**Confirmed cut** (were scaffolded from the template, removed per the adaptation table):
-- `planning/RBAC_Specification.md` — no roles.
-- `planning/Data_Dictionary.md` — moves to the site repo (email captured at key issuance).
-- `planning/Requirements.md` — deferred; the design doc covers current scope.
-
-**Not yet created** (the loop and build produce these):
-- `.claude/commands/` — generated from `prompts/` at build time.
-- Any code under `src/tools/` or `src/client/`.
-- Final `LICENSE` and `THIRD_PARTY_NOTICES.md` content — blocked on TBD-1, TBD-2.
+- **Branch:** `feat/server-bootstrap` (10 commits ahead of `main`).
+- **Last commit:** `5e88192` — `docs: correct src/TDD.md changelog and drop cut ERD.md reference`.
+- **Working tree:** clean.
+- **PR:** [#1](https://github.com/omo-ifa/B-A-MCP/pull/1) — `feat/server-bootstrap` → `main`, open, awaiting review/merge. Per `WORKFLOW.md` no direct commits to `main`; the PR review is the gate. Not yet merged.
+- **Build/tests (verified this session):** `npm run build` clean; `npm test` → **2 pass / 0 fail** (`test/server.test.ts`, `test/packaging.test.ts`), no leaked temp dirs.
 
 ---
 
-## Blocking before the first loop
+## Active design docs
 
-These are prerequisites, in order:
-
-1. **TBD-2 — verify licenses.** Read the actual `LICENSE` / `plugin.json` in each of the four bundled component repos (Superpowers, caveman, claude-mem, task-observer). Do not trust third-party listings. Record findings in `THIRD_PARTY_NOTICES.md`.
-2. **TBD-1 — claude-mem NOTICE file.** While in that repo, confirm whether an Apache 2.0 `NOTICE` file exists; if so, reproduce its contents in the notices file.
-3. **Fill `[DATE]` targets** in the `CLAUDE.md` phase checklist and `planning/Roadmap.md`.
-
-Once 1–3 are done, `LICENSE` and `THIRD_PARTY_NOTICES.md` can be finalized and the first `/intake` can run.
+- **`planning/designs/2026-08-18_ba-mcp-server-design.md`** (Revision 2) — **approved**. The server shape this bootstrap implements.
+- **`planning/designs/2026-08-18_context-audit-design.md`** — **draft, awaiting review**. The **next** feature (`context_audit`, free tool #1). Its §4 held the `server-bootstrap` exit criteria, now all met.
+- **`planning/plans/2026-08-18-server-bootstrap.md`** — **executed and complete** (Tasks 1–8 + final whole-branch review). This handoff closes it.
 
 ---
 
-## Next action
+## Decisions + TBDs
 
-Resolve TBD-2 and TBD-1 (read the four component repos). Then start the loop at `/problem-fit` or `/intake` against `context_audit` (the acquisition hook, most bounded of the three tools) — its own `writing-plans` pass produces the implementation plan. Note: the first dogfood run of `context_audit` is a **calibration run for TBD-10/11/12** (weighting function, bloat thresholds, coverage significance — all data-blocked per `src/TDD.md`), not a general README-audit run.
+**Resolved (recorded; TBD-6 was resolved in the pre-session ratchet, its record landed this branch):**
+- **TBD-6** — package/repo name → repo `B-A-MCP`, npm package `b-a-mcp`. Reasoning in `planning/decisions/2026-08-18_tbd-6-package-name.md`. Tracker row marked **Resolved**.
+
+No new TBDs were resolved this session — the work was the build, not decision resolution.
+
+**Open TBDs** (full status in `src/TDD.md` Master TBD Tracker):
+- **TBD-1** — claude-mem Apache-2.0 `NOTICE` file existence. Blocks `THIRD_PARTY_NOTICES.md`.
+- **TBD-2** — confirm each of the **five** bundled components' license from its own `LICENSE`/`plugin.json` (now includes `icm-architect`). Blocks all packaging + notices/Integration_Spec finalization.
+- **TBD-3** — DO Functions free allowance (cost model only, not load-bearing).
+- **TBD-4** — ICM expression reproduce-vs-paraphrase; **escalated** — resolve before the notices file ships or any copy claims the methodology as B&A-original.
+- **TBD-5** — paid-tier price/structure. Blocks `export_record` checkout.
+- **TBD-7** — pinned Superpowers major version.
+- **TBD-8** — split vs single launch.
+- **TBD-9** — `doc_drift` scope (frameworks/migration formats).
+- **TBD-10 / 11 / 12** — `context_audit` calibration stubs (headline weighting; bloat thresholds; coverage significance + thresholds). **Data-blocked** — calibrate from the first dogfood run. TBD-12 carries a **build guard**: the `high`-severity "uncovered significant workspace" finding must be gated behind `TODO: TBD-12` so it never fires on uncalibrated defaults.
+
+---
+
+## Remaining work
+
+- **Merge PR [#1](https://github.com/omo-ifa/B-A-MCP/pull/1)** to `main` after review.
+- **Build `context_audit`** (its own plan) — the next feature. Design doc exists; it needs a `writing-plans` pass, then build.
+- **Deferred minors from this branch** (final review triaged all as non-blocking):
+  - `src/TDD.md` still carries broad full-stack template debt (Universal Implementation Patterns: JWT/bcrypt/soft-delete/roles/caching; Security Rules quick-ref; Performance Targets). **Out of scope for bootstrap; schedule cleanup before `context_audit` ships** — that tool audits for exactly this orphan/bloat/drift, so dogfooding it against this file would be self-incriminating.
+  - `test/server.test.ts` has no try/finally around `client.close()` (brief-verbatim test); `test/packaging.test.ts` connect-failure child not explicitly killed. Failure-path-only hygiene.
+  - `src/API.md` cosmetic table widths + one extra Invariants bullet; `src/CONTEXT.md` em-dash placeholder ledger row; `planning/Roadmap.md` run-on prerequisite line.
+  - `package.json` `files` lists `README.md` which does not exist yet (npm pack omits missing entries; harmless until README lands).
+- **Legal files** (`LICENSE`, `THIRD_PARTY_NOTICES.md`) remain **stubs**, release-blocking, blocked on TBD-1/TBD-2.
+- **Not built (later features, per plan Out-of-scope):** `.claude/commands/` generation from `prompts/`; MCP-prompt registration of the five gates; README; `export_record` client (Phase 2).
+
+---
+
+## Context not in the docs
+
+- **`ignore` dependency is deliberately NOT in this branch.** The `context_audit` design §5 names `ignore` as a runtime dep + a notices entry, but the bootstrap plan's Global Constraints re-scope it to the `context_audit` plan. Add `ignore` (MIT) — plus its `THIRD_PARTY_NOTICES.md` block and `Integration_Spec.md` §2 row in the same commit (rule 4) — **when `context_audit` lands**, not before.
+- **The first `context_audit` dogfood run is a CALIBRATION run, not the README run.** TBD-10/11/12 are data-blocked; calibrate them from that first run against `B-A-MCP`, then re-run — the second output is the README sample.
+- **Node ≥21 detail:** the test script uses `node --test "dist/test/**/*.test.js"` (a glob). Native glob support for `--test` is Node ≥21; this machine ran node v25. On a strict Node-20 floor, verify the glob resolves (the `engines.node` floor is `>=20`).
+- **Residual grep note:** `src/TDD.md`'s "## Changes Made" changelog describes the migration in past tense and names historical ids (`TBD-001…008`, `TBD-001…004`), so a literal `grep TBD-00[1-8] src/TDD.md` matches that prose. The **tracker table** holds zero placeholder rows — accurate historical description, not a live placeholder.
+- **`.claude/commands/` is generated** from `prompts/` at build (rule 1) and regenerated only at `/handoff` — the generator build step does not exist yet, so nothing was regenerated this session.
+- **Blocking-before-first-loop is now stale** as originally written (it named "the four bundled component repos"): the count is **five** with `icm-architect`, and the server skeleton already exists, so the original "before the first loop" framing no longer applies — the prerequisites that remain are the TBD-1/TBD-2 license verification and the `[DATE]` fills, tracked above.
+
+---
+
+## Next-session starter
+
+Paste-ready prompt for the next session:
+
+> Build `context_audit` (Phase 1 free tool #1) for the B&A MCP server. The `server-bootstrap` prerequisite is complete and under review (PR #1) — an installable stdio server registering zero tools exists under `src/`.
+>
+> Read first: `CLAUDE.md` (rules 1–8, TBD policy), `SESSION_HANDOFF.md` (this file), and the design doc `planning/designs/2026-08-18_context-audit-design.md`.
+>
+> Then: use `superpowers:writing-plans` to turn the design doc into a chunked implementation plan; have the `plan-document-reviewer` check it. Execute with `superpowers:subagent-driven-development` (or `superpowers:executing-plans`) under `superpowers:test-driven-development`. Add the `ignore` (MIT) runtime dependency with its `THIRD_PARTY_NOTICES.md` block and `Integration_Spec.md` §2 row in the same commit (rule 4). Update `src/API.md` (the `context_audit` schema) and `src/CONTEXT.md` (the context-budget ledger row) in the same commit as the tool (rules 8, 2). Gate the `high`-severity "uncovered significant workspace" finding behind `TODO: TBD-12`. Run the code reviewers before finishing; then `superpowers:finishing-a-development-branch`.
+>
+> Remember: the first dogfood run is a **calibration** run for TBD-10/11/12, not the README run. Do the deferred `src/TDD.md` template-debt cleanup before shipping.
 
 ---
 
 ## Open overrides
 
-None. (Any `/problem-fit` or `/decisions` override taken in a session is logged here at `/handoff`.)
+None. (No `/problem-fit` or `/decisions` override was taken this session.)
