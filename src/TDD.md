@@ -97,7 +97,7 @@ These patterns are correct for virtually every full-stack project. Follow them u
 | 6  | Soft delete filter on public queries                          | `WHERE deleted_at IS NULL` appended to every public query on soft-deletable tables|
 | 7  | Multi-table writes in transactions                            | Full rollback on any failure; no partial writes                                   |
 | 8  | PII excluded from analytics and exports                       | Enforced at query construction, not post-filter                                   |
-| 9  | Schema docs updated with code                                 | `src/ERD.md` and `src/API.md` updated in the same session as related code changes |
+| 9  | Schema docs updated with code                                 | `src/API.md` updated in the same session/commit as related code changes           |
 | 10 | TBDs stubbed, never guessed                                   | `TODO: TBD-XXX` comment; look up status in this file                              |
 
 ---
@@ -149,7 +149,8 @@ When a TBD is resolved:
 **Treatment: content file (schema-of-record) — surgical (per the hybrid approach).**
 
 - **TBD-policy blockquote** gained one sentence noting the file lives in `src/`.
-- **Security Rule 9** now reads `src/ERD.md` and `src/API.md` (was unprefixed `ERD.md` / `API.md`), making the schema-doc locations explicit and consistent with the reorg.
+- **Security Rule 9** now reads `src/API.md` only (was two schema docs under `src/`, before that unprefixed). The ER-diagram doc was deliberately cut from this product — no database, per the design doc's doc-disposition table — so Rule 9 no longer references a file that doesn't exist.
 - **Master TBD Tracker resolution workflow** gained a step (now step 2): record the reasoning in `planning/decisions/`. Renumbered the subsequent steps. The closing TBD-policy blockquote gained the same pointer.
-- **Everything else preserved exactly:** the Stack Decisions table, all Universal Implementation Patterns, the auth-model note, the 10-row Security Rules quick reference (only Rule 9's paths changed), Performance Targets, and the full TBD tracker table. The `CLAUDE.md` references in Error Responses and the tracker workflow are unchanged — `CLAUDE.md` stayed at the repo root.
-- **Note:** the "Blocks" column still uses short doc names (TDD, ERD, API, Integration Spec, Mobile IA) rather than full paths. These are human-readable labels, not file references, so I left them as-is to avoid bloating the table. Flag me if you want them pathed.
+- **Everything else preserved exactly:** all Universal Implementation Patterns, the auth-model note, the Security Rules quick reference (aside from Rule 9's path, addressed above), and Performance Targets. The `CLAUDE.md` references in Error Responses and the tracker workflow are unchanged — `CLAUDE.md` stayed at the repo root.
+- **Note:** the "Blocks" column still uses short doc names (TDD, API, Integration Spec, Mobile IA) rather than full paths. These are human-readable labels, not file references, so I left them as-is to avoid bloating the table. Flag me if you want them pathed.
+- **`server-bootstrap` step (this branch):** migrated the Master TBD Tracker from placeholder rows `TBD-001…008` to the real, product-specific `TBD-1…9`; marked `TBD-6` (package/repo name) **Resolved**; and appended the `context_audit` stubs `TBD-10`, `TBD-11`, `TBD-12` (including the TBD-12 build guard on the "uncovered significant workspace" finding). Also cleared the Stack Decisions table's `TBD` column for the Cache, File storage, Push notifications, and State management rows — those cells previously carried stale `TBD-001…004` references that no longer correspond to anything in the migrated tracker. The Stack Decisions table's other columns (Decision, Rationale) and the tracker's row content are otherwise unchanged.
