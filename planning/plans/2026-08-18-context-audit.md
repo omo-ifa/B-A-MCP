@@ -19,7 +19,7 @@ Every task's requirements implicitly include this section. Values copied verbati
 - **Structured error envelope (never throw to the client).** Exact shape: `{ "error": { "code": "SNAKE_CASE_ERROR_CODE", "message": "...", "detail": "optional" } }`. Never reveal a path outside the user's working tree or any B&A infrastructure detail in an error.
 - **Same-commit rules.** Rule 8: `src/API.md` updates in the same commit as any tool-schema change. Rule 2: the context-budget ledger in `src/CONTEXT.md` updates (re-measured) in the same commit a tool is added/widened; standing tool-definition cost stays under **~4000 tokens**. Rule 4: `THIRD_PARTY_NOTICES.md` (and the matching `Integration_Spec.md` row) updates in the same commit as any runtime-dependency add or version-floor change.
 - **`ignore` (MIT) dependency.** Added in the **walk** task (the first commit that imports it), together — same commit — with its `THIRD_PARTY_NOTICES.md` "Runtime dependencies (npm)" block, its `Integration_Spec.md` §3 row, and the `package.json` `dependencies` entry (rule 4). Not before.
-- **SDK floor.** The tool returns `structuredContent` and declares an `outputSchema` (MCP spec rev `2025-06-18`). In the registration task, verify the installed `@modelcontextprotocol/sdk` exposes `structuredContent` on `CallToolResult` and `outputSchema` on `Tool`; if the `package.json` floor `^1.0.0` predates that, raise the floor to the installed minor and update the SDK version note in `THIRD_PARTY_NOTICES.md` and `Integration_Spec.md` §3 in the **same commit** (rule 4).
+- **SDK floor.** The tool returns `structuredContent` and declares an `outputSchema` (MCP spec rev `2025-06-18`, `@modelcontextprotocol/sdk ≥ 1.13.0`; installed is `1.30.0`). In the registration task (Task 11), raise the `package.json` floor from `^1.0.0` to `^1.30.0` and update the SDK version note in `THIRD_PARTY_NOTICES.md` and `Integration_Spec.md` §3 in the **same commit** (rule 4). `server.ts`'s low-level `setRequestHandler` does not validate `structuredContent` against `outputSchema`, so the schema is advisory and the error path is safe.
 - **Token method.** `char-approx-v1`, constant `CHARS_PER_TOKEN = 4`, `tokens = Math.ceil(text.length / 4)`. The constant is part of the version string; changing it makes `char-approx-v2`. `stats.token_count_method` reports it.
 - **TBD stubs (rule 7 — stub with `TODO: TBD-XXX`, never guess).**
   - `TODO: TBD-10` — sub-score → headline **weighting** (accuracy cluster weighted above bloat; an N/A sub-score drops and reweights). Implement with clearly-marked placeholder weights; produce a headline but flag it uncalibrated.
@@ -58,6 +58,7 @@ export type FindingCategory =
   | "coverage" | "bloat" | "root_absent" | "root_empty"
   | "name_collision" | "symlink" | "skipped";
 
+// Public finding shape (design §3 output contract — exactly these fields).
 export interface Finding {
   id: string;
   category: FindingCategory;
@@ -65,7 +66,22 @@ export interface Finding {
   file: string;            // root-relative path; uncovered-dir path (trailing "/") for `coverage`
   line: number | null;
   message: string;
+  evidence: string;        // the raw counted / moving value
+}
+
+// Internal working finding, produced by walk/graph/bloat/coverage before
+// scoring. `discriminator` is the STABLE id key (never a measured value):
+// the target path for link findings, the metric name for bloat, the uncovered
+// directory path for coverage. `normalizeFindings` hashes it into `id`,
+// derives `severity` from the category, and STRIPS `discriminator` so the
+// public `Finding` stays exactly the design's seven fields.
+export interface RawFinding {
+  category: FindingCategory;
+  file: string;
+  line: number | null;
+  message: string;
   evidence: string;
+  discriminator: string;
 }
 
 export interface Subscores {
@@ -295,7 +311,7 @@ git commit -m "feat: context_audit two-tier root resolution (CLAUDE.md -> git ->
 - Consumes: `Root` from `types.js`; `hasStructuralName` from `root.js`; `Finding` from `types.js`.
 - Produces:
   - `interface WalkedDoc { relPath: string; absPath: string; content: string | null; isRoot: boolean; }` (`content` null ⇒ unreadable/binary, excluded from scoring; `isRoot` ⇒ basename is `CLAUDE.md` or `CONTEXT.md`).
-  - `interface WalkResult { docs: WalkedDoc[]; findings: Finding[]; filesSkipped: number; }` (findings here are `symlink`, `name_collision`, `skipped` — all `info`; ids/severity assigned later in `score.ts`, so these carry `id: ""` and `severity: "info"` as placeholders the scorer normalizes).
+  - `interface WalkResult { docs: WalkedDoc[]; findings: RawFinding[]; filesSkipped: number; }` (findings here are `symlink`, `name_collision`, `skipped` — all resolve to `info` at scoring; each carries a stable `discriminator`, and `score.ts` assigns `id`/`severity`).
   - `function walk(root: Root): WalkResult` — deterministic (entries sorted before recursion), never follows symlinks, never ascends above `root.path`.
 
 Rules (from design §3 "The walk"):
@@ -375,16 +391,16 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import ignore from "ignore";
 import { hasStructuralName } from "./root.js";
-import type { Root, Finding } from "./types.js";
+import type { Root, RawFinding } from "./types.js";
 
 export interface WalkedDoc { relPath: string; absPath: string; content: string | null; isRoot: boolean; }
-export interface WalkResult { docs: WalkedDoc[]; findings: Finding[]; filesSkipped: number; }
+export interface WalkResult { docs: WalkedDoc[]; findings: RawFinding[]; filesSkipped: number; }
 
 const HARD_SKIP_DIRS = new Set(["node_modules", "dist", "build", "vendor", ".venv", "target"]);
 const DOT_ALLOW = new Set([".claude", ".github"]);
 
-function info(category: Finding["category"], file: string, message: string, evidence: string): Finding {
-  return { id: "", category, severity: "info", file, line: null, message, evidence };
+function info(category: RawFinding["category"], file: string, message: string, evidence: string, discriminator: string): RawFinding {
+  return { category, file, line: null, message, evidence, discriminator };
 }
 function isRootName(basename: string): boolean {
   return hasStructuralName(basename, "CLAUDE.md") || hasStructuralName(basename, "CONTEXT.md");
@@ -397,7 +413,7 @@ function looksBinary(buf: Buffer): boolean {
 
 export function walk(root: Root): WalkResult {
   const docs: WalkedDoc[] = [];
-  const findings: Finding[] = [];
+  const findings: RawFinding[] = [];
   let filesSkipped = 0;
 
   const ig = ignore();
@@ -417,7 +433,7 @@ export function walk(root: Root): WalkResult {
     for (const e of entries) {
       const lower = e.name.toLowerCase();
       if (isRootName(e.name) && seenLower.has(lower) && seenLower.get(lower) !== e.name) {
-        findings.push(info("name_collision", rel(join(dir, e.name)), "two files collide under one structural name on a case-sensitive filesystem", e.name));
+        findings.push(info("name_collision", rel(join(dir, e.name)), "two files collide under one structural name on a case-sensitive filesystem", e.name, rel(join(dir, e.name))));
       }
       if (isRootName(e.name)) seenLower.set(lower, e.name);
     }
@@ -428,7 +444,7 @@ export function walk(root: Root): WalkResult {
 
       if (e.isSymbolicLink()) {
         const inScope = e.name.toLowerCase().endsWith(".md") || (!HARD_SKIP_DIRS.has(e.name) && !(e.name.startsWith(".") && !DOT_ALLOW.has(e.name)));
-        if (inScope) findings.push(info("symlink", relPath, "symlink encountered; recorded, not traversed", relPath));
+        if (inScope) findings.push(info("symlink", relPath, "symlink encountered; recorded, not traversed", relPath, relPath));
         continue;
       }
 
@@ -447,10 +463,10 @@ export function walk(root: Root): WalkResult {
       let content: string | null = null;
       try {
         const buf = readFileSync(abs);
-        if (looksBinary(buf)) { findings.push(info("skipped", relPath, "file is binary / non-UTF-8; excluded from scoring", "binary")); filesSkipped++; }
+        if (looksBinary(buf)) { findings.push(info("skipped", relPath, "file is binary / non-UTF-8; excluded from scoring", "binary", relPath)); filesSkipped++; }
         else content = buf.toString("utf8");
       } catch {
-        findings.push(info("skipped", relPath, "file unreadable; excluded from scoring", "unreadable")); filesSkipped++;
+        findings.push(info("skipped", relPath, "file unreadable; excluded from scoring", "unreadable", relPath)); filesSkipped++;
       }
       docs.push({ relPath, absPath: abs, content, isRoot: isRootName(e.name) });
     }
@@ -543,7 +559,7 @@ test("classifyLink separates edge / external / anchor / escapes_root / malformed
   assert.equal(at("./notes.md").kind, "edge");
   assert.equal(at("./notes.md").targetPath, "src/notes.md");
   assert.equal(at("planning/CONTEXT.md#routing").kind, "edge");        // anchor stripped
-  assert.equal(at("planning/CONTEXT.md#routing").targetPath, "planning/CONTEXT.md");
+  assert.equal(at("planning/CONTEXT.md#routing").targetPath, "src/planning/CONTEXT.md");  // doc-relative from src/CONTEXT.md
   assert.equal(at("https://example.com").kind, "external");
   assert.equal(at("mailto:x@y.z").kind, "external");
   assert.equal(at("#section").kind, "anchor");
@@ -622,7 +638,7 @@ git commit -m "feat: context_audit markdown link extraction + classification"
 **Interfaces:**
 - Consumes: `WalkResult`, `WalkedDoc` from `walk.js`; `extractLinks`, `classifyLink`, `ClassifiedLink` from `links.js`; `Root`, `Finding` from `types.js`.
 - Produces:
-  - `interface GraphResult { findings: Finding[]; routedDirs: Set<string>; orphanCount: number; brokenRefCount: number; routingDriftCount: number; }`
+  - `interface GraphResult { findings: RawFinding[]; routedDirs: Set<string>; orphanCount: number; orphanCandidateTotal: number; brokenRefCount: number; routingDriftCount: number; refsFromRoots: number; refsFromNonRoots: number; }` — `orphanCandidateTotal`/`refsFromRoots`/`refsFromNonRoots` are the sub-score denominators (candidates and edges actually evaluated), never raw doc totals.
   - `function buildGraph(root: Root, walk: WalkResult): GraphResult` — findings carry correct `file`/`line` per design ruling 1; ids/severity are placeholders normalized later by `score.ts`.
 
 Finding derivation (design §3 + ruling 1). For each in-scope doc, extract+classify its links, and for each classified link:
@@ -654,15 +670,17 @@ function cats(dir: string) {
   return g.findings.reduce<Record<string, number>>((a, f) => ((a[f.category] = (a[f.category] ?? 0) + 1), a), {});
 }
 
-test("routing_drift when a root points at a missing path; broken_ref when a non-root does", () => {
+test("routing_drift from a root's missing link; broken_ref from a non-root's missing link", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-graph-"));
   try {
-    writeFileSync(join(dir, "CLAUDE.md"), "see [gone](planning/CONTEXT.md)\n");
-    mkdirSync(join(dir, "planning"));
-    writeFileSync(join(dir, "planning", "CONTEXT.md"), "leaf [x](missing.md)\n");
+    // root references src/ (routed) and a missing path (drift)
+    writeFileSync(join(dir, "CLAUDE.md"), "root [ctx](src/CONTEXT.md) [gone](nope.md)\n");
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "CONTEXT.md"), "ctx routes [notes](notes.md)\n");        // root doc, edge exists
+    writeFileSync(join(dir, "src", "notes.md"), "non-root [x](missing.md)\n");              // non-root, missing link
     const c = cats(dir);
-    assert.equal(c.routing_drift, 1);   // CLAUDE.md is a root, target missing
-    assert.equal(c.broken_ref, 1);      // planning/CONTEXT.md is a root too... see note
+    assert.equal(c.routing_drift, 1);   // CLAUDE.md (root) -> nope.md (missing)
+    assert.equal(c.broken_ref, 1);      // src/notes.md (non-root) -> missing.md (missing)
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -689,29 +707,32 @@ test("escapes_root and malformed links become findings, never edges", () => {
 });
 ```
 
-> Note for the implementer: in the first test, `planning/CONTEXT.md` is a `CONTEXT.md` and therefore a root, so its missing `missing.md` is `routing_drift`, not `broken_ref`. Adjust the fixture so the broken link lives in a **non-root** doc (e.g. add `src/notes.md` under a routed dir with a missing link) if you want a `broken_ref`; the assertion above is corrected in Step 3's fixture. Keep root-vs-non-root source the discriminator.
+> Note for the implementer: `broken_ref` vs `routing_drift` share one underlying cause (target missing) and are discriminated purely by whether the **source** doc is a routing root (`CLAUDE.md`/`CONTEXT.md`). The Step-1 fixture exercises both at once: the root `CLAUDE.md` → missing `nope.md` gives `routing_drift`; the non-root `src/notes.md` → missing `missing.md` gives `broken_ref`. No later fixture correction is needed.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npm test`
 Expected: FAIL — `graph.js` does not exist.
 
-- [ ] **Step 3: Write minimal implementation** (and correct the Step-1 fixture so `broken_ref` originates from a non-root doc)
+- [ ] **Step 3: Write minimal implementation**
 
 ```typescript
 // graph.ts
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { extractLinks, classifyLink } from "./links.js";
-import type { Root, Finding } from "./types.js";
+import type { Root, RawFinding } from "./types.js";
 import type { WalkResult, WalkedDoc } from "./walk.js";
 
 export interface GraphResult {
-  findings: Finding[];
+  findings: RawFinding[];
   routedDirs: Set<string>;
   orphanCount: number;
+  orphanCandidateTotal: number;   // docs eligible to be orphans (under a routed dir, non-furniture, non-root)
   brokenRefCount: number;
   routingDriftCount: number;
+  refsFromRoots: number;          // classified edges existence-checked whose source doc is a root
+  refsFromNonRoots: number;       // classified edges existence-checked whose source doc is not a root
 }
 
 const FURNITURE = new Set(["readme.md", "changelog.md", "contributing.md", "license.md", "security.md", "code_of_conduct.md"]);
@@ -719,27 +740,31 @@ function isFurniture(relPath: string): boolean {
   const base = relPath.split("/").pop()!.toLowerCase();
   return FURNITURE.has(base) || relPath.startsWith(".github/");
 }
-function f(category: Finding["category"], file: string, line: number | null, message: string, evidence: string): Finding {
-  return { id: "", category, severity: "info", file, line, message, evidence };
+function f(category: RawFinding["category"], file: string, line: number | null, message: string, evidence: string, discriminator: string): RawFinding {
+  return { category, file, line, message, evidence, discriminator };
 }
 
 export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
-  const findings: Finding[] = [];
+  const findings: RawFinding[] = [];
   const routedDirs = new Set<string>();
   const docByPath = new Map<string, WalkedDoc>(walkRes.docs.map((d) => [d.relPath, d]));
   const edges = new Map<string, Set<string>>();   // doc -> doc edges (in-scope targets only)
+  let refsFromRoots = 0;
+  let refsFromNonRoots = 0;
 
   for (const doc of walkRes.docs) {
     if (doc.content === null) continue;            // unreadable: excluded from scoring
     for (const raw of extractLinks(doc.content)) {
       const link = classifyLink(raw, doc.relPath);
-      if (link.kind === "malformed") { findings.push(f("malformed_link", doc.relPath, link.line, "link does not parse", link.targetRaw)); continue; }
-      if (link.kind === "escapes_root") { findings.push(f("escapes_root", doc.relPath, link.line, "link resolves above root or is absolute; recorded, never read", link.targetRaw)); continue; }
+      if (link.kind === "malformed") { findings.push(f("malformed_link", doc.relPath, link.line, "link does not parse", link.targetRaw, link.targetRaw)); continue; }
+      if (link.kind === "escapes_root") { findings.push(f("escapes_root", doc.relPath, link.line, "link resolves above root or is absolute; recorded, never read", link.targetRaw, link.targetRaw)); continue; }
       if (link.kind !== "edge" || link.targetPath === null) continue;
+      // a real, non-escaping edge: count it against the right denominator population
+      if (doc.isRoot) refsFromRoots++; else refsFromNonRoots++;
       const targetAbs = join(root.path, link.targetPath);
       if (!existsSync(targetAbs)) {
-        if (doc.isRoot) findings.push(f("routing_drift", doc.relPath, link.line, "routing file points at a path that does not exist", link.targetPath));
-        else findings.push(f("broken_ref", doc.relPath, link.line, "link points at a path that does not exist", link.targetPath));
+        if (doc.isRoot) findings.push(f("routing_drift", doc.relPath, link.line, "routing file points at a path that does not exist", link.targetPath, link.targetPath));
+        else findings.push(f("broken_ref", doc.relPath, link.line, "link points at a path that does not exist", link.targetPath, link.targetPath));
         continue;
       }
       // exists: record routed dir + doc->doc edge
@@ -772,24 +797,29 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
   };
 
   let orphanCount = 0;
+  let orphanCandidateTotal = 0;
   for (const doc of walkRes.docs) {
     if (doc.isRoot || doc.content === null) continue;
     if (isFurniture(doc.relPath)) continue;
     if (!underRoutedDir(doc.relPath)) continue;
-    if (!reached.has(doc.relPath)) { findings.push(f("orphan", doc.relPath, null, "in-scope doc unreachable from any routing root", doc.relPath)); orphanCount++; }
+    orphanCandidateTotal++;   // eligible to be an orphan: this is the denominator population
+    if (!reached.has(doc.relPath)) { findings.push(f("orphan", doc.relPath, null, "in-scope doc unreachable from any routing root", doc.relPath, doc.relPath)); orphanCount++; }
   }
 
   return {
     findings,
     routedDirs,
     orphanCount,
+    orphanCandidateTotal,
     brokenRefCount: findings.filter((x) => x.category === "broken_ref").length,
     routingDriftCount: findings.filter((x) => x.category === "routing_drift").length,
+    refsFromRoots,
+    refsFromNonRoots,
   };
 }
 ```
 
-Correct the Step-1 fixture: add `src/notes.md` (under routed `src/`) containing a missing link so `broken_ref` originates from a non-root doc; keep `routing_drift` from the `CLAUDE.md` root.
+The Step-1 fixture already exercises both categories (root `CLAUDE.md` → `routing_drift`, non-root `src/notes.md` → `broken_ref`); no fixture change is needed here.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -814,7 +844,7 @@ git commit -m "feat: context_audit reference graph (orphan/broken_ref/routing_dr
 **Interfaces:**
 - Consumes: `WalkResult`, `WalkedDoc` from `walk.js`; `countTokens` from `tokens.js`; `extractLinks`, `classifyLink` from `links.js`; `Finding` from `types.js`.
 - Produces:
-  - `interface BloatResult { subscore: number; routingTokens: number; findings: Finding[]; }`
+  - `interface BloatResult { subscore: number; routingTokens: number; findings: RawFinding[]; }`
   - `function scoreBloat(walk: WalkResult): BloatResult` — three metrics (routing token weight, inline-content ratio, chain depth) computed for real; cutoff constants stubbed behind `TODO: TBD-11`; findings are `bloat` category (`low` severity). Not gated (only the coverage `high` finding is gated).
 
 Metrics:
@@ -862,10 +892,10 @@ Expected: FAIL — `bloat.js` does not exist.
 // bloat.ts
 import { countTokens } from "./tokens.js";
 import { extractLinks } from "./links.js";
-import type { Finding } from "./types.js";
+import type { RawFinding } from "./types.js";
 import type { WalkResult } from "./walk.js";
 
-export interface BloatResult { subscore: number; routingTokens: number; findings: Finding[]; }
+export interface BloatResult { subscore: number; routingTokens: number; findings: RawFinding[]; }
 
 // TODO: TBD-11 — placeholder cutoffs; calibrate from the first dogfood run.
 // These are NOT resolved thresholds. char-approx-v1 tokens.
@@ -873,13 +903,13 @@ const TBD_11_ROUTING_TOKEN_CUTOFF = 4000;   // routing weight above this starts 
 const TBD_11_INLINE_RATIO_CUTOFF = 0.85;    // fraction of non-link chars above this = inlining
 const TBD_11_DEPTH_CUTOFF = 4;              // routing nesting depth above this = deep chain
 
-function low(file: string, message: string, evidence: string): Finding {
-  return { id: "", category: "bloat", severity: "low", file, line: null, message, evidence };
+function low(file: string, message: string, evidence: string, discriminator: string): RawFinding {
+  return { category: "bloat", file, line: null, message, evidence, discriminator };
 }
 
 export function scoreBloat(walk: WalkResult): BloatResult {
   const routers = walk.docs.filter((d) => d.isRoot && d.content !== null);
-  const findings: Finding[] = [];
+  const findings: RawFinding[] = [];
   let routingTokens = 0;
   let penalty = 0;
 
@@ -891,17 +921,17 @@ export function scoreBloat(walk: WalkResult): BloatResult {
     const linkChars = extractLinks(content).reduce((n, l) => n + l.targetRaw.length, 0);
     const ratio = content.length === 0 ? 0 : 1 - Math.min(1, linkChars / content.length);
     if (ratio > TBD_11_INLINE_RATIO_CUTOFF && tks > 200) {   // TODO: TBD-11
-      findings.push(low(r.relPath, "routing file is mostly prose/tables; consider routing content out", `inline_ratio=${ratio.toFixed(2)}`));
+      findings.push(low(r.relPath, "routing file is mostly prose/tables; consider routing content out", `inline_ratio=${ratio.toFixed(2)}`, "inline_ratio"));
       penalty += 10;
     }
     const depth = r.relPath.split("/").length - 1;
     if (depth > TBD_11_DEPTH_CUTOFF) {                        // TODO: TBD-11
-      findings.push(low(r.relPath, "deep routing chain", `depth=${depth}`));
+      findings.push(low(r.relPath, "deep routing chain", `depth=${depth}`, "routing_chain_depth"));
       penalty += 5;
     }
   }
   if (routingTokens > TBD_11_ROUTING_TOKEN_CUTOFF) {         // TODO: TBD-11
-    findings.push(low("CLAUDE.md", "total routing token weight is high", `routing_tokens=${routingTokens}`));
+    findings.push(low("CLAUDE.md", "total routing token weight is high", `routing_tokens=${routingTokens}`, "routing_token_weight"));
     penalty += Math.min(40, Math.floor((routingTokens - TBD_11_ROUTING_TOKEN_CUTOFF) / 1000) * 5);
   }
 
@@ -933,7 +963,7 @@ git commit -m "feat: context_audit bloat sub-score (metrics real; thresholds stu
 **Interfaces:**
 - Consumes: `Root`, `Finding` from `types.js`; `GraphResult` (for `routedDirs`) from `graph.js`; `WalkResult` from `walk.js`.
 - Produces:
-  - `interface CoverageResult { subscore: number | null; findings: Finding[]; }`
+  - `interface CoverageResult { subscore: number | null; findings: RawFinding[]; }`
   - `function scoreCoverage(root: Root, walk: WalkResult, graph: GraphResult, opts?: { emitHighFindings?: boolean }): CoverageResult` — reads the **directory tree only** (existence/paths), never opens a source file. Significance classification + thresholds stubbed behind `TODO: TBD-12`. The `high`-severity uncovered-significant-workspace `coverage` finding is emitted **only** when `opts.emitHighFindings === true`; default off (the build guard). `subscore` floors to `0` when no root `CLAUDE.md` exists; returns `null` (N/A) when there are no significant directories to judge.
 
 Coverage: a significant source directory has coverage if it contains a `CONTEXT.md` or is a `routedDir` (referenced by a routing file within N hops). Significance (source-vs-config, min file count, N) is stubbed.
@@ -994,11 +1024,11 @@ Expected: FAIL — `coverage.js` does not exist.
 // coverage.ts
 import { readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import type { Root, Finding } from "./types.js";
+import type { Root, RawFinding } from "./types.js";
 import type { WalkResult } from "./walk.js";
 import type { GraphResult } from "./graph.js";
 
-export interface CoverageResult { subscore: number | null; findings: Finding[]; }
+export interface CoverageResult { subscore: number | null; findings: RawFinding[]; }
 
 const HARD_SKIP = new Set(["node_modules", "dist", "build", "vendor", ".venv", "target", ".git"]);
 
@@ -1040,7 +1070,7 @@ function isSignificant(dir: { rel: string; fileCount: number }, rootPath: string
 export function scoreCoverage(root: Root, _walk: WalkResult, graph: GraphResult, opts?: { emitHighFindings?: boolean }): CoverageResult {
   const noClaudeRoot = root.method !== "claude_md";
   const dirs = listDirs(root.path).filter((d) => isSignificant(d, root.path));
-  const findings: Finding[] = [];
+  const findings: RawFinding[] = [];
 
   if (dirs.length === 0) return { subscore: noClaudeRoot ? 0 : null, findings };
 
@@ -1050,7 +1080,7 @@ export function scoreCoverage(root: Root, _walk: WalkResult, graph: GraphResult,
     if (isCovered) { covered++; continue; }
     // uncovered significant workspace -> HIGH, gated behind TBD-12 build guard
     if (opts?.emitHighFindings) {   // TODO: TBD-12 — do not enable until calibrated
-      findings.push({ id: "", category: "coverage", severity: "high", file: d.rel + "/", line: null, message: "significant source directory has no routing coverage", evidence: `files=${d.fileCount}` });
+      findings.push({ category: "coverage", file: d.rel + "/", line: null, message: "significant source directory has no routing coverage", evidence: `files=${d.fileCount}`, discriminator: d.rel + "/" });
     }
   }
   const subscore = noClaudeRoot ? 0 : Math.round((covered / dirs.length) * 100);
@@ -1083,7 +1113,7 @@ git commit -m "feat: context_audit coverage sub-score (dir-level; significance +
 - Produces:
   - `function findingId(category: FindingCategory, normalizedPath: string, discriminator: string): string` — `sha256(category + "\0" + normalizedPath + "\0" + discriminator)` hex, first 12 chars. Never includes a measured value.
   - `const SEVERITY_BY_CATEGORY: Record<FindingCategory, Severity>` — the design §4 mapping (authoritative; `root_empty` → `critical`, see the flagged discrepancy in Global Constraints).
-  - `function normalizeFindings(raw: Finding[]): Finding[]` — assigns `severity` from the category map (leaving an already-set non-`info` severity from a gated emitter intact for `coverage`), assigns `id`, and returns findings sorted by `(severity-rank desc, file, line, category)`.
+  - `function normalizeFindings(raw: RawFinding[]): Finding[]` — derives `severity` from the category map, hashes `id` from `(category, file, discriminator)` (never from the moving `evidence`), **strips `discriminator`** so the public `Finding` keeps only the design's seven fields, and returns findings sorted by `(severity-rank desc, file, line, category)`.
   - `function subscoreFromCount(bad: number, total: number): number` — `total <= 0 ? 100 : Math.round(100 * (1 - bad / total))`.
   - `function headlineScore(subscores: Subscores): number` — weighted mean, **weights stubbed** `TODO: TBD-10` (accuracy cluster above bloat); `null` sub-scores dropped and weights renormalized.
 
@@ -1094,7 +1124,7 @@ git commit -m "feat: context_audit coverage sub-score (dir-level; significance +
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { findingId, normalizeFindings, subscoreFromCount, headlineScore, SEVERITY_BY_CATEGORY } from "../../src/tools/context-audit/score.js";
-import type { Finding } from "../../src/tools/context-audit/types.js";
+import type { RawFinding } from "../../src/tools/context-audit/types.js";
 
 test("finding id is stable across runs and independent of measured values", () => {
   assert.equal(findingId("broken_ref", "src/CONTEXT.md", "missing.md"), findingId("broken_ref", "src/CONTEXT.md", "missing.md"));
@@ -1119,9 +1149,9 @@ test("subscoreFromCount and headline drop N/A sub-scores", () => {
 });
 
 test("normalizeFindings assigns ids and sorts by severity", () => {
-  const raw: Finding[] = [
-    { id: "", category: "orphan", severity: "info", file: "b.md", line: null, message: "", evidence: "b.md" },
-    { id: "", category: "broken_ref", severity: "info", file: "a.md", line: 3, message: "", evidence: "x.md" },
+  const raw: RawFinding[] = [
+    { category: "orphan", file: "b.md", line: null, message: "", evidence: "b.md", discriminator: "b.md" },
+    { category: "broken_ref", file: "a.md", line: 3, message: "", evidence: "x.md", discriminator: "x.md" },
   ];
   const out = normalizeFindings(raw);
   assert.equal(out[0].category, "broken_ref");   // high sorts before medium
@@ -1139,7 +1169,7 @@ Expected: FAIL — `score.js` does not exist.
 ```typescript
 // score.ts
 import { createHash } from "node:crypto";
-import type { Finding, FindingCategory, Severity, Subscores } from "./types.js";
+import type { Finding, RawFinding, FindingCategory, Severity, Subscores } from "./types.js";
 
 export function findingId(category: FindingCategory, normalizedPath: string, discriminator: string): string {
   return createHash("sha256").update(`${category}\0${normalizedPath}\0${discriminator}`).digest("hex").slice(0, 12);
@@ -1155,11 +1185,16 @@ export const SEVERITY_BY_CATEGORY: Record<FindingCategory, Severity> = {
 
 const RANK: Record<Severity, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
 
-export function normalizeFindings(raw: Finding[]): Finding[] {
-  const out = raw.map((x) => {
-    const severity = SEVERITY_BY_CATEGORY[x.category];
-    return { ...x, severity, id: findingId(x.category, x.file, x.evidence) };
-  });
+export function normalizeFindings(raw: RawFinding[]): Finding[] {
+  const out: Finding[] = raw.map((x) => ({
+    id: findingId(x.category, x.file, x.discriminator),   // stable key, never the measured evidence
+    category: x.category,
+    severity: SEVERITY_BY_CATEGORY[x.category],
+    file: x.file,
+    line: x.line,
+    message: x.message,
+    evidence: x.evidence,
+  }));
   out.sort((a, b) =>
     RANK[b.severity] - RANK[a.severity] ||
     (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) ||
@@ -1311,7 +1346,9 @@ git commit -m "feat: context_audit renderer (tool-owned markdown summary)"
   - `async function runContextAudit(args: { path?: string }): Promise<{ ok: true; result: AuditResult } | { ok: false; error: { code: string; message: string; detail?: string } }>` — orchestrates resolve → walk → graph → bloat → coverage → score → render; assembles `AuditResult`; `stats.calibrated = false`; **degrade never abort** on mid-walk trouble; maps `RootTargetError` to the `NO_ROUTING_ROOT` structured error. Never leaks a path outside the working tree or any infra detail.
   - `function toCallToolResult(outcome): { content: {type:"text"; text:string}[]; structuredContent?: AuditResult; isError?: boolean }` — success: `content` = `[{type:"text", text: result.rendered}]`, `structuredContent` = the full `AuditResult`; error: `content` = `[{type:"text", text: JSON.stringify({error})}]`, `isError: true`, no `structuredContent`.
 
-Orchestration wires the counts into sub-scores via `subscoreFromCount`: `orphans` from `graph.orphanCount` over orphan-candidate total; `broken_refs`/`routing_drift` from their counts; `bloat` from `scoreBloat`; `coverage` from `scoreCoverage` (default gated — `emitHighFindings` off). The empty/absent-root findings (`root_empty` critical when a root `CLAUDE.md` exists but is empty; `root_absent` critical when method ≠ `claude_md`) are appended before `normalizeFindings`.
+Orchestration wires each sub-score to the population it is drawn from, via `subscoreFromCount`: `orphans` = `graph.orphanCount` over `graph.orphanCandidateTotal`; `broken_refs` = `graph.brokenRefCount` over `graph.refsFromNonRoots` (edges checked from non-root docs); `routing_drift` = `graph.routingDriftCount` over `graph.refsFromRoots` (edges checked from root docs); `bloat` from `scoreBloat`; `coverage` from `scoreCoverage` (default gated — `emitHighFindings` off). The empty/absent-root findings (`root_empty` critical only when a root `CLAUDE.md` exists, was read, and is blank; `root_absent` critical when method ≠ `claude_md`) are appended before `normalizeFindings`. Denominators are never `Math.max`-patched against unrelated doc counts — a `broken_ref`/`routing_drift` sub-score reflects the fraction of *references* that are broken, nothing else.
+
+**Rule-8 / rule-2 timing (why `src/API.md` and the ledger are not touched here).** This task commits the tool *definition* (`contextAuditTool` with its `inputSchema`/`outputSchema`) but deliberately does **not** edit `src/API.md` or the context-budget ledger. The schema is not part of the *served* MCP surface until `server.ts` registers it (Task 11), so `src/API.md` (rule 8) and the ledger (rule 2) correctly bind to the **registration** commit; documenting the tool here would describe a surface `tools/list` does not yet serve. `/handoff` and reviewers should read the Task 11 commit as the schema-landing commit.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1370,7 +1407,6 @@ Expected: FAIL — `index.js` does not exist.
 
 ```typescript
 // index.ts
-import { existsSync, readdirSync } from "node:fs";
 import { resolveRoot, RootTargetError } from "./root.js";
 import { walk } from "./walk.js";
 import { buildGraph } from "./graph.js";
@@ -1379,7 +1415,7 @@ import { scoreCoverage } from "./coverage.js";
 import { normalizeFindings, subscoreFromCount, headlineScore } from "./score.js";
 import { renderAudit } from "./render.js";
 import { TOKEN_METHOD } from "./tokens.js";
-import type { AuditResult, Finding, Subscores } from "./types.js";
+import type { AuditResult, RawFinding, Subscores } from "./types.js";
 
 export const contextAuditTool = {
   name: "context_audit" as const,
@@ -1422,21 +1458,25 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
   const bloat = scoreBloat(w);
   const coverage = scoreCoverage(root, w, g);   // emitHighFindings defaults off (TBD-12 build guard)
 
-  const rawFindings: Finding[] = [...w.findings, ...g.findings, ...bloat.findings, ...coverage.findings];
+  const rawFindings: RawFinding[] = [...w.findings, ...g.findings, ...bloat.findings, ...coverage.findings];
 
-  // root_absent / root_empty (both critical per design §4)
-  if (root.method !== "claude_md") rawFindings.push({ id: "", category: "root_absent", severity: "critical", file: "", line: null, message: "no root CLAUDE.md anchored this audit", evidence: root.method });
-  else {
+  // root_absent / root_empty (both critical per design §4; §3-vs-§4 severity discrepancy flagged in Global Constraints)
+  if (root.method !== "claude_md") {
+    rawFindings.push({ category: "root_absent", file: ".", line: null, message: "no root CLAUDE.md anchored this audit", evidence: root.method, discriminator: "root_absent" });
+  } else {
     const claudeDoc = w.docs.find((d) => d.relPath.toLowerCase() === "claude.md");
-    if (claudeDoc && (claudeDoc.content ?? "").trim() === "") rawFindings.push({ id: "", category: "root_empty", severity: "critical", file: claudeDoc.relPath, line: null, message: "root CLAUDE.md exists but is empty", evidence: "empty" });
+    // "empty" only when the root was actually read; a binary/unreadable root is a `skipped` info finding from the walk, not empty.
+    if (claudeDoc && claudeDoc.content !== null && claudeDoc.content.trim() === "") {
+      rawFindings.push({ category: "root_empty", file: claudeDoc.relPath, line: null, message: "root CLAUDE.md exists but is empty", evidence: "empty", discriminator: "root_empty" });
+    }
   }
 
-  const orphanTotal = w.docs.filter((d) => !d.isRoot && d.content !== null).length;
   const subscores: Subscores = {
     bloat: bloat.subscore,
-    orphans: subscoreFromCount(g.orphanCount, orphanTotal),
-    broken_refs: subscoreFromCount(g.brokenRefCount, Math.max(g.brokenRefCount, orphanTotal)),
-    routing_drift: subscoreFromCount(g.routingDriftCount, Math.max(g.routingDriftCount, w.docs.filter((d) => d.isRoot).length)),
+    // each sub-score's denominator is the population it is drawn from; subscoreFromCount returns 100 when that population is 0.
+    orphans: subscoreFromCount(g.orphanCount, g.orphanCandidateTotal),
+    broken_refs: subscoreFromCount(g.brokenRefCount, g.refsFromNonRoots),
+    routing_drift: subscoreFromCount(g.routingDriftCount, g.refsFromRoots),
     coverage: coverage.subscore,
   };
 
@@ -1570,7 +1610,7 @@ export function createServer(): Server {
 
 - [ ] **Step 4: Verify SDK floor, then update `package.json` + notices/spec if raised**
 
-Run: `npm ls @modelcontextprotocol/sdk` and confirm the resolved version's types expose `structuredContent` on `CallToolResult` and `outputSchema` on `Tool` (build will fail otherwise). If the current `^1.0.0` floor predates `structuredContent` (spec `2025-06-18`), set `dependencies["@modelcontextprotocol/sdk"]` to `^<resolved minor>` and update the SDK **Pinned version** note in `THIRD_PARTY_NOTICES.md` and the SDK row in `Integration_Spec.md` §3 in this same commit (rule 4).
+The installed SDK is `1.30.0` — well past `1.13.0`, which introduced `structuredContent`/`outputSchema` for spec rev `2025-06-18` — so the types compile with no reinstall. Raise the `dependencies["@modelcontextprotocol/sdk"]` floor from `^1.0.0` to `^1.30.0` (the installed version; the true minimum is `1.13.0`) and update the SDK **Pinned version** note in `THIRD_PARTY_NOTICES.md` and the SDK row in `Integration_Spec.md` §3 in this same commit (rule 4). Note: `server.ts` uses the low-level `Server.setRequestHandler`, which does **not** validate `structuredContent` against `outputSchema` server-side — `outputSchema` is advisory in `tools/list`, and the error path (no `structuredContent`, `isError: true`) is safe. Confirm the resolved version with `npm ls @modelcontextprotocol/sdk`.
 
 - [ ] **Step 5: Update `src/API.md` (rule 8) and `src/CONTEXT.md` ledger (rule 2)**
 
@@ -1650,4 +1690,4 @@ After Task 12, run the code reviewers (`superpowers:requesting-code-review`) ove
 
 **Placeholder scan** — the only `TODO:` markers are the three mandated TBD stubs (`TBD-10/11/12`), each with real computed machinery behind them; no "implement later" gaps.
 
-**Type consistency** — `Finding`/`Subscores`/`AuditResult`/`Root` defined once in `types.ts` (T1) and consumed unchanged downstream; `WalkResult`/`WalkedDoc` (T3), `GraphResult` (T5), `BloatResult` (T6), `CoverageResult` (T7) names are stable across their consumers; `contextAuditTool`/`runContextAudit`/`toCallToolResult` names match between T10 (definition) and T11 (registration).
+**Type consistency** — `Finding` (public, 7 fields) and `RawFinding` (internal, with `discriminator`) are defined once in `types.ts` (T1); every findings-producer (walk T3, graph T5, bloat T6, coverage T7, the root_absent/root_empty pushes T10) returns `RawFinding`, and `normalizeFindings` (T8) is the sole `RawFinding[] → Finding[]` boundary — it hashes `id` from `discriminator` and strips it. `Subscores`/`AuditResult`/`Root` consumed unchanged downstream; `WalkResult`/`WalkedDoc` (T3), `GraphResult` (T5, now carrying `orphanCandidateTotal`/`refsFromRoots`/`refsFromNonRoots` as the sub-score denominators), `BloatResult` (T6), `CoverageResult` (T7) names are stable across consumers; `contextAuditTool`/`runContextAudit`/`toCallToolResult` names match between T10 (definition) and T11 (registration). Post-review fixes applied: sub-score denominators (B1), Task-4 doc-relative target assertion (B2), stable `discriminator`-based finding `id` (B3), corrected Task-5 fixture (SF4), rule-8 timing rationale (SF5), tightened orphan denominator (SF6).
