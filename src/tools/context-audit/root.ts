@@ -1,5 +1,5 @@
 import type { Root } from "./types.js";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, statSync, accessSync, constants } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 
 export class RootTargetError extends Error {
@@ -25,8 +25,10 @@ function dirHasGit(dir: string): boolean {
 export function resolveRoot(givenPath: string): Root {
   const abs = resolve(givenPath);
   let st;
-  try { st = statSync(abs); } catch { throw new RootTargetError("target path does not exist or is not readable"); }
-  if (!st.isDirectory()) throw new RootTargetError("target path is not a directory");
+  try { st = statSync(abs); } catch { throw new RootTargetError("target path does not exist or is not readable", "not_found"); }
+  if (!st.isDirectory()) throw new RootTargetError("target path is not a directory", "not_a_directory");
+
+  try { accessSync(abs, constants.R_OK); } catch { throw new RootTargetError("target directory is not readable", "not_readable"); }
 
   for (let dir = abs; ; dir = dirname(dir)) {
     if (dirHasClaudeMd(dir)) return { path: dir, method: "claude_md" };

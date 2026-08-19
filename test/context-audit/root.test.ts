@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveRoot, hasStructuralName, RootTargetError } from "../../src/tools/context-audit/root.js";
@@ -39,6 +39,18 @@ test("throws NO_ROUTING_ROOT when target is missing or not a directory", () => {
     assert.throws(() => resolveRoot(join(dir, "file.md")), (e: unknown) => e instanceof RootTargetError && e.code === "NO_ROUTING_ROOT");
     assert.throws(() => resolveRoot(join(dir, "nope")), (e: unknown) => e instanceof RootTargetError);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("throws NO_ROUTING_ROOT when target directory is not readable", () => {
+  if (typeof process.getuid === "function" && process.getuid() === 0) return;
+  const dir = tmp();
+  try {
+    chmodSync(dir, 0o000);
+    assert.throws(() => resolveRoot(dir), (e: unknown) => e instanceof RootTargetError && e.code === "NO_ROUTING_ROOT");
+  } finally {
+    chmodSync(dir, 0o755);
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("hasStructuralName is case-insensitive", () => {
