@@ -108,7 +108,7 @@ The return value is one **structured JSON object**; the human-readable summary i
 ### Failure & degradation
 
 - **`NO_ROUTING_ROOT`** error only for a genuine failure of the *target*: path doesn't exist, isn't a directory, or isn't readable at all. Absence of docs is a finding, not an error.
-- **Degrade, never abort.** A mid-walk failure (unreadable file, non-UTF8/binary named `.md`, empty `CLAUDE.md`, malformed link) is recorded and scored around, never fatal. Unreadable files are excluded from scoring denominators so they can't silently drag the score; an empty `CLAUDE.md` is a high-severity finding (a root that exists and is empty is worse than absent — it looks handled).
+- **Degrade, never abort.** A mid-walk failure (unreadable file, non-UTF8/binary named `.md`, empty `CLAUDE.md`, malformed link) is recorded and scored around, never fatal. Unreadable files are excluded from scoring denominators so they can't silently drag the score; an empty `CLAUDE.md` is a **critical**-severity finding — a root that exists but is empty is *worse* than one that is absent, because it looks handled — matching §4's mapping, where both an absent and an empty root are `critical`.
 - Errors use the standard structured envelope from `CLAUDE.md`; no infrastructure detail is ever surfaced.
 
 ### Determinism & invariants
