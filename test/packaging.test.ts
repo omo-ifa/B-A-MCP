@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -37,8 +37,21 @@ test("packed tarball installs and the installed bin lists zero tools", async () 
     { name: "b-a-mcp-pack-test", version: "0.0.0" },
     { capabilities: {} }
   );
-  await client.connect(transport);
-  const { tools } = await client.listTools();
-  assert.deepEqual(tools, []);
-  await client.close();
+  let connected = false;
+  try {
+    await client.connect(transport);
+    connected = true;
+    const { tools } = await client.listTools();
+    assert.deepEqual(tools, []);
+  } finally {
+    if (connected) {
+      try {
+        await client.close();
+      } catch {
+        // Ignore close errors — cleanup below must still run.
+      }
+    }
+    rmSync(stage, { recursive: true, force: true });
+    rmSync(consumer, { recursive: true, force: true });
+  }
 });
