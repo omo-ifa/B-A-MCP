@@ -11,13 +11,13 @@
 | Frontend framework         | [e.g. React Native (Expo)]                    | [e.g. Cross-platform, managed workflow, OTA updates]         |          |
 | Backend framework          | [e.g. Haskell/Servant, Node/Express, etc.]    | [e.g. Type safety, performance, team familiarity]            |          |
 | Database                   | [e.g. PostgreSQL 16]                          | [e.g. JSONB support, mature ecosystem, managed hosting]      |          |
-| Cache                      | [e.g. Redis, none for MVP]                    | [e.g. Session storage, rate limiting]                        | TBD-001  |
-| File storage               | [e.g. S3, DigitalOcean Spaces]                | [e.g. User uploads, media assets]                            | TBD-002  |
-| Push notifications         | [e.g. Expo Push, Firebase Cloud Messaging]    | [e.g. Mobile alerts, engagement]                             | TBD-003  |
+| Cache                      | [e.g. Redis, none for MVP]                    | [e.g. Session storage, rate limiting]                        |          |
+| File storage               | [e.g. S3, DigitalOcean Spaces]                | [e.g. User uploads, media assets]                            |          |
+| Push notifications         | [e.g. Expo Push, Firebase Cloud Messaging]    | [e.g. Mobile alerts, engagement]                             |          |
 | Authentication pattern     | [e.g. JWT with refresh rotation]              | [e.g. Stateless, standard, supports mobile and web]          |          |
 | Deployment platform        | [e.g. DigitalOcean App Platform, AWS, Vercel] | [e.g. Managed infrastructure, CI/CD integration]             |          |
 | CI/CD                      | [e.g. GitHub Actions]                         | [e.g. Free tier, native GitHub integration]                  |          |
-| State management (frontend)| [e.g. React Context + hooks, Zustand, Redux]  | [e.g. Simplicity for MVP, scalable if needed]                | TBD-004  |
+| State management (frontend)| [e.g. React Context + hooks, Zustand, Redux]  | [e.g. Simplicity for MVP, scalable if needed]                |          |
 
 ---
 
@@ -125,16 +125,20 @@ When a TBD is resolved:
 4. Update any document that referenced it.
 5. Build the feature that was blocked.
 
-| TBD ID   | Description                                                    | Blocks (Document + Feature)                        | Status | Resolution |
-|----------|----------------------------------------------------------------|----------------------------------------------------|--------|------------|
-| TBD-001  | [e.g. Cache provider selection]                                | [TDD — caching patterns; ERD — session storage]    | Open   |            |
-| TBD-002  | [e.g. File storage provider and bucket strategy]               | [Integration Spec — file upload; API — upload endpoint] | Open   |            |
-| TBD-003  | [e.g. Push notification service]                               | [Integration Spec — notifications; Mobile IA — notification screen] | Open   |            |
-| TBD-004  | [e.g. Frontend state management approach]                      | [TDD — state management; Mobile/Web IA — global state] | Open   |            |
-| TBD-005  | [e.g. Access token TTL]                                        | [API — auth endpoints; TDD — session patterns]     | Open   |            |
-| TBD-006  | [e.g. Refresh token TTL]                                       | [API — auth endpoints; TDD — session patterns]     | Open   |            |
-| TBD-007  | [e.g. Password reset token expiry duration]                    | [API — forgot-password endpoint]                   | Open   |            |
-| TBD-008  | [e.g. Rate limiting strategy and thresholds]                   | [API — all public endpoints; TDD — security rules] | Open   |            |
+| TBD ID | Description | Blocks | Status | Resolution |
+|---|---|---|---|---|
+| TBD-1 | Does claude-mem's upstream repo ship an Apache 2.0 `NOTICE` file? | `THIRD_PARTY_NOTICES.md` — Apache 2.0 compliance | Open | |
+| TBD-2 | Confirm each of the **five** bundled components' license from its own `LICENSE`/`plugin.json` (now includes `icm-architect`), not third-party listings | All packaging; `THIRD_PARTY_NOTICES.md`, `Integration_Spec.md` | Open | |
+| TBD-3 | Verify DO Functions free allowance against the live console (25,000 vs 90,000 GiB-s) | Cost model only — not load-bearing | Open | |
+| TBD-4 | Do B&A docs reproduce ICM (Van Clief & McDermott, 2026) expression, or paraphrase it? **Escalated:** `icm-architect` is a 905-star MIT expression of the same paper, now bundled — resolve before the notices file ships and before any copy claims the methodology as B&A-original | Publication | Open | |
+| TBD-5 | Paid-tier price and structure (one-time vs. subscription) | `export_record` checkout | Open | |
+| TBD-6 | Package/repo name | Everything — nothing scaffolds unnamed | **Resolved** | Repo `B-A-MCP`; npm package `b-a-mcp`. Recorded in `planning/decisions/`. |
+| TBD-7 | Pinned Superpowers major version | Dependency stability | Open | |
+| TBD-8 | Split launch (free tier first) or single launch? | Sequencing | Open | |
+| TBD-9 | `doc_drift` scope — which frameworks and migration formats are in scope for v1 | `doc_drift` build | Open | |
+| TBD-10 | `context_audit` sub-score → headline **weighting** function (accuracy cluster > bloat; N/A sub-score drops and reweights). Principle resolved; numbers only. Data-blocked — calibrate from the first dogfood run. | `context_audit` composite `score` | Open | |
+| TBD-11 | `context_audit` **bloat thresholds** — routing-token-weight, inline-ratio, chain-depth cutoffs → severity. Data-blocked — calibrate from the first dogfood run. | `context_audit` `bloat` sub-score | Open | |
+| TBD-12 | `context_audit` **coverage significance + thresholds** — source-vs-config classification, min file count for "significant", ancestor-coverage-within-N-hops vs own-router. Data-blocked — calibrate from the first dogfood run. **Build guard:** the `high`-severity "uncovered significant workspace" finding must be gated behind a `TODO: TBD-12` so it does not fire on uncalibrated defaults. | `context_audit` `coverage` sub-score | Open | |
 
 > **TBD policy:** If a TBD blocks implementation, stub it, leave a `TODO: TBD-XXX` comment, and continue. Do not guess. When a TBD is resolved, record the reasoning in `planning/decisions/YYYY-MM-DD_title.md`.
 
