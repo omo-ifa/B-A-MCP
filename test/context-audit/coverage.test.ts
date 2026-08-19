@@ -94,3 +94,38 @@ test("gate is off by default when opts is omitted entirely (not just { emitHighF
     assert.equal(result.findings.filter((f) => f.category === "coverage").length, 0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("gitignored significant directory is excluded from coverage's traversal scope (scope must match walk.ts)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-cov6-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
+    writeFileSync(join(dir, ".gitignore"), "generated/\n");
+
+    // gitignored, would-be-significant directory — walk.ts never descends into
+    // this, so coverage must not either.
+    mkdirSync(join(dir, "generated"));
+    for (let i = 0; i < 8; i++) writeFileSync(join(dir, "generated", `g${i}.ts`), "x");
+
+    // sibling, equally significant + uncovered, but NOT gitignored — proves the
+    // machinery still flags a real candidate and generated/'s absence isn't a
+    // blanket suppression.
+    mkdirSync(join(dir, "src"));
+    for (let i = 0; i < 8; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");
+
+    const result = run(dir, true);   // gate ON: emit HIGH findings
+    const coverageFindings = result.findings.filter((f) => f.category === "coverage");
+
+    // Pre-fix, coverage.ts re-walked with no .gitignore applied at all, so
+    // generated/ was scored as a significant, uncovered dir and DID produce a
+    // finding here — this assertion fails against that code.
+    assert.ok(!coverageFindings.some((f) => f.file === "generated/"), "gitignored dir must not be scored");
+
+    // The non-ignored sibling is still a genuine candidate: the gate isn't
+    // just suppressing everything.
+    assert.ok(coverageFindings.some((f) => f.file === "src/"), "non-ignored significant uncovered dir must still be flagged");
+
+    // Only one significant dir is in scope (src/); it's uncovered, so subscore
+    // is 0/1. If generated/ were still in scope the denominator would be 2.
+    assert.equal(result.subscore, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

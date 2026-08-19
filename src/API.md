@@ -60,7 +60,7 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
 
 **Root resolution.** The tool resolves upward from `path` to the nearest `CLAUDE.md` and treats that directory as root; if none is found, it falls back to the nearest git root (`.git/`); if neither exists, it uses the given path as-is. The returned `root.method` records which of the three applied (`claude_md` / `git_root` / `given_path`) — a `git_root` or `given_path` audit is a weaker claim than a `CLAUDE.md`-anchored one, and the record says so.
 
-**Output schema** (returned as `structuredContent`, matching the tool's declared `outputSchema`):
+**Output schema** (returned as `structuredContent`, matching the tool's declared `outputSchema`). Note: the `outputSchema` actually declared in `index.ts` is intentionally minimal — `subscores`, `findings.items`, and `stats` are declared as bare `{ type: "object" }` there, to keep the standing tool-definition cost within the ~4000-token budget (CLAUDE.md rule 2); the detailed shape below documents the `structuredContent` payload the tool actually returns, not the declared schema itself:
 
 ```json
 {

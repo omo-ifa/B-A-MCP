@@ -1,4 +1,4 @@
-import type { AuditResult, Finding, Severity } from "./types.js";
+import type { AuditResult, Severity } from "./types.js";
 
 const ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];
 
