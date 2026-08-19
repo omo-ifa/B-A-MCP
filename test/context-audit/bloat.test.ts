@@ -21,3 +21,16 @@ test("a tiny healthy router scores near 100 and emits no low finding", () => {
   assert.ok(res.subscore >= 90);
   assert.equal(res.findings.length, 0);
 });
+
+test("routing_token_weight finding attributes to the top router (not hardcoded CLAUDE.md)", () => {
+  // Create a router with > 4000 tokens (16000+ chars at 4 chars/token)
+  const content = "x".repeat(16500);
+  const res = scoreBloat(wr([
+    { relPath: "planning/CONTEXT.md", content, isRoot: true },
+  ]));
+  assert.ok(res.routingTokens > 4000);
+  const finding = res.findings.find((f) => f.discriminator === "routing_token_weight");
+  assert.ok(finding, "routing_token_weight finding should exist");
+  assert.equal(finding.file, "planning/CONTEXT.md", "finding should attribute to the top router, not CLAUDE.md");
+  assert.ok(finding.evidence.includes(String(res.routingTokens)), "evidence should contain the token count");
+});
