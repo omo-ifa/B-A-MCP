@@ -41,3 +41,56 @@ test("coverage subscore floors to 0 when no root CLAUDE.md", () => {
     assert.equal(run(dir).subscore, 0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("coverage subscore is null (N/A) when a root CLAUDE.md exists but no directory is significant", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-cov3-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
+    mkdirSync(join(dir, "src"));
+    // TBD-12 significance threshold is >= 5 source files; 2 is below it, so
+    // src/ never becomes a significant dir and there is nothing to judge.
+    for (let i = 0; i < 2; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");
+    const result = run(dir);
+    assert.equal(result.subscore, null);
+    assert.equal(result.findings.length, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("coverage subscore is 100 and no findings when significant dirs are covered via CONTEXT.md and via routedDir", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-cov4-"));
+  try {
+    // root routes only to src/b (a directory link); src/a is covered purely by
+    // owning its own CONTEXT.md, with no inbound link from the root at all.
+    writeFileSync(join(dir, "CLAUDE.md"), "root [b](src/b)\n");
+    mkdirSync(join(dir, "src", "a"), { recursive: true });
+    mkdirSync(join(dir, "src", "b"), { recursive: true });
+    for (let i = 0; i < 5; i++) writeFileSync(join(dir, "src", "a", `f${i}.ts`), "x");
+    writeFileSync(join(dir, "src", "a", "CONTEXT.md"), "a's own context\n");
+    for (let i = 0; i < 5; i++) writeFileSync(join(dir, "src", "b", `f${i}.ts`), "x");
+    // no CONTEXT.md under src/b: it relies solely on being a routedDir target.
+
+    const root = resolveRoot(dir);
+    const w = walk(root);
+    const g = buildGraph(root, w);
+    assert.ok(g.routedDirs.has("src/b"), "sanity: root's directory link must route src/b");
+
+    const result = scoreCoverage(root, w, g, { emitHighFindings: true }); // gate ON: still nothing should fire
+    assert.equal(result.subscore, 100);
+    assert.equal(result.findings.filter((f) => f.category === "coverage").length, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("gate is off by default when opts is omitted entirely (not just { emitHighFindings: false })", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-cov5-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
+    mkdirSync(join(dir, "src"));
+    for (let i = 0; i < 8; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");   // uncovered significant dir
+
+    const root = resolveRoot(dir);
+    const w = walk(root);
+    const g = buildGraph(root, w);
+    const result = scoreCoverage(root, w, g);   // NOTE: no 4th argument at all — pins Task 10's default call shape
+    assert.equal(result.findings.filter((f) => f.category === "coverage").length, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
