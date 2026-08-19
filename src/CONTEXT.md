@@ -31,12 +31,10 @@ Read this before writing any server or tool code in this workspace. It holds the
 
 **Rule (CLAUDE.md rule 2), stated verbatim:** Standing tool-definition context cost stays under ~4k tokens. Every tool definition is measured and logged in the context-budget ledger in `src/CONTEXT.md`. Adding or widening a tool requires re-measuring and updating the ledger in the same commit. This is verified at `/handoff`.
 
-At bootstrap there are zero tools registered (`tools/list` returns `[]`), so the table below carries no rows.
-
 | Tool | Standing tokens (measured) | Notes |
 |------|------------------------------|-------|
-| — none — | — | No tools registered yet. |
+| context_audit | 250 / ~4000 | char-approx-v1 over JSON.stringify(tool definition) |
 
-**Total: 0 / ~4000**
+**Total: 250 / ~4000**
 
-**Measurement method:** not yet fixed. The method for measuring a tool definition's standing token cost is to be established when the first tool lands, so that the number recorded here is reproducible by anyone re-measuring it later. Whatever method is chosen (e.g. tokenizing the serialized tool schema sent in `tools/list`) must be recorded here alongside the first row it produces.
+**Measurement method:** `countTokens(JSON.stringify(contextAuditTool))` using char-approx-v1 (`ceil(chars / 4)`) over the serialized tool definition (name + description + input/output schema) sent in `tools/list`. Reproduced by `test/context-audit/ledger.test.ts`.

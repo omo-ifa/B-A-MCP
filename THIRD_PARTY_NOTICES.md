@@ -113,7 +113,7 @@ above; pinned versions must match `package.json` and `Integration_Spec.md`.
 - **Author:** Anthropic (Model Context Protocol project)
 - **License:** MIT
 - **Upstream:** `TODO: TBD-2 — confirm URL from the installed package's repository field`
-- **Pinned version:** `^1.0.0` (see `package.json`; resolved lockfile pins the exact version)
+- **Pinned version:** `^1.30.0` (see `package.json`; resolved lockfile pins the exact version; true minimum is `1.13.0`, which introduced `structuredContent`/`outputSchema` for spec rev `2025-06-18`)
 - **Role:** the only runtime dependency at bootstrap — provides the MCP `Server` and `StdioServerTransport`.
 - **Modified:** No (consumed as published).
 - **License text:**

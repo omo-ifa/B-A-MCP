@@ -60,7 +60,7 @@ Packages declared in `package.json` and redistributed by the published `b-a-mcp`
 
 | Dependency | License | Pinned version | Notes |
 |---|---|---|---|
-| `@modelcontextprotocol/sdk` | MIT | `^1.0.0` (`package.json`; exact pin in the lockfile) | Only runtime dependency at bootstrap. Provides the MCP `Server` and stdio transport. |
+| `@modelcontextprotocol/sdk` | MIT | `^1.30.0` (`package.json`; exact pin in the lockfile; true minimum `1.13.0` for `structuredContent`/`outputSchema`) | Only runtime dependency at bootstrap. Provides the MCP `Server` and stdio transport. |
 | `ignore` | MIT | `^7.0.6` (`package.json`; exact pin in lockfile) | `.gitignore` semantics for the `context_audit` walk. |
 
 ---

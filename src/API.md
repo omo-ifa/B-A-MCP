@@ -30,17 +30,117 @@ Naming: MCP prompt names are kebab-case, matching their source filename without 
 
 ## Tools (free, unauthenticated)
 
-**None at bootstrap.** `tools/list` returns `[]`. No tool JSON schema exists yet — a schema is added to this file in the same commit as the tool that defines it (rule 8, `CLAUDE.md`).
-
-The intended first three free tools:
+`tools/list` currently returns one tool: `context_audit`. Two more are planned:
 
 | Tool name       | Status      | Design doc |
 |------------------|-------------|------------|
-| `context_audit`  | Forthcoming | `planning/designs/2026-08-18_context-audit-design.md` |
+| `context_audit`  | **Shipped** | `planning/designs/2026-08-18_context-audit-design.md` |
 | `doc_drift`      | Forthcoming | none yet (scope pending TBD-9) |
 | `override_log`   | Forthcoming | none yet |
 
 Naming: MCP tool names are snake_case.
+
+### `context_audit`
+
+A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / `CONTEXT.md` tree — and returns a scored, unfakeable diagnosis of routing bloat, orphan docs, broken references, routing drift, and documentation coverage gaps. It reads the user's real files locally; it never writes and never inspects source-file contents. See `planning/designs/2026-08-18_context-audit-design.md` for the full rationale.
+
+**Input schema:**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": { "type": "string", "description": "Directory to audit; defaults to the server working directory." }
+  },
+  "additionalProperties": false
+}
+```
+
+`path` is optional; when omitted the audit runs against the server's working directory (`process.cwd()`).
+
+**Root resolution.** The tool resolves upward from `path` to the nearest `CLAUDE.md` and treats that directory as root; if none is found, it falls back to the nearest git root (`.git/`); if neither exists, it uses the given path as-is. The returned `root.method` records which of the three applied (`claude_md` / `git_root` / `given_path`) — a `git_root` or `given_path` audit is a weaker claim than a `CLAUDE.md`-anchored one, and the record says so.
+
+**Output schema** (returned as `structuredContent`, matching the tool's declared `outputSchema`):
+
+```json
+{
+  "type": "object",
+  "required": ["root", "score", "subscores", "findings", "stats", "rendered"],
+  "properties": {
+    "root": {
+      "type": "object",
+      "required": ["path", "method"],
+      "properties": {
+        "path": { "type": "string" },
+        "method": { "enum": ["claude_md", "git_root", "given_path"] }
+      }
+    },
+    "score": { "type": "number" },
+    "subscores": {
+      "type": "object",
+      "description": "bloat, orphans, broken_refs, routing_drift, coverage — each 0-100 or null, 100 = healthy",
+      "properties": {
+        "bloat": { "type": ["number", "null"] },
+        "orphans": { "type": ["number", "null"] },
+        "broken_refs": { "type": ["number", "null"] },
+        "routing_drift": { "type": ["number", "null"] },
+        "coverage": { "type": ["number", "null"] }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "severity", "file", "line", "message", "evidence"],
+        "properties": {
+          "id": { "type": "string", "description": "stable hash of category + normalized path + discriminator; unchanged across runs while the finding persists" },
+          "category": { "enum": ["orphan", "broken_ref", "routing_drift", "malformed_link", "escapes_root", "coverage", "bloat", "root_absent", "root_empty", "name_collision", "symlink", "skipped"] },
+          "severity": { "enum": ["info", "low", "medium", "high", "critical"] },
+          "file": { "type": "string", "description": "path relative to the resolved root; trailing '/' for the directory-level coverage finding" },
+          "line": { "type": ["number", "null"] },
+          "message": { "type": "string" },
+          "evidence": { "type": "string", "description": "the raw counted/moving value — makes the finding unfakeable once persisted" }
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "required": ["docs_in_scope", "routing_files", "routing_tokens", "orphan_count", "files_skipped", "token_count_method", "calibrated"],
+      "properties": {
+        "docs_in_scope": { "type": "number" },
+        "routing_files": { "type": "number" },
+        "routing_tokens": { "type": "number" },
+        "orphan_count": { "type": "number" },
+        "files_skipped": { "type": "number" },
+        "token_count_method": { "type": "string", "description": "e.g. char-approx-v1; a changed constant becomes a new method string" },
+        "calibrated": { "type": "boolean", "description": "false while the bloat/coverage threshold TBDs (TBD-10/11/12) are stubbed" }
+      }
+    },
+    "rendered": { "type": "string", "description": "tool-built markdown summary of the above; the agent displays it verbatim" }
+  },
+  "additionalProperties": false
+}
+```
+
+**Result shape.** Both halves ride in one `CallToolResult`: the full JSON object above rides as `structuredContent`, and `rendered` also rides as a `text` content block (`content[0].text === structuredContent.rendered`) — the always-displayable surface a text-only client shows. The tool description instructs the agent to display the rendered text verbatim, never to summarize or reorder it.
+
+**Error surface.** A failure to resolve a usable target returns the standard structured error envelope as a `text` block with `isError: true` and no `structuredContent`:
+
+```json
+{ "error": { "code": "NO_ROUTING_ROOT", "message": "...", "detail": "not_found | not_a_directory | not_readable" } }
+```
+
+`NO_ROUTING_ROOT` fires only for a genuine failure of the target path itself — it does not exist, is not a directory, or is not readable. Absence of `CLAUDE.md`/`CONTEXT.md` docs is never an error; it is scored as findings (`root_absent`, `root_empty`) instead.
+
+**Invariants** (asserted per the design doc, same class of rule as the free/paid boundary):
+
+- **Read-only** — never writes to, deletes from, or persists outside the user's working tree.
+- **Never reads above the resolved root** — a relative path resolving above root, or any absolute filesystem path, is recorded as an `escapes_root` finding and never opened.
+- **Never follows symlinks** — a symlink pointing at something in scope is recorded as a `symlink` finding, not traversed.
+- **Stateless / no cache** — a cold walk every invocation; same tree in, same score out.
+- **Tool owns rendering** — `rendered` is built by the tool from the structured result, never narrated by the agent.
+- **Stable severity scale** — the five-level `severity` enum (`info`/`low`/`medium`/`high`/`critical`) is a fixed contract so historical `export_record` artifacts stay comparable, even as the underlying rubric evolves.
+- **Normalized ordering** — findings are emitted in normalized (sorted) path order so two identical audits produce identical records.
 
 ---
 
