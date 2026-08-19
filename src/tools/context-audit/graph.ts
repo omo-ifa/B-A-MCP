@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { extractLinks, classifyLink } from "./links.js";
 import type { Root, RawFinding } from "./types.js";
@@ -54,10 +54,16 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
         const parent = link.targetPath.includes("/") ? link.targetPath.slice(0, link.targetPath.lastIndexOf("/")) : "";
         routedDirs.add(parent);
       } else {
-        // directory or non-doc file reference
-        routedDirs.add(link.targetPath.replace(/\/$/, ""));
-        const parent = link.targetPath.includes("/") ? link.targetPath.slice(0, link.targetPath.lastIndexOf("/")) : link.targetPath;
-        routedDirs.add(parent);
+        // exists but is not an in-scope doc: a directory, or a non-doc file
+        let isDir = false;
+        try { isDir = statSync(targetAbs).isDirectory(); } catch { isDir = false; }
+        if (isDir) {
+          const d = link.targetPath.replace(/\/$/, "");
+          routedDirs.add(d === "." ? "" : d);                 // directory target: the dir itself (normalize "." -> "")
+        } else {
+          const parent = link.targetPath.includes("/") ? link.targetPath.slice(0, link.targetPath.lastIndexOf("/")) : "";
+          routedDirs.add(parent);                              // non-doc file target: its parent dir
+        }
       }
     }
   }
