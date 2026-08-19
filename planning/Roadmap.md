@@ -9,7 +9,7 @@ Phases and dependency order. Read before starting a phase or choosing the next b
 **Goal:** a keyless, `npx`-installable MCP server that ships the five gates as prompts and three audit tools, published to npm. Zero B&A infrastructure touched.
 
 **Prerequisites (before any loop):**
-- TBD-2 — verify each bundled component's license from its own repo.
+- TBD-2 — verify each of the five bundled components' licenses from its own repo: Superpowers, caveman, claude-mem, task-observer, and icm-architect (RinDig, MIT), added as the workspace scaffolder — it generates the structure once; B&A tools govern it over time, never generate.
 - TBD-1 — confirm claude-mem's Apache 2.0 NOTICE file.
 - Finalize `LICENSE` and `THIRD_PARTY_NOTICES.md`.
 - Set `[DATE]` targets here and in `CLAUDE.md`.
