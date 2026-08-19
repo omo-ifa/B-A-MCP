@@ -76,6 +76,20 @@ before release.
 
 ---
 
+## icm-architect
+
+- **Author:** RinDig
+- **License:** MIT
+- **Upstream:** `TODO: TBD-2 — confirm URL from repo`
+- **Pinned version:** `TODO: TBD-2`
+- **Modified:** No (bundled as-is) — `confirm`
+- **License text:**
+```
+TODO: TBD-2 — paste full MIT license text with copyright line from the repo.
+```
+
+---
+
 ## Excluded
 
 `impeccable` is intentionally not bundled (no UI in this repo).

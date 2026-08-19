@@ -46,6 +46,7 @@ Shipped in the paid bundle alongside B&A's original work, with prominent disclos
 | caveman      | MIT          | `TODO: TBD-2 confirm` | License confirmed MIT by user; verify version from repo.    |
 | claude-mem   | Apache 2.0   | `TODO: TBD-2 confirm` | `TODO: TBD-1` — reproduce NOTICE contents if the repo ships one. |
 | task-observer| CC-BY-4.0    | `TODO: TBD-2 confirm` | CC-BY carve-out required in EULA; no DRM on delivered files. |
+| icm-architect| MIT          | `TODO: TBD-2 confirm` | Workspace scaffolder (Decision 11). B&A tools govern the structure it generates; they never generate. |
 
 **Excluded:** `impeccable` — not in the bundle (no UI in this repo).
 
@@ -55,7 +56,7 @@ Shipped in the paid bundle alongside B&A's original work, with prominent disclos
 
 ## Verification checklist (run at TBD-2 resolution)
 
-- [ ] Read `LICENSE` / `plugin.json` in each of the four repos; confirm the license matches the table.
+- [ ] Read `LICENSE` / `plugin.json` in each of the five repos; confirm the license matches the table.
 - [ ] Record exact pinned versions.
 - [ ] Confirm claude-mem NOTICE file existence (TBD-1); reproduce if present.
 - [ ] Mirror every row into `THIRD_PARTY_NOTICES.md`.
