@@ -63,6 +63,9 @@ export function walk(root: Root): WalkResult {
         if (HARD_SKIP_DIRS.has(e.name)) continue;
         if (e.name.startsWith(".") && !DOT_ALLOW.has(e.name)) continue;
         if (relPath === ".claude/commands") continue;
+        // `ignore` matches directory-only patterns (e.g. "coverage/") only
+        // against a trailing-slash pathname; a bare dirname misses them.
+        if (relPath && ig.ignores(relPath + "/")) continue;
         recurse(abs);
         continue;
       }
