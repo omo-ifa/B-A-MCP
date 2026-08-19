@@ -38,7 +38,7 @@ Authorization: Bearer <key>
 
 ## 2. Bundled third-party components
 
-Shipped in the paid bundle alongside B&A's original work, with prominent disclosure that each is separately available free. Pinned versions here must match `package.json` and the notice blocks in `THIRD_PARTY_NOTICES.md` (same-commit rule 4).
+The third-party **skills** shipped in the paid bundle alongside B&A's original work, with prominent disclosure that each is separately available free. These are a product-packaging decision, **not npm dependencies** — they are not declared in `package.json` and not shipped in the published package's `files` whitelist. Pinned versions here must match the notice blocks in `THIRD_PARTY_NOTICES.md` (same-commit rule 4). Runtime npm dependencies are a separate class — see §3.
 
 | Component    | License      | Pinned version        | Notes                                                        |
 |--------------|--------------|-----------------------|-------------------------------------------------------------|
@@ -51,6 +51,18 @@ Shipped in the paid bundle alongside B&A's original work, with prominent disclos
 **Excluded:** `impeccable` — not in the bundle (no UI in this repo).
 
 **CC-BY-4.0 constraint (task-observer):** the EULA may not impose terms or technological measures that restrict a recipient's exercise of licensed rights. Charging is fine; a blanket no-redistribution clause is not, as applied to that component. Carve-out: B&A's original work under the B&A license; listed components under their own licenses, which govern on conflict.
+
+---
+
+## 3. Runtime dependencies (npm)
+
+Packages declared in `package.json` and redistributed by the published `b-a-mcp` package on install. A different obligation class from the bundle in §2; full license blocks live in `THIRD_PARTY_NOTICES.md` → "Runtime dependencies (npm)".
+
+| Dependency | License | Pinned version | Notes |
+|---|---|---|---|
+| `@modelcontextprotocol/sdk` | MIT | `^1.0.0` (`package.json`; exact pin in the lockfile) | Only runtime dependency at bootstrap. Provides the MCP `Server` and stdio transport. |
+
+**Forthcoming:** `ignore` (MIT) — added with `context_audit`; its row here, its `THIRD_PARTY_NOTICES.md` block, and the `package.json` addition land in the same commit (rule 4).
 
 ---
 
