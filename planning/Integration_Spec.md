@@ -61,8 +61,7 @@ Packages declared in `package.json` and redistributed by the published `b-a-mcp`
 | Dependency | License | Pinned version | Notes |
 |---|---|---|---|
 | `@modelcontextprotocol/sdk` | MIT | `^1.0.0` (`package.json`; exact pin in the lockfile) | Only runtime dependency at bootstrap. Provides the MCP `Server` and stdio transport. |
-
-**Forthcoming:** `ignore` (MIT) — added with `context_audit`; its row here, its `THIRD_PARTY_NOTICES.md` block, and the `package.json` addition land in the same commit (rule 4).
+| `ignore` | MIT | `^7.0.6` (`package.json`; exact pin in lockfile) | `.gitignore` semantics for the `context_audit` walk. |
 
 ---
 

@@ -121,10 +121,38 @@ above; pinned versions must match `package.json` and `Integration_Spec.md`.
 TODO: TBD-2 — paste full MIT license text with copyright line from the package's LICENSE.
 ```
 
-> **Forthcoming:** `ignore` (MIT) is added as a second runtime dependency when
-> `context_audit` lands — its block goes here (not in the bundle table), in the
-> same commit as the `package.json` addition and the `Integration_Spec.md` row
-> (rule 4).
+### ignore
+
+- **Author:** Kael Zhang (`kael`) and contributors
+- **License:** MIT
+- **Upstream:** https://github.com/kaelzhang/node-ignore
+- **Pinned version:** `^7.0.6` (see `package.json`; resolved lockfile pins the exact version)
+- **Role:** applies `.gitignore` semantics during the `context_audit` walk.
+- **Modified:** No (consumed as published).
+- **License text:**
+```
+Copyright (c) 2013 Kael Zhang <i@kael.me>, contributors
+http://kael.me/
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
 
 ---
 
