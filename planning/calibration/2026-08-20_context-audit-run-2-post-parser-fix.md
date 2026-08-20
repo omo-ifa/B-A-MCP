@@ -12,6 +12,8 @@ Repos: `~/dev/ba-calibration/{superpowers, caveman, claude-mem, one-skill-to-rul
 
 > **This is NOT the README sample.** It is the first calibration run where the routing sub-scores actually assess the backtick routing convention (the census's whole point). No threshold (TBD-10/11/12) is resolved here — see "TBD revisit" below.
 
+> **⚠ BUG found via this run — blocks merge of this doc's PR (#8).** **task-observer** (no routers, no context layer) scored headline **`null`**. That is wrong: a repo with no context layer is the worst case this tool exists to catch and must score **broken** (a low number), not "not assessed". `null` is the answer for "we couldn't measure", not for "there's nothing here". The cause is the `headlineScore` routing-layer gate (`score.ts`) nulling when no routing-layer sub-score is assessed — it fails to distinguish **routing_files === 0** (no context layer → broken) from **routers present but nothing resolves** (icm-architect → null is correct, and its `routing_unresolved` info finding renders plainly). Fix is a code change, deferred (not made in this doc's turn). The numbers below for task-observer, and any headline affected, predate that fix.
+
 ---
 
 ## Full results (every sub-score `score/n`)
