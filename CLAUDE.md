@@ -134,10 +134,9 @@ When a TBD is **resolved**, record the reasoning in `planning/decisions/YYYY-MM-
 
 | TBD ID  | Blocks                                                                            |
 |---------|----------------------------------------------------------------------------------|
-| TBD-1   | claude-mem `NOTICE` file existence — Apache 2.0 compliance in `THIRD_PARTY_NOTICES.md` |
-| TBD-2   | Confirm each bundled component's license from its own `LICENSE`/`plugin.json` — all packaging |
+| TBD-2   | Confirm each bundled component's license from its own `LICENSE`/`plugin.json` — all packaging (**rescoped 2026-08-20:** four confirmed; caveman needs `skills/caveman/` path-scoping + commit pin) |
+| TBD-4   | ICM reproduce-vs-paraphrase — blocks the notices file (**narrowed 2026-08-20:** code copyright is Van Clief; paraphrase call still owner's) |
 | TBD-5   | Paid-tier price and structure (one-time vs. subscription) — `export_record` checkout |
-| TBD-7   | Pinned Superpowers major version — dependency stability                          |
 | TBD-9   | `doc_drift` scope: which frameworks and migration formats are in scope for v1    |
 
 Full list and status live in `src/TDD.md`.
@@ -149,7 +148,7 @@ Full list and status live in `src/TDD.md`.
 **Phase 1 — Free tier (local stdio server)** · Target: [DATE]
 
 - [ ] Repo created (`B-A-MCP`), structure scaffolded per the design doc
-- [ ] `LICENSE` + `THIRD_PARTY_NOTICES.md` at root (TBD-1, TBD-2 resolved first)
+- [ ] `LICENSE` + `THIRD_PARTY_NOTICES.md` at root (TBD-1/TBD-7 resolved 2026-08-20; TBD-2 + TBD-4 still gate the notices file)
 - [ ] Five prompts authored in `prompts/`
 - [ ] Build step generates `.claude/commands/` from `prompts/`
 - [ ] `context_audit` tool
