@@ -12,6 +12,27 @@ test("extractLinks finds inline links with line numbers and flags malformed", ()
   assert.equal(links.find((l) => l.targetRaw.trim() === "")!.malformed, true);
 });
 
+test("extractLinks tags markdown links with source 'markdown'", () => {
+  const links = extractLinks("see [a](./a.md)\n");
+  assert.equal(links.length, 1);
+  assert.equal(links[0].source, "markdown");
+});
+
+test("extractLinks surfaces path-shaped backtick code spans as source 'backtick'", () => {
+  // Routers in the wild route via backtick code-span paths, not markdown links.
+  const md = "Read `src/CONTEXT.md` before `prompts/`.\n";
+  const links = extractLinks(md);
+  const bt = links.filter((l) => l.source === "backtick").map((l) => l.targetRaw);
+  assert.deepEqual(bt, ["src/CONTEXT.md", "prompts/"]);
+});
+
+test("extractLinks ignores prose backtick spans that are not path-shaped", () => {
+  // Identifiers, commands, and prose in backticks must NOT become routing edges.
+  const md = "The `AuditResult` type; run `npm test`; call `foo()`.\n";
+  const links = extractLinks(md).filter((l) => l.source === "backtick");
+  assert.equal(links.length, 0);
+});
+
 test("classifyLink separates edge / external / anchor / escapes_root / malformed", () => {
   const at = (raw: string, malformed = false) => classifyLink({ targetRaw: raw, line: 1, malformed }, "src/CONTEXT.md");
   assert.equal(at("./notes.md").kind, "edge");

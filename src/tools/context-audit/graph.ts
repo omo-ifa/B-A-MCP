@@ -13,6 +13,7 @@ export interface GraphResult {
   routingDriftCount: number;
   refsFromRoots: number;          // classified edges existence-checked whose source doc is a root
   refsFromNonRoots: number;       // classified edges existence-checked whose source doc is not a root
+  resolvedRefsFromRoots: number;  // subset of refsFromRoots that resolve to an existing path — the routing basis
 }
 
 const FURNITURE = new Set(["readme.md", "changelog.md", "contributing.md", "license.md", "security.md", "code_of_conduct.md"]);
@@ -31,11 +32,47 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
   const edges = new Map<string, Set<string>>();   // doc -> doc edges (in-scope targets only)
   let refsFromRoots = 0;
   let refsFromNonRoots = 0;
+  let resolvedRefsFromRoots = 0;
+
+  // shared: a resolving edge (markdown or backtick) records its routed dir and,
+  // for in-scope doc targets, a doc->doc edge for reachability.
+  const recordResolvedTarget = (srcRel: string, targetPath: string, targetAbs: string): void => {
+    if (docByPath.has(targetPath)) {
+      if (!edges.has(srcRel)) edges.set(srcRel, new Set());
+      edges.get(srcRel)!.add(targetPath);
+      const parent = targetPath.includes("/") ? targetPath.slice(0, targetPath.lastIndexOf("/")) : "";
+      routedDirs.add(parent);
+    } else {
+      // exists but is not an in-scope doc: a directory, or a non-doc file
+      let isDir = false;
+      try { isDir = statSync(targetAbs).isDirectory(); } catch { isDir = false; }
+      if (isDir) {
+        const d = targetPath.replace(/\/$/, "");
+        routedDirs.add(d === "." ? "" : d);                 // directory target: the dir itself (normalize "." -> "")
+      } else {
+        const parent = targetPath.includes("/") ? targetPath.slice(0, targetPath.lastIndexOf("/")) : "";
+        routedDirs.add(parent);                              // non-doc file target: its parent dir
+      }
+    }
+  };
 
   for (const doc of walkRes.docs) {
     if (doc.content === null) continue;            // unreadable: excluded from scoring
     for (const raw of extractLinks(doc.content)) {
       const link = classifyLink(raw, doc.relPath);
+
+      if (raw.source === "backtick") {
+        // Backtick code-span routing is resolve-only: a path-shaped span is an edge
+        // ONLY if it resolves to an existing in-repo path. A non-resolving span is
+        // prose, never a malformed/escapes/broken_ref/routing_drift finding.
+        if (link.kind !== "edge" || link.targetPath === null) continue;
+        const targetAbs = join(root.path, link.targetPath);
+        if (!existsSync(targetAbs)) continue;
+        if (doc.isRoot) { refsFromRoots++; resolvedRefsFromRoots++; } else refsFromNonRoots++;
+        recordResolvedTarget(doc.relPath, link.targetPath, targetAbs);
+        continue;
+      }
+
       if (link.kind === "malformed") { findings.push(f("malformed_link", doc.relPath, link.line, "link does not parse", link.targetRaw, link.targetRaw)); continue; }
       if (link.kind === "escapes_root") { findings.push(f("escapes_root", doc.relPath, link.line, "link resolves above root or is absolute; recorded, never read", link.targetRaw, link.targetRaw)); continue; }
       if (link.kind !== "edge" || link.targetPath === null) continue;
@@ -47,24 +84,9 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
         else findings.push(f("broken_ref", doc.relPath, link.line, "link points at a path that does not exist", link.targetPath, link.targetPath));
         continue;
       }
-      // exists: record routed dir + doc->doc edge
-      if (docByPath.has(link.targetPath)) {
-        if (!edges.has(doc.relPath)) edges.set(doc.relPath, new Set());
-        edges.get(doc.relPath)!.add(link.targetPath);
-        const parent = link.targetPath.includes("/") ? link.targetPath.slice(0, link.targetPath.lastIndexOf("/")) : "";
-        routedDirs.add(parent);
-      } else {
-        // exists but is not an in-scope doc: a directory, or a non-doc file
-        let isDir = false;
-        try { isDir = statSync(targetAbs).isDirectory(); } catch { isDir = false; }
-        if (isDir) {
-          const d = link.targetPath.replace(/\/$/, "");
-          routedDirs.add(d === "." ? "" : d);                 // directory target: the dir itself (normalize "." -> "")
-        } else {
-          const parent = link.targetPath.includes("/") ? link.targetPath.slice(0, link.targetPath.lastIndexOf("/")) : "";
-          routedDirs.add(parent);                              // non-doc file target: its parent dir
-        }
-      }
+      // exists: a resolving edge from this doc
+      if (doc.isRoot) resolvedRefsFromRoots++;
+      recordResolvedTarget(doc.relPath, link.targetPath, targetAbs);
     }
   }
 
@@ -82,14 +104,22 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
     return false;
   };
 
+  // Orphans guard: "orphan" means "unreachable from a routing root". When the
+  // routing layer resolves NO edges from any root (resolvedRefsFromRoots === 0),
+  // reachability is vacuous — every doc looks unreachable — so orphans is not
+  // assessed at all (n=0 -> null), rather than fabricating a confident wave of
+  // false orphans. routedDirs may still be non-empty via non-root cross-links;
+  // that is exactly the trap this guard closes.
   let orphanCount = 0;
   let orphanCandidateTotal = 0;
-  for (const doc of walkRes.docs) {
-    if (doc.isRoot || doc.content === null) continue;
-    if (isFurniture(doc.relPath)) continue;
-    if (!underRoutedDir(doc.relPath)) continue;
-    orphanCandidateTotal++;   // eligible to be an orphan: this is the denominator population
-    if (!reached.has(doc.relPath)) { findings.push(f("orphan", doc.relPath, null, "in-scope doc unreachable from any routing root", doc.relPath, doc.relPath)); orphanCount++; }
+  if (resolvedRefsFromRoots > 0) {
+    for (const doc of walkRes.docs) {
+      if (doc.isRoot || doc.content === null) continue;
+      if (isFurniture(doc.relPath)) continue;
+      if (!underRoutedDir(doc.relPath)) continue;
+      orphanCandidateTotal++;   // eligible to be an orphan: this is the denominator population
+      if (!reached.has(doc.relPath)) { findings.push(f("orphan", doc.relPath, null, "in-scope doc unreachable from any routing root", doc.relPath, doc.relPath)); orphanCount++; }
+    }
   }
 
   return {
@@ -101,5 +131,6 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
     routingDriftCount: findings.filter((x) => x.category === "routing_drift").length,
     refsFromRoots,
     refsFromNonRoots,
+    resolvedRefsFromRoots,
   };
 }

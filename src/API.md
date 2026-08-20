@@ -75,10 +75,10 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
         "method": { "enum": ["claude_md", "git_root", "given_path"] }
       }
     },
-    "score": { "type": ["number", "null"], "description": "weighted mean of the assessed sub-scores, 0-100; null only when every sub-score is null (nothing in the repo was assessable) — never a fabricated composite" },
+    "score": { "type": ["number", "null"], "description": "weighted mean of the assessed sub-scores, 0-100; null when every sub-score is null (nothing assessable), and also when NO routing-layer sub-score (routing_drift/coverage/orphans) was assessed — a routing-health composite is not formed from hygiene sub-scores (broken_refs/bloat) alone. A coverage floor of 0 is a routing measurement and keeps the headline. Never a fabricated composite." },
     "subscores": {
       "type": "object",
-      "description": "bloat, orphans, broken_refs, routing_drift, coverage — each a { score, n } pair. `n` is the size of the population that sub-score actually assessed (e.g. classified edges checked, significant dirs judged, routing docs measured). `n === 0` means score is `null` (\"not assessed\") — an empty denominator is never reported as 100, and a null sub-score drops out of the headline's weighted mean instead of being treated as 0.",
+      "description": "bloat, orphans, broken_refs, routing_drift, coverage — each a { score, n } pair. `n` is the size of the population that sub-score actually assessed (e.g. classified edges checked, significant dirs judged, routing docs measured). `n === 0` means score is `null` (\"not assessed\") — an empty denominator is never reported as 100, and a null sub-score drops out of the headline's weighted mean instead of being treated as 0. Routing edges are recognized from BOTH `[text](path)` markdown links AND backtick code-span paths (`` `src/CONTEXT.md` ``); backtick paths are resolve-only (an edge only if the path exists), so a non-resolving backtick span is prose, never a broken_ref/routing_drift. `orphans` additionally reports null (not assessed) when the routing layer resolves zero edges from any root (`resolvedRefsFromRoots === 0`): with no routing basis, 'unreachable from a routing root' is vacuous, so orphans is not fabricated. `coverage` is NOT so guarded — it floors to 0 as a real assessed result when routing covers no significant directory.",
       "properties": {
         "bloat": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } },
         "orphans": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } },
@@ -94,7 +94,7 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
         "required": ["id", "category", "severity", "file", "line", "message", "evidence"],
         "properties": {
           "id": { "type": "string", "description": "stable hash of category + normalized path + discriminator; unchanged across runs while the finding persists" },
-          "category": { "enum": ["orphan", "broken_ref", "routing_drift", "malformed_link", "escapes_root", "coverage", "coverage_test", "bloat", "root_absent", "root_empty", "name_collision", "symlink", "skipped"] },
+          "category": { "enum": ["orphan", "broken_ref", "routing_drift", "malformed_link", "escapes_root", "coverage", "coverage_test", "bloat", "root_absent", "root_empty", "routing_unresolved", "name_collision", "symlink", "skipped"], "description": "routing_unresolved (info) fires when routing files are present but none of their references resolve — a possible unrecognized routing syntax, surfaced instead of hidden behind a confident score" },
           "severity": { "enum": ["info", "low", "medium", "high", "critical"] },
           "file": { "type": "string", "description": "path relative to the resolved root; trailing '/' for the directory-level coverage finding" },
           "line": { "type": ["number", "null"] },

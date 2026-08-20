@@ -63,23 +63,73 @@ test("TBD-12 coverage gate stays off end-to-end even when a significant dir is u
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("regression: routing_drift.score is null (n=0), not a fabricated 100, when a root doc references paths only via non-markdown-link text", async () => {
-  // This is the exact artifact the decision (planning/decisions/2026-08-20_subscore-confidence-signal.md)
-  // was written to fix: extractLinks only recognizes `[text](target)` markdown
-  // links as edges, so a root doc that mentions paths in backtick code-spans
-  // produces zero classified edges from roots (refsFromRoots === 0). Before
-  // this change, subscoreFromCount's empty-denominator branch reported 100
-  // ("clean") for a routing layer that was never actually checked.
+test("regression: routing_drift.score is null (n=0), not a fabricated 100, when a root's only path references do not resolve", async () => {
+  // Guards the confidence-signal decision (planning/decisions/2026-08-20_subscore-confidence-signal.md):
+  // a root whose routing references resolve to NOTHING must report routing_drift
+  // "not assessed" (n=0), never subscoreFromCount's empty-denominator 100. Now
+  // that backtick code-span paths ARE recognized (resolve-only), the way to reach
+  // refsFromRoots===0 is a reference that does not resolve — here a backtick path
+  // to a file that does not exist. That same condition also emits routing_unresolved.
   const dir = mkdtempSync(join(tmpdir(), "ca-regr-"));
   try {
-    writeFileSync(join(dir, "CLAUDE.md"), "root routes to `src/CONTEXT.md` for details, no markdown link here\n");
-    mkdirSync(join(dir, "src"));
-    writeFileSync(join(dir, "src", "CONTEXT.md"), "leaf\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes to `docs/ROUTING.md` (which does not exist)\n");
     const outcome = await runContextAudit({ path: dir });
     assert.equal(outcome.ok, true);
     if (!outcome.ok) return;
     assert.equal(outcome.result.subscores.routing_drift.score, null);
     assert.equal(outcome.result.subscores.routing_drift.n, 0);
     assert.match(outcome.result.rendered, /\| routing_drift \| not assessed \(n=0\) \|/);
+    // routers present, nothing resolves -> surfaced as info, not hidden.
+    assert.ok(outcome.result.findings.some((f) => f.category === "routing_unresolved"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("info finding when routers exist but zero references resolve (possible unrecognized routing syntax)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-unresolved-"));
+  try {
+    // A router is present, but nothing it references resolves (prose + a non-existent
+    // backtick path). This is the shape a future third routing syntax would produce;
+    // surface it every run instead of letting it read as a confident score.
+    writeFileSync(join(dir, "CLAUDE.md"), "Routing lives in `some/unrecognized/syntax` that does not resolve.\n");
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    const finding = outcome.result.findings.find((f) => f.category === "routing_unresolved");
+    assert.ok(finding, "must emit a routing_unresolved finding");
+    assert.equal(finding!.severity, "info");
+    assert.match(finding!.message, /routing files/i);
+    assert.match(finding!.message, /resolve/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("routing_unresolved does NOT fire when at least one router reference resolves", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-resolved-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src/CONTEXT.md`\n");
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "CONTEXT.md"), "leaf\n");
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    assert.ok(!outcome.result.findings.some((f) => f.category === "routing_unresolved"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("Condition 1: a repo with no CLAUDE.md and no CONTEXT.md does not score as healthy routing", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-noroot-"));
+  try {
+    // No routing layer at all. Non-root docs cross-link cleanly (broken_refs would
+    // read 100), but with no routing root the composite must NOT look healthy.
+    mkdirSync(join(dir, ".git"));
+    writeFileSync(join(dir, "a.md"), "a links [b](b.md)\n");
+    writeFileSync(join(dir, "b.md"), "b\n");
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    assert.equal(outcome.result.root.method, "git_root");
+    assert.ok(outcome.result.findings.some((f) => f.category === "root_absent"));
+    // The core assertion: no routing root => not a high "healthy" composite.
+    const s = outcome.result.score;
+    assert.ok(s === null || s < 50, `no-routing-root repo must not score healthy; got ${s}`);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

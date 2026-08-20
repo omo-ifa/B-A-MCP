@@ -101,3 +101,69 @@ test("denominator fields: refsFromRoots/refsFromNonRoots/orphanCandidateTotal/br
     assert.equal(g.orphanCount, 1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("backtick routing path resolves to an edge: routes a dir and reaches a doc", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-bt-edge-"));
+  try {
+    // Router uses backtick code-span paths (the real-world convention), NOT markdown links.
+    writeFileSync(join(dir, "CLAUDE.md"), "Read `src/CONTEXT.md` before working.\n");
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "CONTEXT.md"), "sub context, no links\n");
+    writeFileSync(join(dir, "src", "orphan.md"), "under a routed dir, never linked\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    // the backtick path is a real resolving edge from a root doc
+    assert.equal(g.resolvedRefsFromRoots, 1);
+    assert.ok(g.routedDirs.has("src"), "backtick edge must route src/");
+    // src/orphan.md is now a candidate (routed) and unreachable -> a real orphan
+    assert.equal(g.orphanCount, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("non-resolving backtick span is prose, never a broken_ref or routing_drift", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-bt-prose-"));
+  try {
+    // A path-shaped backtick span that does not resolve must be ignored, not flagged.
+    writeFileSync(join(dir, "CLAUDE.md"), "See `does/not/exist.md` and the `AuditResult` type.\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    assert.equal(g.brokenRefCount, 0);
+    assert.equal(g.routingDriftCount, 0);
+    assert.equal(g.resolvedRefsFromRoots, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("orphans guard: zero resolving edges from roots suppresses orphan enumeration", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-guard-"));
+  try {
+    // Reproduces the superpowers failure: the ROOT resolves no edges (prose only),
+    // but a NON-root doc has a resolving markdown link, which populated routedDirs
+    // and — pre-fix — made every doc under it a confident-wrong "orphan".
+    writeFileSync(join(dir, "CLAUDE.md"), "Prose only. Mentions `nothing-real.md` that does not exist.\n");
+    mkdirSync(join(dir, "docs"));
+    writeFileSync(join(dir, "docs", "a.md"), "a links [b](b.md)\n");   // non-root resolving edge -> routes docs/
+    writeFileSync(join(dir, "docs", "b.md"), "b\n");
+    writeFileSync(join(dir, "docs", "orphan.md"), "unreachable from any root\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    assert.equal(g.resolvedRefsFromRoots, 0, "root resolves no routing edges");
+    // guard: with no routing basis, orphans is not assessed — no phantom orphans
+    assert.equal(g.orphanCount, 0);
+    assert.equal(g.orphanCandidateTotal, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("orphans guard does NOT fire when the root resolves at least one edge", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-guard-off-"));
+  try {
+    // Root has a real resolving edge -> routing basis exists -> orphans assessed normally.
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `docs/CONTEXT.md`\n");
+    mkdirSync(join(dir, "docs"));
+    writeFileSync(join(dir, "docs", "CONTEXT.md"), "sub, no links\n");
+    writeFileSync(join(dir, "docs", "orphan.md"), "routed but unreachable\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    assert.equal(g.resolvedRefsFromRoots, 1);
+    assert.equal(g.orphanCount, 1, "a genuine orphan under a routed dir must still fire");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

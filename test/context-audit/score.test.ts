@@ -18,7 +18,7 @@ test("severity mapping matches design §4 (root_empty critical; broken_ref high;
   assert.equal(SEVERITY_BY_CATEGORY.malformed_link, "low");
 });
 
-test("severity mapping covers every FindingCategory (all 13, including coverage_test=medium, coverage=high)", () => {
+test("severity mapping covers every FindingCategory (all 14, including routing_unresolved=info, coverage_test=medium, coverage=high)", () => {
   const expected: Record<string, string> = {
     root_absent: "critical",
     root_empty: "critical",
@@ -30,12 +30,13 @@ test("severity mapping covers every FindingCategory (all 13, including coverage_
     coverage_test: "medium",
     malformed_link: "low",
     bloat: "low",
+    routing_unresolved: "info",
     name_collision: "info",
     symlink: "info",
     skipped: "info",
   };
   assert.deepEqual(SEVERITY_BY_CATEGORY, expected);
-  assert.equal(Object.keys(SEVERITY_BY_CATEGORY).length, 13);
+  assert.equal(Object.keys(SEVERITY_BY_CATEGORY).length, 14);
 });
 
 test("subscoreFromCount reports n and returns null (not 100) for an empty denominator", () => {

@@ -1,5 +1,7 @@
 # Decision — sub-score confidence signal (`n`), and no empty-denominator 100
 
+> **Amended 2026-08-20** by `2026-08-20_backtick-routing-edges-and-orphans-guard.md` for the **zero-edge case**: `orphans` now also nulls when the routing layer resolves zero edges from any root (`resolvedRefsFromRoots === 0`), even if its candidate population would be non-empty (extends "empty population → null" to "empty routing basis"). `coverage` is unchanged — it keeps the floor-to-0 described below (the guard is orphans-only). The headline additionally requires ≥1 routing-layer sub-score (`routing_drift`/`coverage`/`orphans`) to be assessed. See that record for the single, reconciled zero-edge ruling.
+
 **Date:** 2026-08-20
 **Status:** Resolved
 **Decider:** B&A (product owner)
