@@ -3,7 +3,7 @@ import { extractLinks } from "./links.js";
 import type { RawFinding } from "./types.js";
 import type { WalkResult } from "./walk.js";
 
-export interface BloatResult { subscore: number; routingTokens: number; findings: RawFinding[]; }
+export interface BloatResult { subscore: number | null; n: number; routingTokens: number; findings: RawFinding[]; }
 
 // TODO: TBD-11 — placeholder cutoffs; calibrate from the first dogfood run.
 // These are NOT resolved thresholds. char-approx-v1 tokens.
@@ -18,6 +18,7 @@ function low(file: string, message: string, evidence: string, discriminator: str
 
 export function scoreBloat(walk: WalkResult): BloatResult {
   const routers = walk.docs.filter((d) => d.isRoot && d.content !== null);
+  const n = routers.length;
   const findings: RawFinding[] = [];
   let routingTokens = 0;
   let penalty = 0;
@@ -50,6 +51,7 @@ export function scoreBloat(walk: WalkResult): BloatResult {
     penalty += Math.min(40, Math.floor((routingTokens - TBD_11_ROUTING_TOKEN_CUTOFF) / 1000) * 5);
   }
 
-  const subscore = Math.max(0, 100 - penalty);
-  return { subscore, routingTokens, findings };
+  // n === 0: no routing docs measured — not assessed, never a fabricated number.
+  const subscore = n === 0 ? null : Math.max(0, 100 - penalty);
+  return { subscore, n, routingTokens, findings };
 }

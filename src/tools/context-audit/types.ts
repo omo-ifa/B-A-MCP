@@ -5,7 +5,7 @@ export type Severity = "info" | "low" | "medium" | "high" | "critical";
 
 export type FindingCategory =
   | "orphan" | "broken_ref" | "routing_drift" | "malformed_link" | "escapes_root"
-  | "coverage" | "bloat" | "root_absent" | "root_empty"
+  | "coverage" | "coverage_test" | "bloat" | "root_absent" | "root_empty"
   | "name_collision" | "symlink" | "skipped";
 
 // Public finding shape (design §3 output contract — exactly these fields).
@@ -13,7 +13,7 @@ export interface Finding {
   id: string;
   category: FindingCategory;
   severity: Severity;
-  file: string;            // root-relative path; uncovered-dir path (trailing "/") for `coverage`
+  file: string;            // root-relative path; uncovered-dir path (trailing "/") for `coverage` or `coverage_test`
   line: number | null;
   message: string;
   evidence: string;        // the raw counted / moving value
@@ -34,12 +34,17 @@ export interface RawFinding {
   discriminator: string;
 }
 
+// A sub-score's confidence signal: `n` is the size of the population it
+// actually assessed. `n === 0` means "not assessed" and `score` MUST be
+// `null` in that case — never a fabricated 100 for an empty denominator.
+export interface Subscore { score: number | null; n: number }
+
 export interface Subscores {
-  bloat: number | null;
-  orphans: number | null;
-  broken_refs: number | null;
-  routing_drift: number | null;
-  coverage: number | null;
+  bloat: Subscore;
+  orphans: Subscore;
+  broken_refs: Subscore;
+  routing_drift: Subscore;
+  coverage: Subscore;
 }
 
 export interface AuditStats {
@@ -54,7 +59,7 @@ export interface AuditStats {
 
 export interface AuditResult {
   root: Root;
-  score: number;
+  score: number | null;
   subscores: Subscores;
   findings: Finding[];
   stats: AuditStats;

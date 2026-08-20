@@ -22,7 +22,7 @@ export const contextAuditTool = {
     required: ["root", "score", "subscores", "findings", "stats", "rendered"],
     properties: {
       root: { type: "object", required: ["path", "method"], properties: { path: { type: "string" }, method: { enum: ["claude_md", "git_root", "given_path"] } } },
-      score: { type: "number" },
+      score: { type: ["number", "null"] },
       subscores: { type: "object" },
       findings: { type: "array", items: { type: "object" } },
       stats: { type: "object" },
@@ -47,7 +47,7 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
   const w = walk(root);
   const g = buildGraph(root, w);
   const bloat = scoreBloat(w);
-  const coverage = scoreCoverage(root, w, g);   // emitHighFindings defaults off (TBD-12 build guard)
+  const coverage = scoreCoverage(root, w, g);   // emitCoverageFindings defaults off (TBD-12 build guard)
 
   const rawFindings: RawFinding[] = [...w.findings, ...g.findings, ...bloat.findings, ...coverage.findings];
 
@@ -63,12 +63,12 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
   }
 
   const subscores: Subscores = {
-    bloat: bloat.subscore,
-    // each sub-score's denominator is the population it is drawn from; subscoreFromCount returns 100 when that population is 0.
+    bloat: { score: bloat.subscore, n: bloat.n },
+    // each sub-score's denominator is the population it is drawn from; subscoreFromCount returns null (not assessed) when that population is 0.
     orphans: subscoreFromCount(g.orphanCount, g.orphanCandidateTotal),
     broken_refs: subscoreFromCount(g.brokenRefCount, g.refsFromNonRoots),
     routing_drift: subscoreFromCount(g.routingDriftCount, g.refsFromRoots),
-    coverage: coverage.subscore,
+    coverage: { score: coverage.subscore, n: coverage.n },
   };
 
   const findings = normalizeFindings(rawFindings);

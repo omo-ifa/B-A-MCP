@@ -75,16 +75,16 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
         "method": { "enum": ["claude_md", "git_root", "given_path"] }
       }
     },
-    "score": { "type": "number" },
+    "score": { "type": ["number", "null"], "description": "weighted mean of the assessed sub-scores, 0-100; null only when every sub-score is null (nothing in the repo was assessable) — never a fabricated composite" },
     "subscores": {
       "type": "object",
-      "description": "bloat, orphans, broken_refs, routing_drift, coverage — each 0-100 or null, 100 = healthy",
+      "description": "bloat, orphans, broken_refs, routing_drift, coverage — each a { score, n } pair. `n` is the size of the population that sub-score actually assessed (e.g. classified edges checked, significant dirs judged, routing docs measured). `n === 0` means score is `null` (\"not assessed\") — an empty denominator is never reported as 100, and a null sub-score drops out of the headline's weighted mean instead of being treated as 0.",
       "properties": {
-        "bloat": { "type": ["number", "null"] },
-        "orphans": { "type": ["number", "null"] },
-        "broken_refs": { "type": ["number", "null"] },
-        "routing_drift": { "type": ["number", "null"] },
-        "coverage": { "type": ["number", "null"] }
+        "bloat": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } },
+        "orphans": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } },
+        "broken_refs": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } },
+        "routing_drift": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } },
+        "coverage": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } }
       }
     },
     "findings": {
@@ -94,7 +94,7 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
         "required": ["id", "category", "severity", "file", "line", "message", "evidence"],
         "properties": {
           "id": { "type": "string", "description": "stable hash of category + normalized path + discriminator; unchanged across runs while the finding persists" },
-          "category": { "enum": ["orphan", "broken_ref", "routing_drift", "malformed_link", "escapes_root", "coverage", "bloat", "root_absent", "root_empty", "name_collision", "symlink", "skipped"] },
+          "category": { "enum": ["orphan", "broken_ref", "routing_drift", "malformed_link", "escapes_root", "coverage", "coverage_test", "bloat", "root_absent", "root_empty", "name_collision", "symlink", "skipped"] },
           "severity": { "enum": ["info", "low", "medium", "high", "critical"] },
           "file": { "type": "string", "description": "path relative to the resolved root; trailing '/' for the directory-level coverage finding" },
           "line": { "type": ["number", "null"] },
@@ -139,7 +139,7 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
 - **Never follows symlinks** — a symlink pointing at something in scope is recorded as a `symlink` finding, not traversed.
 - **Stateless / no cache** — a cold walk every invocation; same tree in, same score out.
 - **Tool owns rendering** — `rendered` is built by the tool from the structured result, never narrated by the agent.
-- **Stable severity scale** — the five-level `severity` enum (`info`/`low`/`medium`/`high`/`critical`) is a fixed contract so historical `export_record` artifacts stay comparable, even as the underlying rubric evolves.
+- **Stable severity scale** — the five-level `severity` enum (`info`/`low`/`medium`/`high`/`critical`) is a fixed contract so historical `export_record` artifacts stay comparable, even as the underlying rubric evolves. An uncovered significant **source** directory is category `coverage` (severity `high`); an uncovered significant **test** directory — any path segment named `test`/`tests`/`__tests__`/`spec`, case-insensitive — is the distinct category `coverage_test` (severity `medium`). See `planning/decisions/2026-08-20_test-dir-coverage-severity.md`. Both remain gated behind the TBD-12 build guard and emit nothing on the default (no-opts) path.
 - **Normalized ordering** — findings are emitted in normalized (sorted) path order so two identical audits produce identical records.
 
 ---

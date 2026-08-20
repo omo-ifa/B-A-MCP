@@ -7,13 +7,16 @@ export function renderAudit(result: Omit<AuditResult, "rendered">): string {
   const lines: string[] = [];
   lines.push(`# context_audit — routing health`);
   lines.push("");
-  lines.push(`**Score:** ${score}/100${stats.calibrated ? "" : "  _(uncalibrated — TBD-10/11/12 stubs active; not a published figure)_"}`);
+  const scoreText = score === null ? "not assessed" : `${score}/100`;
+  lines.push(`**Score:** ${scoreText}${stats.calibrated ? "" : "  _(uncalibrated — TBD-10/11/12 stubs active; not a published figure)_"}`);
   lines.push(`**Root:** \`${root.path}\` (resolved via \`${root.method}\`)`);
   if (root.method !== "claude_md") lines.push(`> Weaker claim: no root \`CLAUDE.md\` anchored this audit; resolved via \`${root.method}\`.`);
   lines.push("");
   lines.push(`| sub-score | value |`);
   lines.push(`|---|---|`);
-  for (const [k, v] of Object.entries(subscores)) lines.push(`| ${k} | ${v === null ? "N/A" : v} |`);
+  for (const [k, v] of Object.entries(subscores)) {
+    lines.push(`| ${k} | ${v.score === null ? `not assessed (n=${v.n})` : `${v.score} (n=${v.n})`} |`);
+  }
   lines.push("");
   for (const sev of ORDER) {
     const group = findings.filter((f) => f.severity === sev);

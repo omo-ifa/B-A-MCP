@@ -8,11 +8,11 @@ import { walk } from "../../src/tools/context-audit/walk.js";
 import { buildGraph } from "../../src/tools/context-audit/graph.js";
 import { scoreCoverage } from "../../src/tools/context-audit/coverage.js";
 
-function run(dir: string, emitHighFindings = false) {
+function run(dir: string, emitCoverageFindings = false) {
   const root = resolveRoot(dir);
   const w = walk(root);
   const g = buildGraph(root, w);
-  return scoreCoverage(root, w, g, { emitHighFindings });
+  return scoreCoverage(root, w, g, { emitCoverageFindings });
 }
 
 test("HIGH uncovered-workspace finding is gated: default off (TBD-12 build guard)", () => {
@@ -32,17 +32,32 @@ test("HIGH uncovered-workspace finding is gated: default off (TBD-12 build guard
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("coverage subscore floors to 0 when no root CLAUDE.md", () => {
+test("coverage subscore is null and n=0 when there is no root CLAUDE.md AND no significant dirs (D1 semantics regression)", () => {
+  // A bare git-root/given-path repo with nothing significant to judge must
+  // still return { subscore: null, n: 0 } — not a fabricated 0 from the
+  // noClaudeRoot branch. The n===0 early-return in scoreCoverage takes
+  // priority over the noClaudeRoot floor-to-zero, regardless of root method.
+  const dir = mkdtempSync(join(tmpdir(), "ca-cov-d1-"));
+  try {
+    mkdirSync(join(dir, ".git"));   // git root, no CLAUDE.md, no other dirs at all
+    const result = run(dir);
+    assert.deepEqual(result, { subscore: null, n: 0, findings: [] });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("coverage subscore floors to 0 when no root CLAUDE.md (n = significant dirs judged, a real assessed result)", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov2-"));
   try {
     mkdirSync(join(dir, ".git"));                 // git root, no CLAUDE.md
     mkdirSync(join(dir, "src"));
     for (let i = 0; i < 8; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");
-    assert.equal(run(dir).subscore, 0);
+    const result = run(dir);
+    assert.equal(result.subscore, 0);
+    assert.equal(result.n, 1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("coverage subscore is null (N/A) when a root CLAUDE.md exists but no directory is significant", () => {
+test("coverage subscore is null (not assessed) when a root CLAUDE.md exists but no directory is significant (n=0)", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov3-"));
   try {
     writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
@@ -52,6 +67,7 @@ test("coverage subscore is null (N/A) when a root CLAUDE.md exists but no direct
     for (let i = 0; i < 2; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");
     const result = run(dir);
     assert.equal(result.subscore, null);
+    assert.equal(result.n, 0);
     assert.equal(result.findings.length, 0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
@@ -74,13 +90,14 @@ test("coverage subscore is 100 and no findings when significant dirs are covered
     const g = buildGraph(root, w);
     assert.ok(g.routedDirs.has("src/b"), "sanity: root's directory link must route src/b");
 
-    const result = scoreCoverage(root, w, g, { emitHighFindings: true }); // gate ON: still nothing should fire
+    const result = scoreCoverage(root, w, g, { emitCoverageFindings: true }); // gate ON: still nothing should fire
     assert.equal(result.subscore, 100);
+    assert.equal(result.n, 2);   // src/a and src/b are both significant and judged
     assert.equal(result.findings.filter((f) => f.category === "coverage").length, 0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("gate is off by default when opts is omitted entirely (not just { emitHighFindings: false })", () => {
+test("gate is off by default when opts is omitted entirely (not just { emitCoverageFindings: false })", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov5-"));
   try {
     writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
@@ -127,5 +144,39 @@ test("gitignored significant directory is excluded from coverage's traversal sco
     // Only one significant dir is in scope (src/); it's uncovered, so subscore
     // is 0/1. If generated/ were still in scope the denominator would be 2.
     assert.equal(result.subscore, 0);
+    assert.equal(result.n, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("test-dir severity split: uncovered test dir -> coverage_test, uncovered source dir -> coverage, both gated off by default", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-cov-testdir-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
+
+    // uncovered significant TEST directory
+    mkdirSync(join(dir, "test", "foo"), { recursive: true });
+    for (let i = 0; i < 5; i++) writeFileSync(join(dir, "test", "foo", `f${i}.ts`), "x");
+
+    // uncovered significant SOURCE directory
+    mkdirSync(join(dir, "src"));
+    for (let i = 0; i < 8; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");
+
+    // gate OFF (default path, no opts at all) — neither severity fires
+    const root = resolveRoot(dir);
+    const w = walk(root);
+    const g = buildGraph(root, w);
+    const off = scoreCoverage(root, w, g);
+    assert.equal(off.findings.filter((f) => f.category === "coverage").length, 0);
+    assert.equal(off.findings.filter((f) => f.category === "coverage_test").length, 0);
+
+    // gate ON — the split is visible
+    const on = run(dir, true);
+    const testFinding = on.findings.find((f) => f.file === "test/foo/");
+    assert.ok(testFinding, "uncovered test/foo/ must produce a finding");
+    assert.equal(testFinding!.category, "coverage_test");
+
+    const srcFinding = on.findings.find((f) => f.file === "src/");
+    assert.ok(srcFinding, "uncovered src/ must produce a finding");
+    assert.equal(srcFinding!.category, "coverage");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

@@ -29,3 +29,19 @@ test("server calls context_audit over stdio and returns rendered + structuredCon
   assert.equal(res.content[0].text, res.structuredContent.rendered);
   await client.close();
 });
+
+test("calling an unknown tool name returns the structured UNKNOWN_TOOL error, not a thrown exception", async () => {
+  const transport = new StdioClientTransport({ command: "node", args: ["dist/src/index.js"] });
+  const client = new Client({ name: "b-a-mcp-test", version: "0.0.0" }, { capabilities: {} });
+  try {
+    await client.connect(transport);
+    const res: any = await client.callTool({ name: "not_a_real_tool", arguments: {} });
+    assert.equal(res.isError, true);
+    assert.equal(res.structuredContent, undefined);
+    const parsed = JSON.parse(res.content[0].text);
+    assert.equal(parsed.error.code, "UNKNOWN_TOOL");
+    assert.ok(typeof parsed.error.message === "string" && parsed.error.message.length > 0);
+  } finally {
+    await client.close();
+  }
+});
