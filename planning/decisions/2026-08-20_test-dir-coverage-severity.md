@@ -17,7 +17,7 @@ The first calibration run found `test/context-audit/` (11 source files, no `CONT
 
 1. An uncovered significant **source** directory → `coverage` finding, severity **`high`** (unchanged).
 2. An uncovered significant **test** directory → a distinct `coverage_test` finding, severity **`medium`**.
-3. **"Test directory"** is defined by path convention: the directory's path is under, or equal to, a top-level segment named `test`, `tests`, `__tests__`, or `spec` (case-insensitive). This is a heuristic, documented as such; it is not a threshold.
+3. **"Test directory"** is defined by path convention: **any** path segment of the directory's root-relative path is exactly (case-insensitive) `test`, `tests`, `__tests__`, or `spec` — so both a top-level `test/` and co-located tests such as `src/**/__tests__/` are classified as test directories. Co-located tests under a source tree are a common convention and should not be held to the source-directory severity bar; matching any segment (rather than only the top-level one) catches them. Segment match is exact, so a directory like `test-utils` (segment `test-utils`, not `test`) is not affected. This is a documented heuristic, not a threshold. *(Reconciled 2026-08-20 to match the implementation; an earlier draft said "top-level segment" only.)*
 4. Both variants remain **behind the TBD-12 build guard** — neither fires on the default path until the significance thresholds are calibrated. The gate flag is renamed `emitCoverageFindings` (was `emitHighFindings`) to reflect that the gated output is no longer uniformly `high`.
 
 ## Consequences
