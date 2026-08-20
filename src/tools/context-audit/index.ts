@@ -47,7 +47,7 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
   const w = walk(root);
   const g = buildGraph(root, w);
   const bloat = scoreBloat(w);
-  const coverage = scoreCoverage(root, w, g);   // emitHighFindings defaults off (TBD-12 build guard)
+  const coverage = scoreCoverage(root, w, g);   // emitCoverageFindings defaults off (TBD-12 build guard)
 
   const rawFindings: RawFinding[] = [...w.findings, ...g.findings, ...bloat.findings, ...coverage.findings];
 

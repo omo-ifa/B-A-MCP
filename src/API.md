@@ -94,7 +94,7 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
         "required": ["id", "category", "severity", "file", "line", "message", "evidence"],
         "properties": {
           "id": { "type": "string", "description": "stable hash of category + normalized path + discriminator; unchanged across runs while the finding persists" },
-          "category": { "enum": ["orphan", "broken_ref", "routing_drift", "malformed_link", "escapes_root", "coverage", "bloat", "root_absent", "root_empty", "name_collision", "symlink", "skipped"] },
+          "category": { "enum": ["orphan", "broken_ref", "routing_drift", "malformed_link", "escapes_root", "coverage", "coverage_test", "bloat", "root_absent", "root_empty", "name_collision", "symlink", "skipped"] },
           "severity": { "enum": ["info", "low", "medium", "high", "critical"] },
           "file": { "type": "string", "description": "path relative to the resolved root; trailing '/' for the directory-level coverage finding" },
           "line": { "type": ["number", "null"] },
@@ -139,7 +139,7 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
 - **Never follows symlinks** — a symlink pointing at something in scope is recorded as a `symlink` finding, not traversed.
 - **Stateless / no cache** — a cold walk every invocation; same tree in, same score out.
 - **Tool owns rendering** — `rendered` is built by the tool from the structured result, never narrated by the agent.
-- **Stable severity scale** — the five-level `severity` enum (`info`/`low`/`medium`/`high`/`critical`) is a fixed contract so historical `export_record` artifacts stay comparable, even as the underlying rubric evolves.
+- **Stable severity scale** — the five-level `severity` enum (`info`/`low`/`medium`/`high`/`critical`) is a fixed contract so historical `export_record` artifacts stay comparable, even as the underlying rubric evolves. An uncovered significant **source** directory is category `coverage` (severity `high`); an uncovered significant **test** directory — any path segment named `test`/`tests`/`__tests__`/`spec`, case-insensitive — is the distinct category `coverage_test` (severity `medium`). See `planning/decisions/2026-08-20_test-dir-coverage-severity.md`. Both remain gated behind the TBD-12 build guard and emit nothing on the default (no-opts) path.
 - **Normalized ordering** — findings are emitted in normalized (sorted) path order so two identical audits produce identical records.
 
 ---

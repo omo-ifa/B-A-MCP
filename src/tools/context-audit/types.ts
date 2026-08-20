@@ -5,7 +5,7 @@ export type Severity = "info" | "low" | "medium" | "high" | "critical";
 
 export type FindingCategory =
   | "orphan" | "broken_ref" | "routing_drift" | "malformed_link" | "escapes_root"
-  | "coverage" | "bloat" | "root_absent" | "root_empty"
+  | "coverage" | "coverage_test" | "bloat" | "root_absent" | "root_empty"
   | "name_collision" | "symlink" | "skipped";
 
 // Public finding shape (design §3 output contract — exactly these fields).

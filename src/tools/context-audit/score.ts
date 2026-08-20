@@ -8,7 +8,7 @@ export function findingId(category: FindingCategory, normalizedPath: string, dis
 export const SEVERITY_BY_CATEGORY: Record<FindingCategory, Severity> = {
   root_absent: "critical", root_empty: "critical",   // design §4 (flagged: §3 says empty=high)
   broken_ref: "high", routing_drift: "high", coverage: "high",
-  orphan: "medium", escapes_root: "medium",
+  orphan: "medium", escapes_root: "medium", coverage_test: "medium",   // decision: 2026-08-20_test-dir-coverage-severity.md
   malformed_link: "low", bloat: "low",
   name_collision: "info", symlink: "info", skipped: "info",
 };
@@ -34,8 +34,9 @@ export function normalizeFindings(raw: RawFinding[]): Finding[] {
 }
 
 export function subscoreFromCount(bad: number, total: number): Subscore {
-  // total <= 0: nothing was assessed — n=0, score=null, never a fabricated 100.
-  return { score: total <= 0 ? null : Math.round(100 * (1 - bad / total)), n: total };
+  // total === 0: nothing was assessed — n=0, score=null, never a fabricated 100.
+  // (exact-fidelity check: counts are asserted non-negative upstream, so total < 0 cannot occur.)
+  return { score: total === 0 ? null : Math.round(100 * (1 - bad / total)), n: total };
 }
 
 // TODO: TBD-10 — placeholder weights; calibrate from the first dogfood run.

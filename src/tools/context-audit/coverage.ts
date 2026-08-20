@@ -54,6 +54,18 @@ function listDirs(rootPath: string): { rel: string; fileCount: number; hasContex
   return out;
 }
 
+// A directory is a "test directory" when its root-relative path is equal to,
+// or nested under, a path segment named test/tests/__tests__/spec
+// (case-insensitive) — i.e. ANY segment of the path matches, not just the
+// top-level one. This is a path-convention heuristic, not a threshold:
+// decision 2026-08-20_test-dir-coverage-severity.md. It only changes the
+// severity of an uncovered-significant-dir finding (`coverage_test` vs
+// `coverage`) — it never exempts a directory from significance or coverage.
+const TEST_DIR_SEGMENTS = new Set(["test", "tests", "__tests__", "spec"]);
+export function isTestDir(relPath: string): boolean {
+  return relPath.split("/").some((seg) => TEST_DIR_SEGMENTS.has(seg.toLowerCase()));
+}
+
 function isSignificant(dir: { rel: string; fileCount: number }, rootPath: string): boolean {
   // TODO: TBD-12 — provisional: a directory with >= MIN_FILES source files.
   try {
@@ -63,7 +75,7 @@ function isSignificant(dir: { rel: string; fileCount: number }, rootPath: string
   } catch { return false; }
 }
 
-export function scoreCoverage(root: Root, _walk: WalkResult, graph: GraphResult, opts?: { emitHighFindings?: boolean }): CoverageResult {
+export function scoreCoverage(root: Root, _walk: WalkResult, graph: GraphResult, opts?: { emitCoverageFindings?: boolean }): CoverageResult {
   const noClaudeRoot = root.method !== "claude_md";
   const dirs = listDirs(root.path).filter((d) => isSignificant(d, root.path));
   const findings: RawFinding[] = [];
@@ -77,9 +89,18 @@ export function scoreCoverage(root: Root, _walk: WalkResult, graph: GraphResult,
   for (const d of dirs) {
     const isCovered = d.hasContext || graph.routedDirs.has(d.rel) || [...graph.routedDirs].some((r) => r !== "" && d.rel.startsWith(r + "/"));
     if (isCovered) { covered++; continue; }
-    // uncovered significant workspace -> HIGH, gated behind TBD-12 build guard
-    if (opts?.emitHighFindings) {   // TODO: TBD-12 — do not enable until calibrated
-      findings.push({ category: "coverage", file: d.rel + "/", line: null, message: "significant source directory has no routing coverage", evidence: `files=${d.fileCount}`, discriminator: d.rel + "/" });
+    // uncovered significant workspace -> coverage (source, high) or
+    // coverage_test (test dir, medium); both gated behind TBD-12 build guard.
+    if (opts?.emitCoverageFindings) {   // TODO: TBD-12 — do not enable until calibrated
+      const testDir = isTestDir(d.rel);
+      findings.push({
+        category: testDir ? "coverage_test" : "coverage",
+        file: d.rel + "/",
+        line: null,
+        message: testDir ? "significant test directory has no routing coverage" : "significant source directory has no routing coverage",
+        evidence: `files=${d.fileCount}`,
+        discriminator: d.rel + "/",
+      });
     }
   }
   // dirs.length > 0 here: this is a real assessed result even when it floors
