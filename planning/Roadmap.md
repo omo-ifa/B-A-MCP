@@ -15,7 +15,7 @@ Phases and dependency order. Read before starting a phase or choosing the next b
 - Set `[DATE]` targets here and in `CLAUDE.md`.
 
 **Build order (most bounded first):**
-1. `context_audit` — the acquisition hook. Reads the real `CLAUDE.md` / `CONTEXT.md` tree, scores routing bloat, orphan docs, drift. Well-bounded; build first.
+1. `context_audit` — the acquisition hook. Reads the real `CLAUDE.md` / `CONTEXT.md` tree, scores routing bloat, orphan docs, drift. Well-bounded; build first. **Status (2026-08-20): built, live, and registered** (merged PRs #1–#3, 50/50 tests). Remaining before it is "done": resolve `TBD-10/11/12` thresholds from ≥2–3 hyperlink-routed calibration repos, then the README sample. No phase shift — `override_log` is still next.
 2. `override_log` — the differentiation hook. Largely template generation from the guidance-with-override model.
 3. `doc_drift` — the retention hook. **Least bounded (TBD-9).** Parsing migrations and routes across arbitrary frameworks. If it resists, cut to Phase 2 and ship two tools — the acquisition and differentiation hooks survive.
 4. Build step: generate `.claude/commands/` from `prompts/`.
