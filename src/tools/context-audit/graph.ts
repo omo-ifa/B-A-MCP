@@ -14,6 +14,7 @@ export interface GraphResult {
   refsFromRoots: number;          // classified edges existence-checked whose source doc is a root
   refsFromNonRoots: number;       // classified edges existence-checked whose source doc is not a root
   resolvedRefsFromRoots: number;  // subset of refsFromRoots that resolve to an existing path — the routing basis
+  routerEdges: Map<string, Set<string>>;   // isRoot -> isRoot resolved edges: the routing DAG (for bloat's root->leaf chains)
 }
 
 const FURNITURE = new Set(["readme.md", "changelog.md", "contributing.md", "license.md", "security.md", "code_of_conduct.md"]);
@@ -76,13 +77,28 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
         // root-relative in the wild (e.g. src/CONTEXT.md referencing `src/API.md`).
         // Count the span at most once (doc-relative preferred).
         const rootRel = classifyLink(raw, "");   // as if the doc sat at the repo root
-        for (const cand of [link, rootRel]) {
+        const cands = [link, rootRel];
+        let resolved = false;
+        for (const cand of cands) {
           if (cand.kind !== "edge" || cand.targetPath === null) continue;
           const targetAbs = join(root.path, cand.targetPath);
           if (!existsSync(targetAbs)) continue;
-          if (doc.isRoot) { refsFromRoots++; resolvedRefsFromRoots++; } else refsFromNonRoots++;
+          refsFromRoots++; resolvedRefsFromRoots++;   // doc.isRoot guaranteed above
           recordResolvedTarget(doc.relPath, cand.targetPath, targetAbs);
+          resolved = true;
           break;   // count the span at most once
+        }
+        if (resolved) continue;
+        // Router-path drift (decision 2026-08-20_router-path-drift.md): a path-shaped
+        // backtick in a ROUTER that resolves to nothing is a broken route, not prose.
+        // Count it toward routing_drift's denominator and flag it under its own
+        // category so unresolvable router paths tally separately from broken
+        // markdown links. Only in-repo relative candidates (kind "edge") qualify —
+        // escapes-root / external spans are not routes.
+        const missing = cands.find((c) => c.kind === "edge" && c.targetPath !== null);
+        if (missing) {
+          refsFromRoots++;
+          findings.push(f("routing_path_missing", doc.relPath, missing.line, "router path does not resolve to an existing file", missing.targetPath!, missing.targetPath!));
         }
         continue;
       }
@@ -136,15 +152,29 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
     }
   }
 
+  // router->router adjacency: the subset of resolved doc edges where both endpoints
+  // are routers (isRoot). This is the routing DAG bloat walks for root->leaf chains.
+  const routerEdges = new Map<string, Set<string>>();
+  for (const [src, tgts] of edges) {
+    if (!docByPath.get(src)?.isRoot) continue;
+    for (const t of tgts) {
+      if (!docByPath.get(t)?.isRoot) continue;
+      if (!routerEdges.has(src)) routerEdges.set(src, new Set());
+      routerEdges.get(src)!.add(t);
+    }
+  }
+
   return {
     findings,
     routedDirs,
     orphanCount,
     orphanCandidateTotal,
     brokenRefCount: findings.filter((x) => x.category === "broken_ref").length,
-    routingDriftCount: findings.filter((x) => x.category === "routing_drift").length,
+    // drift = broken router markdown links + unresolvable path-shaped router backticks
+    routingDriftCount: findings.filter((x) => x.category === "routing_drift" || x.category === "routing_path_missing").length,
     refsFromRoots,
     refsFromNonRoots,
     resolvedRefsFromRoots,
+    routerEdges,
   };
 }

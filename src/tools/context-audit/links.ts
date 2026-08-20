@@ -18,6 +18,7 @@ const BACKTICK_RE = /`([^`\n]+)`/g;
 function isBacktickPathCandidate(raw: string): boolean {
   const t = raw.trim();
   if (t === "" || /\s/.test(t)) return false;
+  if (t.startsWith("-")) return false;   // flags/options (e.g. `--out=x/y`) are not routes
   return t.includes("/") || /\.md$/i.test(t);
 }
 

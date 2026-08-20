@@ -63,24 +63,36 @@ test("TBD-12 coverage gate stays off end-to-end even when a significant dir is u
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("regression: routing_drift.score is null (n=0), not a fabricated 100, when a root's only path references do not resolve", async () => {
+test("regression: routing_drift.score is null (n=0), not a fabricated 100, when a router has NO path references at all", async () => {
   // Guards the confidence-signal decision (planning/decisions/2026-08-20_subscore-confidence-signal.md):
-  // a root whose routing references resolve to NOTHING must report routing_drift
-  // "not assessed" (n=0), never subscoreFromCount's empty-denominator 100. Now
-  // that backtick code-span paths ARE recognized (resolve-only), the way to reach
-  // refsFromRoots===0 is a reference that does not resolve — here a backtick path
-  // to a file that does not exist. That same condition also emits routing_unresolved.
+  // a router with nothing to check must report routing_drift "not assessed" (n=0),
+  // never subscoreFromCount's empty-denominator 100. Under router-path-drift, a
+  // non-resolving path IS drift, so the only way to reach refsFromRoots===0 is a
+  // router that references no paths at all (pure prose). That also emits
+  // routing_unresolved (routers present, nothing resolves).
   const dir = mkdtempSync(join(tmpdir(), "ca-regr-"));
   try {
-    writeFileSync(join(dir, "CLAUDE.md"), "root routes to `docs/ROUTING.md` (which does not exist)\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "Routing conventions are described here in prose, with no paths.\n");
     const outcome = await runContextAudit({ path: dir });
     assert.equal(outcome.ok, true);
     if (!outcome.ok) return;
     assert.equal(outcome.result.subscores.routing_drift.score, null);
     assert.equal(outcome.result.subscores.routing_drift.n, 0);
     assert.match(outcome.result.rendered, /\| routing_drift \| not assessed \(n=0\) \|/);
-    // routers present, nothing resolves -> surfaced as info, not hidden.
     assert.ok(outcome.result.findings.some((f) => f.category === "routing_unresolved"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("router-path drift: a router whose only path reference is missing scores routing_drift 0 (assessed), not null", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-drift0-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "See `docs/ROUTING.md` for details.\n");   // path-shaped, does not exist
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    assert.equal(outcome.result.subscores.routing_drift.score, 0);   // the one router path is broken
+    assert.equal(outcome.result.subscores.routing_drift.n, 1);
+    assert.ok(outcome.result.findings.some((f) => f.category === "routing_path_missing"));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -131,5 +143,49 @@ test("Condition 1: a repo with no CLAUDE.md and no CONTEXT.md does not score as 
     // The core assertion: no routing root => not a high "healthy" composite.
     const s = outcome.result.score;
     assert.ok(s === null || s < 50, `no-routing-root repo must not score healthy; got ${s}`);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("four scored sub-scores (broken_refs removed); a non-router broken link is an info finding", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-four-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `docs/CONTEXT.md`\n");
+    mkdirSync(join(dir, "docs"));
+    writeFileSync(join(dir, "docs", "CONTEXT.md"), "leaf\n");
+    writeFileSync(join(dir, "docs", "guide.md"), "a non-router doc with a [broken](nope.md) link\n");   // broken_ref (info), unscored
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    assert.deepEqual(Object.keys(outcome.result.subscores).sort(), ["bloat", "coverage", "orphans", "routing_drift"]);
+    const br = outcome.result.findings.find((f) => f.category === "broken_ref");
+    assert.ok(br, "non-router broken link is still reported");
+    assert.equal(br!.severity, "info");   // reported, not scored
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("headline invariant: no routers + a significant directory => definite low number, never null", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-inv-sig-"));
+  try {
+    mkdirSync(join(dir, ".git"));
+    mkdirSync(join(dir, "src"));
+    for (let i = 0; i < 8; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");   // one significant dir, uncovered
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    assert.equal(outcome.result.root.method, "git_root");
+    assert.notEqual(outcome.result.score, null, "a repo with real dirs but no routing must score, not go null");
+    assert.ok((outcome.result.score as number) < 50, "and it must score low (worst case)");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("headline invariant: no routers + no significant directory => null is acceptable (nothing to route)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-inv-nosig-"));
+  try {
+    mkdirSync(join(dir, ".git"));
+    writeFileSync(join(dir, "README.md"), "just docs, nothing to route\n");
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    assert.equal(outcome.result.score, null);   // 0 significant dirs -> null is honest
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

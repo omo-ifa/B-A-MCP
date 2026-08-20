@@ -120,16 +120,20 @@ test("backtick routing path resolves to an edge: routes a dir and reaches a doc"
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("non-resolving backtick span is prose, never a broken_ref or routing_drift", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ca-bt-prose-"));
+test("router path-shaped backtick that resolves to nothing is routing_path_missing (drift), never a broken_ref", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-bt-drift-"));
   try {
-    // A path-shaped backtick span that does not resolve must be ignored, not flagged.
+    // In a ROUTER doc, a path-shaped backtick that doesn't resolve is a broken
+    // route (decision 2026-08-20_router-path-drift.md), counted as drift. A
+    // non-path-shaped span (`AuditResult`) stays prose.
     writeFileSync(join(dir, "CLAUDE.md"), "See `does/not/exist.md` and the `AuditResult` type.\n");
     const root = resolveRoot(dir);
     const g = buildGraph(root, walk(root));
-    assert.equal(g.brokenRefCount, 0);
-    assert.equal(g.routingDriftCount, 0);
-    assert.equal(g.resolvedRefsFromRoots, 0);
+    assert.equal(g.brokenRefCount, 0);                 // routers never emit broken_ref
+    assert.equal(g.resolvedRefsFromRoots, 0);          // nothing resolved
+    assert.equal(g.refsFromRoots, 1);                  // one attempted router route (the .md path); `AuditResult` stayed prose
+    assert.equal(g.routingDriftCount, 1);              // the unresolvable router path counts as drift
+    assert.equal(g.findings.filter((f) => f.category === "routing_path_missing").length, 1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -139,7 +143,7 @@ test("orphans guard: zero resolving edges from roots suppresses orphan enumerati
     // Reproduces the superpowers failure: the ROOT resolves no edges (prose only),
     // but a NON-root doc has a resolving markdown link, which populated routedDirs
     // and — pre-fix — made every doc under it a confident-wrong "orphan".
-    writeFileSync(join(dir, "CLAUDE.md"), "Prose only. Mentions `nothing-real.md` that does not exist.\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "Prose only. Mentions `nothing-real` (not path-shaped, stays prose).\n");
     mkdirSync(join(dir, "docs"));
     writeFileSync(join(dir, "docs", "a.md"), "a links [b](b.md)\n");   // non-root resolving edge -> routes docs/
     writeFileSync(join(dir, "docs", "b.md"), "b\n");

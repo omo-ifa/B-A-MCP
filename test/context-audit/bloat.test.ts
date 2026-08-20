@@ -30,15 +30,44 @@ test("zero routing docs measured -> subscore is null (not assessed), n is 0", ()
   assert.equal(res.subscore, null);
 });
 
-test("routing_token_weight finding attributes to the top router (not hardcoded CLAUDE.md)", () => {
-  // Create a router with > 4000 tokens (16000+ chars at 4 chars/token)
-  const content = "x".repeat(16500);
+test("a large SINGLE router (> per-router cutoff) emits router_token_weight attributed to that router", () => {
+  const content = "x".repeat(16500);   // 4125 tokens > 3000 per-router cutoff
   const res = scoreBloat(wr([
     { relPath: "planning/CONTEXT.md", content, isRoot: true },
   ]));
-  assert.ok(res.routingTokens > 4000);
-  const finding = res.findings.find((f) => f.discriminator === "routing_token_weight");
-  assert.ok(finding, "routing_token_weight finding should exist");
-  assert.equal(finding.file, "planning/CONTEXT.md", "finding should attribute to the top router, not CLAUDE.md");
-  assert.ok(finding.evidence.includes(String(res.routingTokens)), "evidence should contain the token count");
+  const finding = res.findings.find((f) => f.discriminator === "router_token_weight");
+  assert.ok(finding, "router_token_weight finding should exist");
+  assert.equal(finding.file, "planning/CONTEXT.md");
+  assert.ok(finding.evidence.includes("4125"), "evidence should carry the per-router token count");
+});
+
+test("bloat is per root->leaf CHAIN, not a flat total: small routers, heavy chain -> routing_chain_weight", () => {
+  // Three routers each UNDER the per-router cutoff, but a chain that sums over the
+  // chain cutoff. A flat total would have penalized 'many routers'; the chain metric
+  // penalizes the cost of following one path. routerEdges wires the DAG.
+  const each = "y".repeat(2800 * 4);   // 2800 tokens each (< 3000 per-router cutoff)
+  const res = scoreBloat(wr([
+    { relPath: "CLAUDE.md", content: each, isRoot: true },
+    { relPath: "a/CONTEXT.md", content: each, isRoot: true },
+    { relPath: "a/b/CONTEXT.md", content: each, isRoot: true },
+  ]), new Map([
+    ["CLAUDE.md", new Set(["a/CONTEXT.md"])],
+    ["a/CONTEXT.md", new Set(["a/b/CONTEXT.md"])],
+  ]));
+  assert.equal(res.findings.filter((f) => f.discriminator === "router_token_weight").length, 0, "no single router is over the per-router cutoff");
+  const chain = res.findings.find((f) => f.discriminator === "routing_chain_weight");
+  assert.ok(chain, "the heavy root->leaf chain must emit routing_chain_weight");
+  assert.ok(chain.evidence.includes("8400"), "chain sum = 2800 * 3");
+});
+
+test("chain metric is cycle-safe: two routers referencing each other do not loop", () => {
+  const each = "z".repeat(400);   // 100 tokens each
+  const res = scoreBloat(wr([
+    { relPath: "CLAUDE.md", content: each, isRoot: true },
+    { relPath: "a/CONTEXT.md", content: each, isRoot: true },
+  ]), new Map([
+    ["CLAUDE.md", new Set(["a/CONTEXT.md"])],
+    ["a/CONTEXT.md", new Set(["CLAUDE.md"])],   // cycle
+  ]));
+  assert.ok(res.subscore !== null && res.subscore >= 0 && res.subscore <= 100);   // terminates, valid score
 });

@@ -4,7 +4,7 @@ export interface Root { path: string; method: RootMethod; }
 export type Severity = "info" | "low" | "medium" | "high" | "critical";
 
 export type FindingCategory =
-  | "orphan" | "broken_ref" | "routing_drift" | "malformed_link" | "escapes_root"
+  | "orphan" | "broken_ref" | "routing_drift" | "routing_path_missing" | "malformed_link" | "escapes_root"
   | "coverage" | "coverage_test" | "bloat" | "root_absent" | "root_empty"
   | "routing_unresolved" | "name_collision" | "symlink" | "skipped";
 
@@ -39,10 +39,11 @@ export interface RawFinding {
 // `null` in that case — never a fabricated 100 for an empty denominator.
 export interface Subscore { score: number | null; n: number }
 
+// Four scored sub-scores (broken_refs removed 2026-08-20 — it duplicated
+// routing_drift; non-router broken links are now info findings only).
 export interface Subscores {
   bloat: Subscore;
   orphans: Subscore;
-  broken_refs: Subscore;
   routing_drift: Subscore;
   coverage: Subscore;
 }
