@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-test("packed tarball installs and the installed bin lists zero tools", async () => {
+test("packed tarball installs and the installed bin lists one tool", async () => {
   const projectRoot = process.cwd();
 
   // Pack the current package into a temp dir.
@@ -42,7 +42,8 @@ test("packed tarball installs and the installed bin lists zero tools", async () 
     await client.connect(transport);
     connected = true;
     const { tools } = await client.listTools();
-    assert.deepEqual(tools, []);
+    assert.equal(tools.length, 1);
+    assert.equal(tools[0].name, "context_audit");
   } finally {
     if (connected) {
       try {

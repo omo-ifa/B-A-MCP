@@ -1,7 +1,7 @@
 # Design Doc — `context_audit`
 
 **Date:** 2026-08-18
-**Status:** Draft — awaiting review
+**Status:** Approved — 2026-08-18 (design-review pass ruled three leaf clarifications in §3: non-file finding `file`, MCP result shape, case-insensitive basename match; no Resolved decision or stub reopened)
 **Author:** B&A Solutions
 **Feature:** `context_audit` (Phase 1, free tool #1 — the acquisition hook)
 
@@ -47,6 +47,7 @@ A pure MCP **tool** (not a prompt), invoked by the model when a developer asks t
 
 Enumerate in-scope docs under the resolved root:
 - **Scope:** markdown only for v1 — `.md`, plus `AGENTS.md` and `CLAUDE.md` by name.
+- **Filename matching is case-insensitive on the basename.** The structural names (`CLAUDE.md`, `AGENTS.md`, `CONTEXT.md`), the repo-furniture orphan denylist, and the `.claude/commands/` skip all match by basename case-insensitively, so the tool scores identically on a case-insensitive filesystem (macOS, the build platform) and a case-sensitive one (Linux CI). Where a case-sensitive filesystem holds two distinct files whose basenames collide under one structural name (e.g. `CLAUDE.md` and `claude.md` in one directory — impossible on a case-insensitive FS), both are treated as roots — their union only adds reachability and drift checks, never hides a finding — and an `info`-severity finding records the collision. Determinism holds via the normalized (sorted) path ordering already required below.
 - **Respect `.gitignore`.**
 - **Hard-skip regardless:** `.git/`, `node_modules/`, `dist/`, `build/`, `vendor/`, `.venv/`, `target/`, and any dotdir except `.claude/` and `.github/`.
 - **Skip `.claude/commands/`** — generated from `prompts/`; reading it as authored routing double-counts.
@@ -97,6 +98,8 @@ The return value is one **structured JSON object**; the human-readable summary i
 ```
 
 - **`line`** is nullable — some findings are file- or directory-level.
+- **`file` on a non-file finding.** `file` always holds a path relative to the resolved root. Document-anchored findings — `orphan`, `broken_ref`, `routing_drift`, `malformed_link`, `escapes_root`, and the bloat token-weight / inline-ratio warnings — set `file` to the doc they concern; `line` is the link's line for the link-bearing categories (`broken_ref`, `routing_drift`, `malformed_link`, `escapes_root`) and `null` for the whole-file ones (`orphan`, bloat warnings). `escapes_root` is document-anchored despite naming a target outside root: `file` is the in-scope doc holding the escaping link and `line` its line, while the escaped or absolute target lives only in `evidence` and is never opened. The one genuinely directory-level category — the uncovered-significant-workspace coverage finding — sets `file` to the uncovered directory's path (with a trailing `/`) and `line` to `null`. This preserves the `id` rule: the normalized-path component is `file` and the discriminator is the unresolved/escaped target or the uncovered directory path, both drawn from the directory walk — never a measured value, never a source-file read.
+- **MCP result shape.** Both halves ride in one `CallToolResult`: the full JSON object above is returned as **`structuredContent`** (the tool declares a matching **`outputSchema`**), and the `rendered` markdown is returned as a **`text` content block** — the always-displayable surface a text-only client shows, which is what satisfies *tool owns rendering; agent displays verbatim*. The `rendered` field is retained inside the structured object as well, so a structure-aware client (and a persisted `export_record`) reproduces the exact document a text-only client displayed. This needs the SDK/spec revision that carries `structuredContent` + `outputSchema` (MCP `2025-06-18`, `@modelcontextprotocol/sdk` ≥ 1.13.0); the build pins that floor in `package.json` in the same commit as the tool. A structured error uses the standard error envelope returned as a `text` block, with no `structuredContent`.
 - **`evidence`** carries the raw counted thing (a token count, an unresolved path, the referencing file). This is what makes the score unfakeable once persisted and what an auditor reading an exported record needs.
 - **`severity`** — fixed five-level enum, part of the contract (not the rubric): `info` / `low` / `medium` / `high` / `critical`. The scale is stable so historical `export_record` artifacts stay comparable; *which* severity a finding type carries is a rubric matter (below).
 - **`id`** — a stable hash of `category + normalized-path + stable-discriminator` (the discriminator is the target: an unresolved link path, an uncovered directory), never a measured value — so an unchanged finding keeps its id across runs while its severity and evidence move, and record diffs read as "still present, worse" rather than delete+add.
@@ -105,7 +108,7 @@ The return value is one **structured JSON object**; the human-readable summary i
 ### Failure & degradation
 
 - **`NO_ROUTING_ROOT`** error only for a genuine failure of the *target*: path doesn't exist, isn't a directory, or isn't readable at all. Absence of docs is a finding, not an error.
-- **Degrade, never abort.** A mid-walk failure (unreadable file, non-UTF8/binary named `.md`, empty `CLAUDE.md`, malformed link) is recorded and scored around, never fatal. Unreadable files are excluded from scoring denominators so they can't silently drag the score; an empty `CLAUDE.md` is a high-severity finding (a root that exists and is empty is worse than absent — it looks handled).
+- **Degrade, never abort.** A mid-walk failure (unreadable file, non-UTF8/binary named `.md`, empty `CLAUDE.md`, malformed link) is recorded and scored around, never fatal. Unreadable files are excluded from scoring denominators so they can't silently drag the score; an empty `CLAUDE.md` is a **critical**-severity finding — a root that exists but is empty is *worse* than one that is absent, because it looks handled — matching §4's mapping, where both an absent and an empty root are `critical`.
 - Errors use the standard structured envelope from `CLAUDE.md`; no infrastructure detail is ever surfaced.
 
 ### Determinism & invariants
