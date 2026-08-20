@@ -8,35 +8,37 @@ test("finding id is stable across runs and independent of measured values", () =
   assert.notEqual(findingId("broken_ref", "src/CONTEXT.md", "a.md"), findingId("broken_ref", "src/CONTEXT.md", "b.md"));
 });
 
-test("severity mapping matches design §4 (root_empty critical; broken_ref high; orphan medium)", () => {
+test("severity mapping matches design §4 (root_empty critical; routing_drift high; broken_ref now info; orphan medium)", () => {
   assert.equal(SEVERITY_BY_CATEGORY.root_empty, "critical");
   assert.equal(SEVERITY_BY_CATEGORY.root_absent, "critical");
-  assert.equal(SEVERITY_BY_CATEGORY.broken_ref, "high");
+  assert.equal(SEVERITY_BY_CATEGORY.broken_ref, "info");   // 2026-08-20: non-router broken links reported, not scored
   assert.equal(SEVERITY_BY_CATEGORY.routing_drift, "high");
+  assert.equal(SEVERITY_BY_CATEGORY.routing_path_missing, "high");   // unresolvable router path = drift
   assert.equal(SEVERITY_BY_CATEGORY.orphan, "medium");
   assert.equal(SEVERITY_BY_CATEGORY.escapes_root, "medium");
   assert.equal(SEVERITY_BY_CATEGORY.malformed_link, "low");
 });
 
-test("severity mapping covers every FindingCategory (all 14, including routing_unresolved=info, coverage_test=medium, coverage=high)", () => {
+test("severity mapping covers every FindingCategory (all 15, incl. routing_path_missing=high, broken_ref=info)", () => {
   const expected: Record<string, string> = {
     root_absent: "critical",
     root_empty: "critical",
-    broken_ref: "high",
     routing_drift: "high",
+    routing_path_missing: "high",
     coverage: "high",
     orphan: "medium",
     escapes_root: "medium",
     coverage_test: "medium",
     malformed_link: "low",
     bloat: "low",
+    broken_ref: "info",
     routing_unresolved: "info",
     name_collision: "info",
     symlink: "info",
     skipped: "info",
   };
   assert.deepEqual(SEVERITY_BY_CATEGORY, expected);
-  assert.equal(Object.keys(SEVERITY_BY_CATEGORY).length, 14);
+  assert.equal(Object.keys(SEVERITY_BY_CATEGORY).length, 15);
 });
 
 test("subscoreFromCount reports n and returns null (not 100) for an empty denominator", () => {
@@ -48,7 +50,6 @@ test("headlineScore drops a null sub-score and renormalizes over the rest", () =
   const s = headlineScore({
     bloat: { score: 80, n: 1 },
     orphans: { score: 100, n: 5 },
-    broken_refs: { score: 100, n: 5 },
     routing_drift: { score: 100, n: 5 },
     coverage: { score: null, n: 0 },
   });
@@ -59,7 +60,6 @@ test("headlineScore returns null (not 0) when every sub-score is null — no fab
   const s = headlineScore({
     bloat: { score: null, n: 0 },
     orphans: { score: null, n: 0 },
-    broken_refs: { score: null, n: 0 },
     routing_drift: { score: null, n: 0 },
     coverage: { score: null, n: 0 },
   });
@@ -68,11 +68,12 @@ test("headlineScore returns null (not 0) when every sub-score is null — no fab
 
 test("normalizeFindings assigns ids and sorts by severity", () => {
   const raw: RawFinding[] = [
-    { category: "orphan", file: "b.md", line: null, message: "", evidence: "b.md", discriminator: "b.md" },
     { category: "broken_ref", file: "a.md", line: 3, message: "", evidence: "x.md", discriminator: "x.md" },
+    { category: "orphan", file: "b.md", line: null, message: "", evidence: "b.md", discriminator: "b.md" },
   ];
   const out = normalizeFindings(raw);
-  assert.equal(out[0].category, "broken_ref");   // high sorts before medium
+  assert.equal(out[0].category, "orphan");        // orphan (medium) sorts before broken_ref (now info)
+  assert.equal(out[1].category, "broken_ref");
   assert.ok(out.every((f) => f.id.length === 12));
 });
 

@@ -18,6 +18,7 @@ const BACKTICK_RE = /`([^`\n]+)`/g;
 function isBacktickPathCandidate(raw: string): boolean {
   const t = raw.trim();
   if (t === "" || /\s/.test(t)) return false;
+  if (t.startsWith("-")) return false;   // flags/options (e.g. `--out=x/y`) are not routes
   return t.includes("/") || /\.md$/i.test(t);
 }
 
@@ -52,6 +53,23 @@ export function extractLinks(content: string): ExtractedLink[] {
     }
   }
   return out;
+}
+
+// The definition of a routing PATH by shape — used to decide whether a
+// NON-resolving router backtick is a broken route (routing_path_missing). A
+// routing path is a plain intra-repo .md doc path: it ends in `.md` and carries
+// none of the markers that mean "not a repo doc route" — glob (`*` `{` `}`),
+// home (`~`), env (`$`), package scope (leading `@`), whitespace, or a leading
+// dash. A package scope, a shell path, or an `org/repo` ref cannot be a doc
+// route in any repo, so excluding them makes the rule sharper, not looser.
+// (A backtick that RESOLVES to a real file/dir is a route by existence and does
+// not need this shape test.) See planning/decisions/2026-08-20_router-path-drift.md.
+export function isRoutingPathShape(raw: string): boolean {
+  const t = raw.trim();
+  if (t === "" || /\s/.test(t)) return false;
+  if (t.startsWith("-") || t.startsWith("@")) return false;
+  if (/[*{}~$]/.test(t)) return false;
+  return /\.md$/i.test(t);
 }
 
 export function classifyLink(raw: { targetRaw: string; line: number; malformed: boolean }, docRelPath: string): ClassifiedLink {

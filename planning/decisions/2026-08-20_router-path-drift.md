@@ -15,15 +15,16 @@
 
 **In a router doc (`isRoot`), a *path-shaped* backtick span that does not resolve counts as drift** and is scored (it contributes to the `routing_drift` numerator and denominator). Non-router docs are unaffected (their backticks stay prose — the routing layer is what's scored).
 
-### Guardrail — "path-shaped" is defined narrowly (this is the one place an unresolvable path becomes a finding)
+### The definition of a routing path (not a filter — the definition itself)
 
-A backtick span is path-shaped **iff** all of:
+A "routing path" is one of two things:
 
-1. it **contains a `/`** OR **ends in `.md`** (case-insensitive), **and**
-2. it has **no spaces**, **and**
-3. it does **not start with a dash** (`-`).
+1. **A backtick span that resolves to a real in-repo file/dir** — a route proven by existence (this is the resolve census; it needs no shape test and still counts directory and non-`.md` routes for coverage/reachability).
+2. **When it does not resolve — a plain `.md` doc path by SHAPE:** it ends in `.md` (case-insensitive) and carries none of the markers that mean "not a repo doc route" — glob (`*` `{` `}`), home (`~`), env (`$`), package scope (leading `@`), whitespace, or a leading dash (`-`).
 
-Anything else in backticks stays prose. This definition is written here so the finding's scope is auditable; it also tightens the general backtick-candidate filter (adds the no-leading-dash rule) so the two stay consistent.
+Only case 2 produces `routing_path_missing`. This is the **definition**, tightened deliberately after run-3 evidence, not a noise filter bolted on: a package scope, a shell path, an `org/repo` ref, or a glob **cannot be a doc route in any repo**, so excluding them makes the rule *sharper*, not looser. `isRoutingPathShape` in `links.ts` is the single source of this definition; the general resolve-census candidate filter stays broad (a span worth existence-checking) because a resolving span is a route regardless of shape.
+
+**Why the earlier broad form (contains `/` OR ends `.md`) was wrong:** run-3 showed it flagged **160** non-routes on caveman — 15 globs (`skills/*/SKILL.md`), 44 `org/repo`/env/home refs (`JuliusBrussee/caveman-browse`, `$CLAUDE_CONFIG_DIR/...`, `~/.claude/...`), 101 brace-globs and external `~/` paths. None were candidate routes.
 
 ### Its own category, counted separately
 
@@ -31,7 +32,13 @@ These findings get their own category (proposed name **`routing_path_missing`**,
 
 ### Accepted false positive (do not special-case)
 
-**icm-architect** ships template routers whose paths intentionally point at files that don't exist yet. Under this rule it will now score **badly on drift** (its router paths are all "missing"). That is an **acceptable cost**: a template repo is a rare shape, and silently going quiet on every real broken route to protect it is the worse trade. If the rule proves noisy across repos, it is **reverted on evidence** — hence the separate category and per-repo count.
+**icm-architect** ships template routers whose paths intentionally point at files that don't exist yet. Under the strict definition it keeps **2 of its 13** run-3 findings (real template `.md`/`CONTEXT.md` paths) and scores badly on drift. That is a **known, accepted false positive on a template repo** — recorded here so it is not re-diagnosed as a bug later. A template repo is a rare shape; going quiet on every real broken route to protect it is the worse trade.
+
+### Recorded from run-3 evidence (open, do not treat as solved)
+
+- **Residue after the strict definition is an OPEN item**, to be recorded per-repo in the next run (run-4): the strict form reduced caveman `160 → 28`, claude-mem `5 → 0`, icm `13 → 2`, superpowers `2 → 1`, but the ~28 caveman residue (a bare `.md` literal, `AGENTS.md` cross-refs) needs a **second pass not decided on one repo's evidence**. Not blocking; not solved.
+- **caveman is disproportionately shaping two open TBDs at once.** Its run this cycle moved on two still-un-thresholded rules — it is the top-end datapoint for **TBD-11** (23 routers, bloat saturates to 0) *and* now the noisiest **drift** case. When TBD-10/11 numbers are set, its outsized influence on both must be visible, not silently baked in.
+- **Value evidence:** run-3 produced **zero** drift from broken *markdown* links across all five repos — every unit of drift came from this backtick rule. Reverting would return `routing_drift` to a check structurally incapable of firing, not to a weaker one. The ~1 genuine catch across five recent single-author repos is a floor, not a ceiling: that population is the least likely to have rotted routes and least like an inherited repo nobody has fully read.
 
 ## Consequences
 

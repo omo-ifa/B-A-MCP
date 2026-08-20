@@ -7,9 +7,10 @@ export function findingId(category: FindingCategory, normalizedPath: string, dis
 
 export const SEVERITY_BY_CATEGORY: Record<FindingCategory, Severity> = {
   root_absent: "critical", root_empty: "critical",   // design §4 (flagged: §3 says empty=high)
-  broken_ref: "high", routing_drift: "high", coverage: "high",
+  routing_drift: "high", routing_path_missing: "high", coverage: "high",   // router link/path points nowhere → routing accuracy
   orphan: "medium", escapes_root: "medium", coverage_test: "medium",   // decision: 2026-08-20_test-dir-coverage-severity.md
   malformed_link: "low", bloat: "low",
+  broken_ref: "info",   // 2026-08-20: non-router broken links are reported, not scored
   routing_unresolved: "info", name_collision: "info", symlink: "info", skipped: "info",
 };
 
@@ -42,20 +43,20 @@ export function subscoreFromCount(bad: number, total: number): Subscore {
 // TODO: TBD-10 — placeholder weights; calibrate from the first dogfood run.
 // Principle (resolved): accuracy cluster weighted above bloat; N/A sub-score drops and reweights.
 const TBD_10_WEIGHTS: Record<keyof Subscores, number> = {
-  broken_refs: 3, routing_drift: 3, orphans: 2, coverage: 2, bloat: 1,
+  routing_drift: 3, orphans: 2, coverage: 2, bloat: 1,
 };
 
 // The routing-layer sub-scores: the ones that actually measure routing health
-// (drift = router links resolve; coverage = routing claims the code; orphans =
-// docs reachable from routing). broken_refs and bloat are file/doc hygiene, not
-// routing health.
+// (drift = router links/paths resolve; coverage = routing claims the code;
+// orphans = docs reachable from routing). bloat is the only file/doc-hygiene
+// sub-score, not routing health.
 const ROUTING_LAYER_KEYS: (keyof Subscores)[] = ["routing_drift", "coverage", "orphans"];
 
 export function headlineScore(subscores: Subscores): number | null {
   // A routing-HEALTH composite must rest on at least one real routing-layer
   // measurement. If none of routing_drift/coverage/orphans was assessed (e.g. a
   // repo with no routing root, or routers that resolve nothing), the only
-  // survivors are hygiene sub-scores (broken_refs/bloat) — reporting a confident
+  // survivor is the hygiene sub-score (bloat) — reporting a confident
   // "health" number off those alone is exactly the fabricated-100 failure this
   // guards. Return null; the root_absent / routing_unresolved findings carry the
   // brokenness. A coverage floor of 0 (a routing measurement) keeps the headline.

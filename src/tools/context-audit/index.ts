@@ -46,7 +46,7 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
 
   const w = walk(root);
   const g = buildGraph(root, w);
-  const bloat = scoreBloat(w);
+  const bloat = scoreBloat(w, g.routerEdges);   // router DAG feeds bloat's root->leaf chain metric (TBD-11 shape)
   const coverage = scoreCoverage(root, w, g);   // emitCoverageFindings defaults off (TBD-12 build guard)
 
   const rawFindings: RawFinding[] = [...w.findings, ...g.findings, ...bloat.findings, ...coverage.findings];
@@ -75,7 +75,9 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
     bloat: { score: bloat.subscore, n: bloat.n },
     // each sub-score's denominator is the population it is drawn from; subscoreFromCount returns null (not assessed) when that population is 0.
     orphans: subscoreFromCount(g.orphanCount, g.orphanCandidateTotal),
-    broken_refs: subscoreFromCount(g.brokenRefCount, g.refsFromNonRoots),
+    // routing_drift now counts BOTH broken router markdown links and unresolvable
+    // path-shaped router backticks (routing_path_missing); broken_refs (non-router)
+    // is no longer a scored sub-score — see planning/decisions/2026-08-20_*.
     routing_drift: subscoreFromCount(g.routingDriftCount, g.refsFromRoots),
     coverage: { score: coverage.subscore, n: coverage.n },
   };
