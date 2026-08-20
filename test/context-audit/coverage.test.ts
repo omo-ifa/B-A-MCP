@@ -97,7 +97,7 @@ test("coverage subscore is 100 and no findings when significant dirs are covered
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("gate is off by default when opts is omitted entirely (not just { emitHighFindings: false })", () => {
+test("gate is off by default when opts is omitted entirely (not just { emitCoverageFindings: false })", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov5-"));
   try {
     writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");

@@ -13,7 +13,7 @@ export interface Finding {
   id: string;
   category: FindingCategory;
   severity: Severity;
-  file: string;            // root-relative path; uncovered-dir path (trailing "/") for `coverage`
+  file: string;            // root-relative path; uncovered-dir path (trailing "/") for `coverage` or `coverage_test`
   line: number | null;
   message: string;
   evidence: string;        // the raw counted / moving value
