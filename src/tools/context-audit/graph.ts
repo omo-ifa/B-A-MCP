@@ -1,6 +1,6 @@
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { extractLinks, classifyLink } from "./links.js";
+import { extractLinks, classifyLink, isRoutingPathShape } from "./links.js";
 import type { Root, RawFinding } from "./types.js";
 import type { WalkResult, WalkedDoc } from "./walk.js";
 
@@ -94,9 +94,13 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
         // Count it toward routing_drift's denominator and flag it under its own
         // category so unresolvable router paths tally separately from broken
         // markdown links. Only in-repo relative candidates (kind "edge") qualify —
-        // escapes-root / external spans are not routes.
+        // escapes-root / external spans are not routes. And an unresolved span
+        // counts as a broken route ONLY if it has the routing-path SHAPE (a plain
+        // .md doc path) — a glob, a package scope, an org/repo ref, or a shell/env
+        // path is not a route, so it stays prose. (Resolving spans above are routes
+        // by existence and need no shape test.)
         const missing = cands.find((c) => c.kind === "edge" && c.targetPath !== null);
-        if (missing) {
+        if (missing && isRoutingPathShape(raw.targetRaw)) {
           refsFromRoots++;
           findings.push(f("routing_path_missing", doc.relPath, missing.line, "router path does not resolve to an existing file", missing.targetPath!, missing.targetPath!));
         }

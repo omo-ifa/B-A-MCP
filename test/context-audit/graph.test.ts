@@ -219,3 +219,21 @@ test("backtick paths route only from router docs; a non-root doc's backtick cita
     assert.equal(g.refsFromNonRoots, 0, "a non-root backtick citation must not count as a reference");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("router-path drift ignores non-route tokens (globs, scopes, org/repo, env/home) — only a plain .md doc path drifts", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-drift-fp-"));
+  try {
+    // A router doc full of path-shaped-but-not-route backtick tokens, plus ONE
+    // genuine missing .md route. Only the real route may count as drift.
+    writeFileSync(join(dir, "CLAUDE.md"), [
+      "MIME `application/json`, pkg `@scope/thing`, repo `Org/repo-name`,",
+      "glob `skills/*/SKILL.md`, brace `a/{x,y}/z.md`, home `~/x/y.md`, env `$DIR/z.md`,",
+      "and a real missing route `docs/GONE.md`.",
+    ].join("\n") + "\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    const rp = g.findings.filter((f) => f.category === "routing_path_missing");
+    assert.equal(rp.length, 1, "only the plain .md doc route counts as a broken route");
+    assert.equal(rp[0].evidence, "docs/GONE.md");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
