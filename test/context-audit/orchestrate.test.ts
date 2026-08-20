@@ -57,8 +57,29 @@ test("TBD-12 coverage gate stays off end-to-end even when a significant dir is u
     assert.equal(outcome.ok, true);
     if (!outcome.ok) return;
     // proves the fixture genuinely exercises the coverage path (uncovered dir seen)
-    assert.ok(outcome.result.subscores.coverage !== null && outcome.result.subscores.coverage < 100);
+    assert.ok(outcome.result.subscores.coverage.score !== null && outcome.result.subscores.coverage.score < 100);
     // proves the orchestrator keeps the TBD-12 HIGH finding gated off (no opts passed to scoreCoverage)
     assert.ok(!outcome.result.findings.some((f) => f.category === "coverage"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("regression: routing_drift.score is null (n=0), not a fabricated 100, when a root doc references paths only via non-markdown-link text", async () => {
+  // This is the exact artifact the decision (planning/decisions/2026-08-20_subscore-confidence-signal.md)
+  // was written to fix: extractLinks only recognizes `[text](target)` markdown
+  // links as edges, so a root doc that mentions paths in backtick code-spans
+  // produces zero classified edges from roots (refsFromRoots === 0). Before
+  // this change, subscoreFromCount's empty-denominator branch reported 100
+  // ("clean") for a routing layer that was never actually checked.
+  const dir = mkdtempSync(join(tmpdir(), "ca-regr-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes to `src/CONTEXT.md` for details, no markdown link here\n");
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "CONTEXT.md"), "leaf\n");
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    assert.equal(outcome.result.subscores.routing_drift.score, null);
+    assert.equal(outcome.result.subscores.routing_drift.n, 0);
+    assert.match(outcome.result.rendered, /\| routing_drift \| not assessed \(n=0\) \|/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

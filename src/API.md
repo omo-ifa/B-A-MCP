@@ -75,16 +75,16 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
         "method": { "enum": ["claude_md", "git_root", "given_path"] }
       }
     },
-    "score": { "type": "number" },
+    "score": { "type": ["number", "null"], "description": "weighted mean of the assessed sub-scores, 0-100; null only when every sub-score is null (nothing in the repo was assessable) — never a fabricated composite" },
     "subscores": {
       "type": "object",
-      "description": "bloat, orphans, broken_refs, routing_drift, coverage — each 0-100 or null, 100 = healthy",
+      "description": "bloat, orphans, broken_refs, routing_drift, coverage — each a { score, n } pair. `n` is the size of the population that sub-score actually assessed (e.g. classified edges checked, significant dirs judged, routing docs measured). `n === 0` means score is `null` (\"not assessed\") — an empty denominator is never reported as 100, and a null sub-score drops out of the headline's weighted mean instead of being treated as 0.",
       "properties": {
-        "bloat": { "type": ["number", "null"] },
-        "orphans": { "type": ["number", "null"] },
-        "broken_refs": { "type": ["number", "null"] },
-        "routing_drift": { "type": ["number", "null"] },
-        "coverage": { "type": ["number", "null"] }
+        "bloat": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } },
+        "orphans": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } },
+        "broken_refs": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } },
+        "routing_drift": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } },
+        "coverage": { "type": "object", "required": ["score", "n"], "properties": { "score": { "type": ["number", "null"] }, "n": { "type": "number" } } }
       }
     },
     "findings": {

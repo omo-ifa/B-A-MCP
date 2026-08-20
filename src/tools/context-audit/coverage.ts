@@ -5,7 +5,7 @@ import type { Root, RawFinding } from "./types.js";
 import type { WalkResult } from "./walk.js";
 import type { GraphResult } from "./graph.js";
 
-export interface CoverageResult { subscore: number | null; findings: RawFinding[]; }
+export interface CoverageResult { subscore: number | null; n: number; findings: RawFinding[]; }
 
 const HARD_SKIP = new Set(["node_modules", "dist", "build", "vendor", ".venv", "target", ".git"]);
 // Kept identical to walk.ts's DOT_ALLOW — coverage's directory traversal must
@@ -68,7 +68,10 @@ export function scoreCoverage(root: Root, _walk: WalkResult, graph: GraphResult,
   const dirs = listDirs(root.path).filter((d) => isSignificant(d, root.path));
   const findings: RawFinding[] = [];
 
-  if (dirs.length === 0) return { subscore: noClaudeRoot ? 0 : null, findings };
+  // n = dirs.length (significant directories judged). n === 0: nothing to
+  // judge -> not assessed -> null, regardless of root method (never a
+  // fabricated 0 or 100 for an empty population).
+  if (dirs.length === 0) return { subscore: null, n: 0, findings };
 
   let covered = 0;
   for (const d of dirs) {
@@ -79,6 +82,9 @@ export function scoreCoverage(root: Root, _walk: WalkResult, graph: GraphResult,
       findings.push({ category: "coverage", file: d.rel + "/", line: null, message: "significant source directory has no routing coverage", evidence: `files=${d.fileCount}`, discriminator: d.rel + "/" });
     }
   }
+  // dirs.length > 0 here: this is a real assessed result even when it floors
+  // to 0 (no CLAUDE.md root, or a CLAUDE.md root that covers nothing) — not
+  // an empty-denominator artifact.
   const subscore = noClaudeRoot ? 0 : Math.round((covered / dirs.length) * 100);
-  return { subscore, findings };
+  return { subscore, n: dirs.length, findings };
 }

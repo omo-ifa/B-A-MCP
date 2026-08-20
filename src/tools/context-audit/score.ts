@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Finding, RawFinding, FindingCategory, Severity, Subscores } from "./types.js";
+import type { Finding, RawFinding, FindingCategory, Severity, Subscore, Subscores } from "./types.js";
 
 export function findingId(category: FindingCategory, normalizedPath: string, discriminator: string): string {
   return createHash("sha256").update(`${category}\0${normalizedPath}\0${discriminator}`).digest("hex").slice(0, 12);
@@ -33,8 +33,9 @@ export function normalizeFindings(raw: RawFinding[]): Finding[] {
   return out;
 }
 
-export function subscoreFromCount(bad: number, total: number): number {
-  return total <= 0 ? 100 : Math.round(100 * (1 - bad / total));
+export function subscoreFromCount(bad: number, total: number): Subscore {
+  // total <= 0: nothing was assessed — n=0, score=null, never a fabricated 100.
+  return { score: total <= 0 ? null : Math.round(100 * (1 - bad / total)), n: total };
 }
 
 // TODO: TBD-10 — placeholder weights; calibrate from the first dogfood run.
@@ -43,13 +44,14 @@ const TBD_10_WEIGHTS: Record<keyof Subscores, number> = {
   broken_refs: 3, routing_drift: 3, orphans: 2, coverage: 2, bloat: 1,
 };
 
-export function headlineScore(subscores: Subscores): number {
+export function headlineScore(subscores: Subscores): number | null {
   let weighted = 0, weightSum = 0;
   for (const key of Object.keys(TBD_10_WEIGHTS) as (keyof Subscores)[]) {
-    const v = subscores[key];
-    if (v === null || v === undefined) continue;   // N/A dropped, weights renormalize
+    const v = subscores[key].score;
+    if (v === null || v === undefined) continue;   // not assessed: dropped, weights renormalize
     weighted += v * TBD_10_WEIGHTS[key];
     weightSum += TBD_10_WEIGHTS[key];
   }
-  return weightSum === 0 ? 0 : Math.round(weighted / weightSum);
+  // every sub-score null -> nothing to assess -> no fabricated composite.
+  return weightSum === 0 ? null : Math.round(weighted / weightSum);
 }

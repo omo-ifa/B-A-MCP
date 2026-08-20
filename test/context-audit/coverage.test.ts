@@ -32,17 +32,19 @@ test("HIGH uncovered-workspace finding is gated: default off (TBD-12 build guard
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("coverage subscore floors to 0 when no root CLAUDE.md", () => {
+test("coverage subscore floors to 0 when no root CLAUDE.md (n = significant dirs judged, a real assessed result)", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov2-"));
   try {
     mkdirSync(join(dir, ".git"));                 // git root, no CLAUDE.md
     mkdirSync(join(dir, "src"));
     for (let i = 0; i < 8; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");
-    assert.equal(run(dir).subscore, 0);
+    const result = run(dir);
+    assert.equal(result.subscore, 0);
+    assert.equal(result.n, 1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("coverage subscore is null (N/A) when a root CLAUDE.md exists but no directory is significant", () => {
+test("coverage subscore is null (not assessed) when a root CLAUDE.md exists but no directory is significant (n=0)", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov3-"));
   try {
     writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
@@ -52,6 +54,7 @@ test("coverage subscore is null (N/A) when a root CLAUDE.md exists but no direct
     for (let i = 0; i < 2; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");
     const result = run(dir);
     assert.equal(result.subscore, null);
+    assert.equal(result.n, 0);
     assert.equal(result.findings.length, 0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
@@ -76,6 +79,7 @@ test("coverage subscore is 100 and no findings when significant dirs are covered
 
     const result = scoreCoverage(root, w, g, { emitHighFindings: true }); // gate ON: still nothing should fire
     assert.equal(result.subscore, 100);
+    assert.equal(result.n, 2);   // src/a and src/b are both significant and judged
     assert.equal(result.findings.filter((f) => f.category === "coverage").length, 0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
@@ -127,5 +131,6 @@ test("gitignored significant directory is excluded from coverage's traversal sco
     // Only one significant dir is in scope (src/); it's uncovered, so subscore
     // is 0/1. If generated/ were still in scope the denominator would be 2.
     assert.equal(result.subscore, 0);
+    assert.equal(result.n, 1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

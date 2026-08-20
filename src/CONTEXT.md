@@ -33,8 +33,8 @@ Read this before writing any server or tool code in this workspace. It holds the
 
 | Tool | Standing tokens (measured) | Notes |
 |------|------------------------------|-------|
-| context_audit | 250 / ~4000 | char-approx-v1 over JSON.stringify(tool definition) |
+| context_audit | 252 / ~4000 | char-approx-v1 over JSON.stringify(tool definition); re-measured after `score` became `["number","null"]` (sub-score confidence signal, 2026-08-20) |
 
-**Total: 250 / ~4000**
+**Total: 252 / ~4000**
 
 **Measurement method:** `countTokens(JSON.stringify(contextAuditTool))` using char-approx-v1 (`ceil(chars / 4)`) over the serialized tool definition (name + description + input/output schema) sent in `tools/list`. Reproduced by `test/context-audit/ledger.test.ts`.
