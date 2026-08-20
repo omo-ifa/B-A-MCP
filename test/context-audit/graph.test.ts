@@ -167,3 +167,51 @@ test("orphans guard does NOT fire when the root resolves at least one edge", () 
     assert.equal(g.orphanCount, 1, "a genuine orphan under a routed dir must still fire");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("backtick routing edges resolve root-relative too: nested router with root-relative paths", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-bt-rootrel-"));
+  try {
+    // Root routes to the nested router. The nested router references a doc with a
+    // ROOT-RELATIVE backtick path — the real-world convention (this repo's own
+    // src/CONTEXT.md writes `src/API.md`). Resolved doc-relative it would be
+    // sub/sub/guide.md (missing) and the edge would drop, orphaning the target.
+    writeFileSync(join(dir, "CLAUDE.md"), "See `sub/CONTEXT.md`.\n");
+    mkdirSync(join(dir, "sub"));
+    writeFileSync(join(dir, "sub", "CONTEXT.md"), "Guide at `sub/guide.md` (root-relative).\n");
+    writeFileSync(join(dir, "sub", "guide.md"), "the guide\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    assert.ok(g.routedDirs.has("sub"));
+    assert.equal(g.orphanCount, 0, "root-relative backtick edge must reach sub/guide.md");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("combined [`path`](path) counts as exactly one resolving root edge, not two", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-nodbl-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "route via [`src/CONTEXT.md`](src/CONTEXT.md)\n");
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "CONTEXT.md"), "leaf\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    assert.equal(g.refsFromRoots, 1, "one logical link must not count twice");
+    assert.equal(g.resolvedRefsFromRoots, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("backtick paths route only from router docs; a non-root doc's backtick citation is prose, not a reference", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-bt-scope-"));
+  try {
+    // Router (root) uses a backtick edge; a NON-root content doc merely cites a
+    // real path in backticks. That citation must NOT count as a non-root
+    // reference (it would inflate broken_refs' denominator with prose).
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `docs/CONTEXT.md`\n");
+    mkdirSync(join(dir, "docs"));
+    writeFileSync(join(dir, "docs", "CONTEXT.md"), "leaf\n");
+    writeFileSync(join(dir, "docs", "note.md"), "for background see `docs/CONTEXT.md` (a citation, not a link)\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    assert.equal(g.resolvedRefsFromRoots, 1, "the router's backtick edge counts");
+    assert.equal(g.refsFromNonRoots, 0, "a non-root backtick citation must not count as a reference");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

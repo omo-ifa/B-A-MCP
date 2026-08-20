@@ -62,14 +62,28 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
       const link = classifyLink(raw, doc.relPath);
 
       if (raw.source === "backtick") {
-        // Backtick code-span routing is resolve-only: a path-shaped span is an edge
-        // ONLY if it resolves to an existing in-repo path. A non-resolving span is
-        // prose, never a malformed/escapes/broken_ref/routing_drift finding.
-        if (link.kind !== "edge" || link.targetPath === null) continue;
-        const targetAbs = join(root.path, link.targetPath);
-        if (!existsSync(targetAbs)) continue;
-        if (doc.isRoot) { refsFromRoots++; resolvedRefsFromRoots++; } else refsFromNonRoots++;
-        recordResolvedTarget(doc.relPath, link.targetPath, targetAbs);
+        // Backtick routing is a ROUTER convention (the census found routers route
+        // via backtick code-spans). In a non-root content doc a backtick path is a
+        // prose citation, not a link — counting it would inflate broken_refs'
+        // denominator with citations. So backtick edges are recognized only from
+        // router docs (isRoot); non-root docs still link via markdown as before.
+        if (!doc.isRoot) continue;
+        // Resolve-only: a path-shaped span is an edge ONLY if it resolves to an
+        // existing in-repo path; a non-resolving span is prose, never a
+        // malformed/escapes/broken_ref/routing_drift finding. Try
+        // BOTH doc-relative and root-relative resolution: markdown links are
+        // doc-relative by spec, but backtick code-span paths are written
+        // root-relative in the wild (e.g. src/CONTEXT.md referencing `src/API.md`).
+        // Count the span at most once (doc-relative preferred).
+        const rootRel = classifyLink(raw, "");   // as if the doc sat at the repo root
+        for (const cand of [link, rootRel]) {
+          if (cand.kind !== "edge" || cand.targetPath === null) continue;
+          const targetAbs = join(root.path, cand.targetPath);
+          if (!existsSync(targetAbs)) continue;
+          if (doc.isRoot) { refsFromRoots++; resolvedRefsFromRoots++; } else refsFromNonRoots++;
+          recordResolvedTarget(doc.relPath, cand.targetPath, targetAbs);
+          break;   // count the span at most once
+        }
         continue;
       }
 

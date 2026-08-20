@@ -26,6 +26,15 @@ test("extractLinks surfaces path-shaped backtick code spans as source 'backtick'
   assert.deepEqual(bt, ["src/CONTEXT.md", "prompts/"]);
 });
 
+test("extractLinks does not double-count a [`path`](path) link as a backtick edge too", () => {
+  // GitHub-style `[`x`](x)` matches both the markdown and backtick scanners; the
+  // backtick twin (the link text) must be suppressed so the edge counts once.
+  const links = extractLinks("route via [`src/CONTEXT.md`](src/CONTEXT.md)\n");
+  assert.equal(links.length, 1);
+  assert.equal(links[0].source, "markdown");
+  assert.equal(links[0].targetRaw, "src/CONTEXT.md");
+});
+
 test("extractLinks ignores prose backtick spans that are not path-shaped", () => {
   // Identifiers, commands, and prose in backticks must NOT become routing edges.
   const md = "The `AuditResult` type; run `npm test`; call `foo()`.\n";

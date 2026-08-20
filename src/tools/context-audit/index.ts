@@ -57,7 +57,7 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
   // visible instead of hiding behind a confident score.
   const routingFiles = w.docs.filter((d) => d.isRoot).length;
   if (routingFiles > 0 && g.resolvedRefsFromRoots === 0) {
-    rawFindings.push({ category: "routing_unresolved", file: ".", line: null, message: "routing files are present but none of their references resolve to an existing path", evidence: `routing_files=${routingFiles}`, discriminator: "routing_unresolved" });
+    rawFindings.push({ category: "routing_unresolved", file: ".", line: null, message: "routing files are present but no reference resolves to an existing path (no references, or an unrecognized routing syntax)", evidence: `routing_files=${routingFiles}`, discriminator: "routing_unresolved" });
   }
 
   // root_absent / root_empty (both critical per design §4; §3-vs-§4 severity discrepancy flagged in Global Constraints)

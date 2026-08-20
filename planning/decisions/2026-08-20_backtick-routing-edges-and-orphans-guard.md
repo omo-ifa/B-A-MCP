@@ -56,7 +56,14 @@ A pointer to this record is added to the head of `2026-08-20_subscore-confidence
 ## Consequences
 
 - `FindingCategory` gains `routing_unresolved` (info). `src/API.md` updates in the same commit (rule 8) — new category, backtick-edge semantics, orphans guard, headline condition. Standing tool-definition cost re-measured (rule 2): unchanged (no input/output schema or description change; findings are generic objects in the schema).
-- Real-repo effect (sanity runs, pre-calibration): superpowers `routing_drift` `null → 100/n3`, `coverage` `0 → 100/n1`, score `24 → 75`; B-A-MCP `routing_drift` `null → 100/n49`. The confident-false-positive artifact is gone.
+
+### Refinements from code review (same branch)
+
+1. **Backtick paths resolve root-relative too.** Markdown links are doc-relative by spec, but backtick code-span paths are written **root-relative** in the wild (this repo's `src/CONTEXT.md` writes `` `src/API.md` ``). A backtick span is now an edge if it resolves **doc-relative OR root-relative** (counted once, doc-relative preferred). Without this, nested routers' root-relative paths dropped and re-created false orphans.
+2. **No `` [`path`](path) `` double-count.** That GitHub idiom matched both scanners; the backtick twin (the link's own label) is now suppressed, so one logical link counts once — it was otherwise skewing `routing_drift`/`broken_refs` denominators and `n`.
+3. **Backtick edges are recognized only from router docs (`isRoot`).** In a non-root content doc a backtick path is a prose citation, not a link; counting it inflated `broken_refs`' denominator with citations (B-A-MCP: `n` 62 → 444 before this scoping). Non-root docs still link via markdown, as before.
+
+- Real-repo effect (sanity runs, pre-calibration): superpowers `routing_drift` `null → 100/n3`, `coverage` `0 → 100/n1`, `orphans` now a **real** assessment (`0/n61`, no longer a phantom — the router resolves 3 edges, so the guard is correctly off), headline `24 → 63`. B-A-MCP `routing_drift` `null → 100/n65`, `coverage` `50/n2 → 100/n2` (nested router paths now resolve), headline `62`; its low `broken_refs` (`4/n23`) is the TBD-13 plan-doc example-link issue, now surfaced honestly rather than masked. The confident-false-positive artifact is gone.
 - New `broken_ref` findings from **example links in prose/teaching docs** are **not** addressed here — that is **TBD-13** (signal quality), deliberately left open.
 - No threshold (TBD-10/11/12) resolved or touched. Rule 7 stands. The first post-fix calibration run is **not** the README sample.
 

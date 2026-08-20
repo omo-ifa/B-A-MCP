@@ -21,21 +21,33 @@ function isBacktickPathCandidate(raw: string): boolean {
   return t.includes("/") || /\.md$/i.test(t);
 }
 
+// Known limitation (resolve-only bounds the harm): this scans line-by-line and
+// does NOT track ``` fenced code blocks, so a path-shaped span inside a fenced
+// example that happens to resolve is treated as an edge. Effect is over-linking
+// (can mask a genuine orphan / inflate coverage), never a false broken_ref.
+// Revisit with fence tracking if calibration shows it matters.
 export function extractLinks(content: string): ExtractedLink[] {
   const out: ExtractedLink[] = [];
   const lines = content.split("\n");
   for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Markdown links first, remembering each match's character range so a backtick
+    // span that is a markdown link's own label (the `[`x`](x)` idiom) is not
+    // double-counted as a separate backtick edge.
+    const mdRanges: [number, number][] = [];
     LINK_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
-    while ((m = LINK_RE.exec(lines[i])) !== null) {
+    while ((m = LINK_RE.exec(line)) !== null) {
       const raw = m[1];
       const malformed = raw.trim() === "" || /\s/.test(raw.trim());
       out.push({ targetRaw: raw, line: i + 1, malformed, source: "markdown" });
+      mdRanges.push([m.index, LINK_RE.lastIndex]);
     }
     BACKTICK_RE.lastIndex = 0;
     let b: RegExpExecArray | null;
-    while ((b = BACKTICK_RE.exec(lines[i])) !== null) {
+    while ((b = BACKTICK_RE.exec(line)) !== null) {
       if (!isBacktickPathCandidate(b[1])) continue;
+      if (mdRanges.some(([s, e]) => b!.index >= s && b!.index < e)) continue;   // inside a markdown link: already counted
       out.push({ targetRaw: b[1].trim(), line: i + 1, malformed: false, source: "backtick" });
     }
   }
