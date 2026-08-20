@@ -3,18 +3,52 @@ import { posix } from "node:path";
 export type LinkKind = "edge" | "external" | "anchor" | "malformed" | "escapes_root";
 export interface ClassifiedLink { kind: LinkKind; targetRaw: string; targetPath: string | null; line: number; }
 
-const LINK_RE = /\[[^\]]*\]\(([^)]*)\)/g;
+export type LinkSource = "markdown" | "backtick";
+export interface ExtractedLink { targetRaw: string; line: number; malformed: boolean; source: LinkSource; }
 
-export function extractLinks(content: string): { targetRaw: string; line: number; malformed: boolean }[] {
-  const out: { targetRaw: string; line: number; malformed: boolean }[] = [];
+const LINK_RE = /\[[^\]]*\]\(([^)]*)\)/g;
+const BACKTICK_RE = /`([^`\n]+)`/g;
+
+// A backtick code span is a routing-edge CANDIDATE only if it is shaped like a
+// path: no internal whitespace (excludes prose/commands like `npm test`), and it
+// either contains a "/" or ends in ".md" (case-insensitive). Whether it actually
+// routes is decided downstream by an existence check — backtick edges are
+// resolve-only (see buildGraph), so a non-resolving span is treated as prose and
+// never produces a broken_ref/routing_drift/escapes finding.
+function isBacktickPathCandidate(raw: string): boolean {
+  const t = raw.trim();
+  if (t === "" || /\s/.test(t)) return false;
+  return t.includes("/") || /\.md$/i.test(t);
+}
+
+// Known limitation (resolve-only bounds the harm): this scans line-by-line and
+// does NOT track ``` fenced code blocks, so a path-shaped span inside a fenced
+// example that happens to resolve is treated as an edge. Effect is over-linking
+// (can mask a genuine orphan / inflate coverage), never a false broken_ref.
+// Revisit with fence tracking if calibration shows it matters.
+export function extractLinks(content: string): ExtractedLink[] {
+  const out: ExtractedLink[] = [];
   const lines = content.split("\n");
   for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Markdown links first, remembering each match's character range so a backtick
+    // span that is a markdown link's own label (the `[`x`](x)` idiom) is not
+    // double-counted as a separate backtick edge.
+    const mdRanges: [number, number][] = [];
     LINK_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
-    while ((m = LINK_RE.exec(lines[i])) !== null) {
+    while ((m = LINK_RE.exec(line)) !== null) {
       const raw = m[1];
       const malformed = raw.trim() === "" || /\s/.test(raw.trim());
-      out.push({ targetRaw: raw, line: i + 1, malformed });
+      out.push({ targetRaw: raw, line: i + 1, malformed, source: "markdown" });
+      mdRanges.push([m.index, LINK_RE.lastIndex]);
+    }
+    BACKTICK_RE.lastIndex = 0;
+    let b: RegExpExecArray | null;
+    while ((b = BACKTICK_RE.exec(line)) !== null) {
+      if (!isBacktickPathCandidate(b[1])) continue;
+      if (mdRanges.some(([s, e]) => b!.index >= s && b!.index < e)) continue;   // inside a markdown link: already counted
+      out.push({ targetRaw: b[1].trim(), line: i + 1, malformed: false, source: "backtick" });
     }
   }
   return out;

@@ -51,6 +51,15 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
 
   const rawFindings: RawFinding[] = [...w.findings, ...g.findings, ...bloat.findings, ...coverage.findings];
 
+  // Routers present but zero references resolve: the routing layer parses to
+  // nothing (broken links, or a routing syntax this tool does not yet read).
+  // Surface it as an info finding every run so a possible unrecognized syntax is
+  // visible instead of hiding behind a confident score.
+  const routingFiles = w.docs.filter((d) => d.isRoot).length;
+  if (routingFiles > 0 && g.resolvedRefsFromRoots === 0) {
+    rawFindings.push({ category: "routing_unresolved", file: ".", line: null, message: "routing files are present but no reference resolves to an existing path (no references, or an unrecognized routing syntax)", evidence: `routing_files=${routingFiles}`, discriminator: "routing_unresolved" });
+  }
+
   // root_absent / root_empty (both critical per design §4; §3-vs-§4 severity discrepancy flagged in Global Constraints)
   if (root.method !== "claude_md") {
     rawFindings.push({ category: "root_absent", file: ".", line: null, message: "no root CLAUDE.md anchored this audit", evidence: root.method, discriminator: "root_absent" });

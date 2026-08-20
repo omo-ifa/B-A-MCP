@@ -10,7 +10,7 @@ export const SEVERITY_BY_CATEGORY: Record<FindingCategory, Severity> = {
   broken_ref: "high", routing_drift: "high", coverage: "high",
   orphan: "medium", escapes_root: "medium", coverage_test: "medium",   // decision: 2026-08-20_test-dir-coverage-severity.md
   malformed_link: "low", bloat: "low",
-  name_collision: "info", symlink: "info", skipped: "info",
+  routing_unresolved: "info", name_collision: "info", symlink: "info", skipped: "info",
 };
 
 const RANK: Record<Severity, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
@@ -45,7 +45,21 @@ const TBD_10_WEIGHTS: Record<keyof Subscores, number> = {
   broken_refs: 3, routing_drift: 3, orphans: 2, coverage: 2, bloat: 1,
 };
 
+// The routing-layer sub-scores: the ones that actually measure routing health
+// (drift = router links resolve; coverage = routing claims the code; orphans =
+// docs reachable from routing). broken_refs and bloat are file/doc hygiene, not
+// routing health.
+const ROUTING_LAYER_KEYS: (keyof Subscores)[] = ["routing_drift", "coverage", "orphans"];
+
 export function headlineScore(subscores: Subscores): number | null {
+  // A routing-HEALTH composite must rest on at least one real routing-layer
+  // measurement. If none of routing_drift/coverage/orphans was assessed (e.g. a
+  // repo with no routing root, or routers that resolve nothing), the only
+  // survivors are hygiene sub-scores (broken_refs/bloat) — reporting a confident
+  // "health" number off those alone is exactly the fabricated-100 failure this
+  // guards. Return null; the root_absent / routing_unresolved findings carry the
+  // brokenness. A coverage floor of 0 (a routing measurement) keeps the headline.
+  if (ROUTING_LAYER_KEYS.every((k) => subscores[k].score === null)) return null;
   let weighted = 0, weightSum = 0;
   for (const key of Object.keys(TBD_10_WEIGHTS) as (keyof Subscores)[]) {
     const v = subscores[key].score;
