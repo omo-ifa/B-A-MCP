@@ -33,7 +33,7 @@ Read this before writing any server or tool code in this workspace. It holds the
 
 | Tool | Standing tokens (measured) | Notes |
 |------|------------------------------|-------|
-| context_audit | 252 / ~4000 | char-approx-v1 over JSON.stringify(tool definition); re-measured after `score` became `["number","null"]` (sub-score confidence signal, 2026-08-20) |
+| context_audit | 252 / ~4000 | char-approx-v1 over JSON.stringify(tool definition); re-measured after `score` became `["number","null"]` (sub-score confidence signal, 2026-08-20); 2026-08-21: re-verified after AGENTS.md router recognition — no description/schema change, cost unchanged. |
 
 **Total: 252 / ~4000**
 
