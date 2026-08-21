@@ -189,3 +189,22 @@ test("headline invariant: no routers + no significant directory => null is accep
     assert.equal(outcome.result.score, null);   // 0 significant dirs -> null is honest
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("D1: AGENTS.md is a router — anchors root and its backtick paths route", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-agents-"));
+  try {
+    mkdirSync(join(dir, ".git"));
+    writeFileSync(join(dir, "AGENTS.md"), "root routes `src/CONTEXT.md`\n");
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "CONTEXT.md"), "leaf\n");
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    // AGENTS.md anchors the root (accepted v1 limitation: label stays claude_md)
+    assert.equal(outcome.result.root.method, "claude_md");
+    // AGENTS.md is a router: counted, and its backtick path resolved (drift assessed, not null)
+    assert.ok(outcome.result.stats.routing_files >= 1);
+    assert.notEqual(outcome.result.subscores.routing_drift.score, null);
+    assert.ok(!outcome.result.findings.some((f) => f.category === "routing_unresolved"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

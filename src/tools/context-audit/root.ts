@@ -12,9 +12,13 @@ export function hasStructuralName(basename: string, name: "CLAUDE.md" | "AGENTS.
   return basename.toLowerCase() === name.toLowerCase();
 }
 
-function dirHasClaudeMd(dir: string): boolean {
+function dirHasRootRouter(dir: string): boolean {
+  // Root anchoring recognizes CLAUDE.md OR AGENTS.md (NOT CONTEXT.md — the
+  // root anchor stays the top-level agent-instructions file). readdirSync
+  // returns the entry name regardless of symlink status, so a CLAUDE.md that
+  // is a symlink to AGENTS.md still anchors here by name.
   try {
-    return readdirSync(dir).some((n) => hasStructuralName(n, "CLAUDE.md"));
+    return readdirSync(dir).some((n) => hasStructuralName(n, "CLAUDE.md") || hasStructuralName(n, "AGENTS.md"));
   } catch { return false; }
 }
 
@@ -31,7 +35,7 @@ export function resolveRoot(givenPath: string): Root {
   try { accessSync(abs, constants.R_OK); } catch { throw new RootTargetError("target directory is not readable", "not_readable"); }
 
   for (let dir = abs; ; dir = dirname(dir)) {
-    if (dirHasClaudeMd(dir)) return { path: dir, method: "claude_md" };
+    if (dirHasRootRouter(dir)) return { path: dir, method: "claude_md" };
     if (dir === dirname(dir)) break;
   }
   for (let dir = abs; ; dir = dirname(dir)) {

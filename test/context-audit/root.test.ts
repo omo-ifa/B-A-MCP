@@ -59,3 +59,13 @@ test("hasStructuralName is case-insensitive", () => {
   assert.equal(hasStructuralName("Context.MD", "CONTEXT.md"), true);
   assert.equal(hasStructuralName("readme.md", "CLAUDE.md"), false);
 });
+
+test("D1: an AGENTS.md-only directory anchors as claude_md (widened root predicate)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-root-agents-"));
+  try {
+    mkdirSync(join(dir, ".git"));
+    writeFileSync(join(dir, "AGENTS.md"), "# root\n");
+    const root = resolveRoot(dir);
+    assert.equal(root.method, "claude_md");   // AGENTS.md now anchors, not the git fallback
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

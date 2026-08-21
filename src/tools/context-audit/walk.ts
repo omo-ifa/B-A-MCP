@@ -14,7 +14,7 @@ function info(category: RawFinding["category"], file: string, message: string, e
   return { category, file, line: null, message, evidence, discriminator };
 }
 function isRootName(basename: string): boolean {
-  return hasStructuralName(basename, "CLAUDE.md") || hasStructuralName(basename, "CONTEXT.md");
+  return hasStructuralName(basename, "CLAUDE.md") || hasStructuralName(basename, "CONTEXT.md") || hasStructuralName(basename, "AGENTS.md");
 }
 function looksBinary(buf: Buffer): boolean {
   const n = Math.min(buf.length, 4096);
