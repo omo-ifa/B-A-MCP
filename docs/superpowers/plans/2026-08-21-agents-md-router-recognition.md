@@ -386,10 +386,17 @@ In `test/context-audit/orchestrate.test.ts`, the "TBD-12 coverage gate stays off
 
 `src/lib` stays significant and uncovered → `coverage.score` is `0` (non-null, < 100, satisfying line 60) and no `coverage` finding fires on the default path (line 62).
 
-- [ ] **Step 6: Run the full suite; verify the migrated and invariant tests are green**
+- [ ] **Step 6: Run the full suite; enumerate any red test — do NOT reflexively migrate**
 
-Run: `npm test 2>&1 | tail -6` then `npm test 2>&1 | grep -E "headline invariant|uncovered-workspace|gitignored significant|test-dir severity|gate stays off"`
-Expected: full suite PASS. The new D3 test passes; the two `headline invariant` tests pass unchanged (`git_root`, `routing_files === 0`, guard never fires); the four migrated fixtures pass with their original assertions intact.
+Run: `npm test 2>&1 | tail -20` and read the list of failures explicitly. The set of tests that may go red from the D3 guard is a **prediction, not a verified fact**: exactly the new D3 test (now green) plus the five migrated fixtures (`coverage.test.ts:18/100/115/151`, `orchestrate.test.ts:45`). The other `routing_unresolved` regression tests in `orchestrate.test.ts` (e.g. "some/unrecognized/syntax" and "routing_drift null when router has NO path references") are expected to stay green because they create **no significant source directory** — so `coverage` is already `null` via the `dirs.length === 0` early-return and the D3 guard is a no-op for them.
+
+**Verify that prediction, don't assume it:**
+- If the only differences from the pre-Task-3 suite are the new D3 test (green) and the five listed migrations (green after Step 5), proceed.
+- If **any other** test is red, **STOP and diagnose** — do not add a resolving edge to make it pass. Two distinct cases: (a) a test that legitimately asserts the new headline-`null` / coverage-`null` behavior belongs to D3 and its fixture should have a significant dir (leave it asserting the new behavior); (b) a test red for an unrelated reason is a real regression to fix at its root cause, never to paper over with a fixture edit.
+
+Then confirm the invariants directly:
+Run: `npm test 2>&1 | grep -E "headline invariant|uncovered-workspace|gitignored significant|test-dir severity|gate stays off"`
+Expected: the two `headline invariant` tests pass unchanged (`git_root`, `routing_files === 0`, guard never fires); the four migrated fixtures pass with their original assertions intact.
 
 - [ ] **Step 7: Update `src/API.md` (rule 8)**
 
@@ -407,7 +414,7 @@ git add src/tools/context-audit/coverage.ts src/API.md test/context-audit/orches
 git commit -m "feat(context-audit): coverage null in routing_unresolved state (D3)"
 ```
 
-Expected: full suite green (the three code tasks add net +6 tests — Task 1 +2, Task 2 +2, Task 3 +1 new D3 test plus the four migrated fixtures which keep their count).
+Expected: full suite green (the three code tasks add net **+5** tests — Task 1 +2, Task 2 +2, Task 3 +1 new D3 test; the four migrated fixtures keep their count).
 
 ---
 
