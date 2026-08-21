@@ -119,3 +119,31 @@ test("walk prunes a gitignored directory entirely: no docs or findings leak from
     assert.ok(rels.includes("real-target.md"));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("D2: a CLAUDE.md -> AGENTS.md alias is deduped (no symlink finding), router scored once", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-alias-"));
+  try {
+    writeFileSync(join(dir, "AGENTS.md"), "# root\n");
+    symlinkSync(join(dir, "AGENTS.md"), join(dir, "CLAUDE.md"));
+    const res = walk(resolveRoot(dir));
+    const rels = res.docs.map((d) => d.relPath).sort();
+    assert.ok(rels.includes("AGENTS.md"));            // real router walked
+    assert.ok(!rels.includes("CLAUDE.md"));           // alias not walked
+    assert.ok(!res.findings.some((f) => f.category === "symlink"));   // alias not flagged
+    assert.equal(res.docs.filter((d) => d.isRoot).length, 1);        // scored once
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("D2: a symlink to an OUT-OF-SCOPE router target keeps the symlink finding (no silent drop)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-alias-oos-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "# root\n");
+    writeFileSync(join(dir, ".gitignore"), "ignored/\n");
+    mkdirSync(join(dir, "ignored"));
+    writeFileSync(join(dir, "ignored", "AGENTS.md"), "# hidden router\n");
+    symlinkSync(join(dir, "ignored", "AGENTS.md"), join(dir, "alias.md"));
+    const res = walk(resolveRoot(dir));
+    // target is gitignored -> not in scope -> must NOT dedup; keep the finding
+    assert.ok(res.findings.some((f) => f.category === "symlink" && f.file === "alias.md"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import ignore from "ignore";
 import { hasStructuralName } from "./root.js";
@@ -14,8 +14,38 @@ function info(category: RawFinding["category"], file: string, message: string, e
   return { category, file, line: null, message, evidence, discriminator };
 }
 function isRootName(basename: string): boolean {
-  return hasStructuralName(basename, "CLAUDE.md") || hasStructuralName(basename, "CONTEXT.md");
+  return hasStructuralName(basename, "CLAUDE.md") || hasStructuralName(basename, "CONTEXT.md") || hasStructuralName(basename, "AGENTS.md");
 }
+
+// D2: a symlink whose realpath target is a structural router already in walk
+// scope is a mere ALIAS (e.g. CLAUDE.md -> AGENTS.md, the convention every
+// surveyed app repo ships). Dedup it: no finding, no traversal — the router is
+// scored once via its own real entry. Guards: (a) target realpath is a
+// structural router name, (b) it stays under root, (c) it is itself in scope.
+function isPathInWalkScope(rel: string, ig: ReturnType<typeof ignore>): boolean {
+  if (rel === "") return false;
+  const segs = rel.split("/");
+  for (let i = 0; i < segs.length - 1; i++) {          // ancestor dirs only
+    const s = segs[i];
+    if (HARD_SKIP_DIRS.has(s)) return false;
+    if (s.startsWith(".") && !DOT_ALLOW.has(s)) return false;
+  }
+  if (rel === ".claude/commands" || rel.startsWith(".claude/commands/")) return false;
+  if (ig.ignores(rel)) return false;
+  return true;
+}
+
+function isRouterAlias(linkAbs: string, realRoot: string, ig: ReturnType<typeof ignore>): boolean {
+  let target: string;
+  try { target = realpathSync(linkAbs); } catch { return false; }   // broken symlink: keep finding
+  if (target !== realRoot && !target.startsWith(realRoot + sep)) return false;   // (b) escapes root
+  const rel = relative(realRoot, target).split(sep).join("/");
+  const base = rel.split("/").pop() ?? "";
+  const isRouter = hasStructuralName(base, "CLAUDE.md") || hasStructuralName(base, "CONTEXT.md") || hasStructuralName(base, "AGENTS.md");
+  if (!isRouter) return false;                          // (a) target is not a router
+  return isPathInWalkScope(rel, ig);                    // (c) target is in scope
+}
+
 function looksBinary(buf: Buffer): boolean {
   const n = Math.min(buf.length, 4096);
   for (let i = 0; i < n; i++) if (buf[i] === 0) return true;
@@ -30,6 +60,11 @@ export function walk(root: Root): WalkResult {
   const ig = ignore();
   const giPath = join(root.path, ".gitignore");
   if (existsSync(giPath)) { try { ig.add(readFileSync(giPath, "utf8")); } catch { /* unreadable .gitignore: ignore */ } }
+
+  // realpath of root, so a symlink target under a symlinked temp root (e.g.
+  // /tmp -> /private/tmp on macOS) still compares as "under root".
+  let realRoot: string;
+  try { realRoot = realpathSync(root.path); } catch { realRoot = root.path; }
 
   function rel(abs: string): string { return relative(root.path, abs).split(sep).join("/"); }
 
@@ -55,7 +90,11 @@ export function walk(root: Root): WalkResult {
 
       if (e.isSymbolicLink()) {
         const inScope = e.name.toLowerCase().endsWith(".md") || (!HARD_SKIP_DIRS.has(e.name) && !(e.name.startsWith(".") && !DOT_ALLOW.has(e.name)));
-        if (inScope) findings.push(info("symlink", relPath, "symlink encountered; recorded, not traversed", relPath, relPath));
+        // D2: a symlink that only aliases an in-scope router is deduped (no
+        // finding); the router is scored via its own real entry. Never traverse.
+        if (inScope && !isRouterAlias(abs, realRoot, ig)) {
+          findings.push(info("symlink", relPath, "symlink encountered; recorded, not traversed", relPath, relPath));
+        }
         continue;
       }
 

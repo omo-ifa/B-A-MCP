@@ -75,7 +75,7 @@ function isSignificant(dir: { rel: string; fileCount: number }, rootPath: string
   } catch { return false; }
 }
 
-export function scoreCoverage(root: Root, _walk: WalkResult, graph: GraphResult, opts?: { emitCoverageFindings?: boolean }): CoverageResult {
+export function scoreCoverage(root: Root, walkRes: WalkResult, graph: GraphResult, opts?: { emitCoverageFindings?: boolean }): CoverageResult {
   const noClaudeRoot = root.method !== "claude_md";
   const dirs = listDirs(root.path).filter((d) => isSignificant(d, root.path));
   const findings: RawFinding[] = [];
@@ -84,6 +84,16 @@ export function scoreCoverage(root: Root, _walk: WalkResult, graph: GraphResult,
   // judge -> not assessed -> null, regardless of root method (never a
   // fabricated 0 or 100 for an empty population).
   if (dirs.length === 0) return { subscore: null, n: 0, findings };
+
+  // D3 routing-basis guard, SCOPED to routing_unresolved: routers are present
+  // but resolve zero edges from any root -> coverage cannot be measured (the
+  // routing layer exists but is unreadable, or genuinely broken). Report null,
+  // matching orphans/routing_drift. This is NOT the bare resolvedRefsFromRoots===0
+  // that those use: root_absent (routing_files === 0) is deliberately excluded so
+  // it keeps floor-to-0, holding the amended headline-definite invariant
+  // (planning/decisions/2026-08-20_headline-definite-when-significant-dirs.md).
+  const routingFiles = walkRes.docs.filter((d) => d.isRoot).length;
+  if (routingFiles > 0 && graph.resolvedRefsFromRoots === 0) return { subscore: null, n: 0, findings };
 
   let covered = 0;
   for (const d of dirs) {
