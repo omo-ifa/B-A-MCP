@@ -27,7 +27,7 @@ When a symlink's target resolves to an **in-scope router already scored via its 
 
 - **Narrow amendment only.** Every *other* symlink still emits the `symlink` info finding, unchanged.
 - **Both hard invariants preserved:** never follow the link; never read above root. The target is scored only via its real, non-symlink path.
-- **Guard shape (code pass):** resolve the target and dedup **only if** it is in-scope **AND** already in the scored router set; otherwise fall back to today's `symlink` finding.
+- **Guard shape (code pass):** resolve the target and dedup **only if** it is in-scope **AND** is a structural router. **Implementation refinement (design pass):** decide this at **walk time** — the target must resolve to a structural router name under root and be actually walked in-scope — **not** "already in the scored router set" (scoring runs after the walk, so that membership is unknown mid-recursion). Full three-guard mechanism in `planning/designs/2026-08-20_agents-md-router-recognition-design.md` §3 D2. Otherwise fall back to today's `symlink` finding.
 - `src/API.md` updates in the same commit (rule 8).
 
 ### D3 — `coverage` routing-basis guard: `null` at exactly zero resolved root edges
