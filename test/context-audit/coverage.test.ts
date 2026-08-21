@@ -18,7 +18,8 @@ function run(dir: string, emitCoverageFindings = false) {
 test("HIGH uncovered-workspace finding is gated: default off (TBD-12 build guard)", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov-"));
   try {
-    writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `guide.md`\n");
+    writeFileSync(join(dir, "guide.md"), "guide\n");   // real, non-significant, covered leaf: resolvedRefsFromRoots >= 1 so the D3 guard stays off
     mkdirSync(join(dir, "src"));
     for (let i = 0; i < 8; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");   // uncovered significant dir
     const off = run(dir, false);
@@ -100,7 +101,8 @@ test("coverage subscore is 100 and no findings when significant dirs are covered
 test("gate is off by default when opts is omitted entirely (not just { emitCoverageFindings: false })", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov5-"));
   try {
-    writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `guide.md`\n");
+    writeFileSync(join(dir, "guide.md"), "guide\n");   // real, non-significant, covered leaf: resolvedRefsFromRoots >= 1 so the D3 guard stays off
     mkdirSync(join(dir, "src"));
     for (let i = 0; i < 8; i++) writeFileSync(join(dir, "src", `f${i}.ts`), "x");   // uncovered significant dir
 
@@ -115,7 +117,8 @@ test("gate is off by default when opts is omitted entirely (not just { emitCover
 test("gitignored significant directory is excluded from coverage's traversal scope (scope must match walk.ts)", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov6-"));
   try {
-    writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `guide.md`\n");
+    writeFileSync(join(dir, "guide.md"), "guide\n");   // real, non-significant, covered leaf: resolvedRefsFromRoots >= 1 so the D3 guard stays off
     writeFileSync(join(dir, ".gitignore"), "generated/\n");
 
     // gitignored, would-be-significant directory — walk.ts never descends into
@@ -151,7 +154,8 @@ test("gitignored significant directory is excluded from coverage's traversal sco
 test("test-dir severity split: uncovered test dir -> coverage_test, uncovered source dir -> coverage, both gated off by default", () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov-testdir-"));
   try {
-    writeFileSync(join(dir, "CLAUDE.md"), "# root, references nothing\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `guide.md`\n");
+    writeFileSync(join(dir, "guide.md"), "guide\n");   // real, non-significant, covered leaf: resolvedRefsFromRoots >= 1 so the D3 guard stays off
 
     // uncovered significant TEST directory
     mkdirSync(join(dir, "test", "foo"), { recursive: true });

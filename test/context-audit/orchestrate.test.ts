@@ -45,7 +45,8 @@ test("missing target yields NO_ROUTING_ROOT structured error, no structuredConte
 test("TBD-12 coverage gate stays off end-to-end even when a significant dir is uncovered", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-cov-"));
   try {
-    writeFileSync(join(dir, "CLAUDE.md"), "# root\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `guide.md`\n");
+    writeFileSync(join(dir, "guide.md"), "guide\n");   // real, non-significant, covered leaf: resolvedRefsFromRoots >= 1 so the D3 guard stays off
     // src/lib: 5 source files, no CONTEXT.md, never linked from any routing doc —
     // meets the stubbed significance threshold (>=5 source files) and is neither
     // CONTEXT.md-covered nor routedDir-covered, so coverage sees it as uncovered.
@@ -187,6 +188,26 @@ test("headline invariant: no routers + no significant directory => null is accep
     assert.equal(outcome.ok, true);
     if (!outcome.ok) return;
     assert.equal(outcome.result.score, null);   // 0 significant dirs -> null is honest
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("D3: routing_unresolved + a significant dir => coverage null AND headline null (amended invariant)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-unres-sig-"));
+  try {
+    // Router present but resolves NOTHING (pure prose, zero path refs) -> both
+    // resolvedRefsFromRoots and refsFromRoots are 0 (routing_drift null). A
+    // significant source dir exists. Pre-D3: coverage 0 / headline 0. Post-D3:
+    // both null -- the routing layer is present but unreadable, so not measurable.
+    writeFileSync(join(dir, "CLAUDE.md"), "Routing is described in prose here, with no paths.\n");
+    mkdirSync(join(dir, "src", "lib"), { recursive: true });
+    for (const n of ["a", "b", "c", "d", "e"]) writeFileSync(join(dir, "src", "lib", `${n}.ts`), `export const ${n}=1;\n`);
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    assert.ok(outcome.result.findings.some((f) => f.category === "routing_unresolved"));
+    assert.equal(outcome.result.subscores.coverage.score, null);   // was 0 pre-D3
+    assert.equal(outcome.result.subscores.coverage.n, 0);
+    assert.equal(outcome.result.score, null);                      // was 0 pre-D3 (all routing-layer sub-scores null)
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
