@@ -86,6 +86,7 @@ Named, not diffed. The build phase writes the changes.
 - **`src/CONTEXT.md`** — re-verify the context-budget ledger entry for `context_audit` (expected unchanged); note the re-measure at `/handoff` (rule 2).
 - **`src/TDD.md`** — already carries the run-5 notes on TBD-10/11/12 (gated on this fix + the nine-repo re-run); update those statuses again once the fix lands and the re-run produces data.
 - **`planning/decisions/2026-08-20_agents-md-router-recognition.md`** — the resolved-decision record (already written); no further change unless the build surfaces a missed decision (ratchet back to `/decisions`).
+- **`planning/decisions/2026-08-20_headline-definite-when-significant-dirs.md`** — amended to except the `routing_unresolved` state from its "≥ 1 significant dir → never null" rule (routers present, zero resolved from any root → `coverage`/`orphans`/`routing_drift` all null → headline null; `root_absent` floor-to-0 untouched). Committed alongside the code and the `agents-md-router-recognition` record (rule 8).
 - **`SESSION_HANDOFF.md`** — at session close, record the fix status, the pending nine-repo re-run, and that the README sample stays blocked until it runs.
 
 **Test-scope notes for the build phase** (pointers for `superpowers:test-driven-development`, not tests — the build writes them):
