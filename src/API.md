@@ -58,7 +58,7 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
 
 `path` is optional; when omitted the audit runs against the server's working directory (`process.cwd()`).
 
-**Root resolution.** The tool resolves upward from `path` to the nearest `CLAUDE.md` or `AGENTS.md` and treats that directory as root; if none is found, it falls back to the nearest git root (`.git/`); if neither exists, it uses the given path as-is. The returned `root.method` records which of the three applied (`claude_md` / `git_root` / `given_path`) — a `git_root` or `given_path` audit is a weaker claim than a `CLAUDE.md`-anchored one, and the record says so. An `AGENTS.md`-only repo (no `CLAUDE.md` entry) still reports `method: "claude_md"` — an accepted v1 label limitation; a distinct `agents_md` value is a v1.1 item.
+**Root resolution.** The tool resolves upward from `path` to the nearest `CLAUDE.md` or `AGENTS.md` and treats that directory as root; if none is found, it falls back to the nearest git root (`.git/`); if neither exists, it uses the given path as-is. The returned `root.method` records which of the three applied (`claude_md` / `git_root` / `given_path`) — a `git_root` or `given_path` audit is a weaker claim than a `CLAUDE.md`-anchored one, and the record says so. An `AGENTS.md`-only repo (no `CLAUDE.md` entry) still reports `method: "claude_md"` — an accepted v1 label limitation; a distinct `agents_md` value is a v1.1 item. For the same reason, an empty `AGENTS.md`-only root is surfaced as `routing_unresolved` (info) rather than `root_empty` (critical); see TBD-15.
 
 **Output schema** (returned as `structuredContent`, matching the tool's declared `outputSchema`). Note: the `outputSchema` actually declared in `index.ts` is intentionally minimal — `subscores`, `findings.items`, and `stats` are declared as bare `{ type: "object" }` there, to keep the standing tool-definition cost within the ~4000-token budget (CLAUDE.md rule 2); the detailed shape below documents the `structuredContent` payload the tool actually returns, not the declared schema itself:
 
@@ -129,7 +129,7 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
 { "error": { "code": "NO_ROUTING_ROOT", "message": "...", "detail": "not_found | not_a_directory | not_readable" } }
 ```
 
-`NO_ROUTING_ROOT` fires only for a genuine failure of the target path itself — it does not exist, is not a directory, or is not readable. Absence of `CLAUDE.md`/`CONTEXT.md` docs is never an error; it is scored as findings (`root_absent`, `root_empty`) instead.
+`NO_ROUTING_ROOT` fires only for a genuine failure of the target path itself — it does not exist, is not a directory, or is not readable. Absence of `CLAUDE.md`/`AGENTS.md`/`CONTEXT.md` docs is never an error; it is scored as findings (`root_absent`, `root_empty`) instead.
 
 **Invariants** (asserted per the design doc, same class of rule as the free/paid boundary):
 
