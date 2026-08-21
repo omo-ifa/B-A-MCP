@@ -6,54 +6,55 @@
 
 ## Repo state
 
-- **Branch:** `main`. This handoff lands via `docs/handoff-2026-08-20` → PR (WORKFLOW rule: no direct commits to `main`).
-- **Feature merges on `main`:** PR #1 (server bootstrap), PR #2 (`context_audit`, `28b294b`), PR #3 (sub-score confidence signal + test-dir coverage severity, `a868697`). All merge commits (not squash) — the rule-4/rule-8 same-commit pairs stay auditable.
-- **Working tree:** clean before this handoff (only `SESSION_HANDOFF.md`, `src/TDD.md`, `planning/Roadmap.md` changed by the handoff itself).
-- **Build/tests (verified this session on merged `main`):** `npm run build` clean; `npm test` → **50 pass / 0 fail**.
+- **Branch:** `main`. This handoff lands via `docs/handoff-2026-08-20-orphan-tbd` → PR (WORKFLOW rule: no direct commits to `main`).
+- **Pre-handoff `main`:** `468dce1` (`468dce1429f603dae2bae80486b5e97cf789c438`). Read with `git rev-parse HEAD` at handoff time. The next session should re-read HEAD after this handoff PR merges — do not carry `468dce1` forward blindly.
+- **PRs merged this session:** **#5–#11 all merged, nothing open** before this handoff PR. (#5 census, #6 TBD-1/7/4/2/13 decisions, #7 parser fix + orphans guard, #8 run-2, #9 five decision records, #10 four-sub-scores + router-path drift + per-router bloat, #11 run-4.)
+- **Build/tests (verified this session on merged `main` `468dce1`):** `npm run build` clean; `npm test` → **71 pass / 0 fail**. (Not 50/50 — that figure is stale.)
 
 ---
 
-## Active design docs
+## Active design doc
 
-- **`planning/designs/2026-08-18_context-audit-design.md`** — **approved and built.** §3/§4 severity reconciled this line of work (empty root `CLAUDE.md` = `critical`, matching §4 and the shipped code).
-- **Decision records (this session's line of work):**
-  - `planning/decisions/2026-08-20_subscore-confidence-signal.md` — every sub-score carries `n`; `n=0` → `null` ("not assessed"), never a fabricated 100.
-  - `planning/decisions/2026-08-20_test-dir-coverage-severity.md` — test dirs significant at `medium` (`coverage_test`), source at `high` (`coverage`); "test dir" = any path segment exactly `test`/`tests`/`__tests__`/`spec`.
-- **`planning/calibration/2026-08-19_context-audit-run-1.md`** — the first dogfood run against B-A-MCP (score 45, uncalibrated). **NOT the README sample.**
+- **`planning/designs/2026-08-18_context-audit-design.md`** — **approved and built.** The tool has since been refined by a chain of decision records (all in `planning/decisions/2026-08-20_*`); read those alongside the design doc, they supersede specifics:
+  - `subscore-confidence-signal` (`n`; empty denominator → null) · amended by `backtick-routing-edges-and-orphans-guard` for the zero-edge case.
+  - `test-dir-coverage-severity` · `broken-refs-removed-four-subscores` · `router-path-drift` · `tbd-11-bloat-per-router-not-total` · `headline-definite-when-significant-dirs` · `orphan-scope-layout-vs-rot` (new, open).
 
 ---
 
 ## Decisions + TBDs
 
-**Resolved this session (partial — structural/policy only, numbers still open):**
-- **TBD-10 structural prerequisite** — the confidence/`n` signal (decision record above). Weight NUMBERS remain open.
-- **TBD-12 policy sub-question** — test-dir severity (decision record above). Threshold NUMBERS remain open.
+**Structural / policy resolved this session (NUMBERS still open — no threshold set anywhere):**
+- **TBD-1** RESOLVED (claude-mem ships a `NOTICE` → reproduce it). **TBD-7** RESOLVED (Superpowers pin `v6.3.0` @ `b36e082`, commit not tag).
+- **TBD-4** narrowed (icm code copyright = Van Clief; paraphrase call still owner's). **TBD-2** rescoped (caveman dual MIT+BSL-1.1; bundle `skills/caveman/` MIT, path-scope + commit-pin).
+- **TBD-13** RESOLVED (policy) → **`broken_refs` REMOVED; four sub-scores** (`bloat`, `orphans`, `routing_drift`, `coverage`). Non-router broken links are `info` findings.
+- **TBD-11** SHAPE resolved (bloat is per-router + per root→leaf chain, not a flat total); **cutoff NUMBERS still Open**.
+- **TBD-12** test-dir severity policy resolved; **`MIN_FILES` NUMBER still Open**.
 
-**Open TBDs — CURRENT STUB VALUES (do not lose; canonical copy in `src/TDD.md`):**
-- **TBD-10** `TBD_10_WEIGHTS` (`src/tools/context-audit/score.ts`): `broken_refs:3, routing_drift:3, orphans:2, coverage:2, bloat:1`. Principle (accuracy > bloat) + structural `n`-signal resolved; **numbers data-blocked**. Do NOT resolve from B-A-MCP's run alone.
-- **TBD-11** (`src/tools/context-audit/bloat.ts`): `ROUTING_TOKEN_CUTOFF=4000`, `INLINE_RATIO_CUTOFF=0.85`, `INLINE_MIN_TOKENS=200`, `DEPTH_CUTOFF=4`. **`ROUTING_TOKEN_CUTOFF=6000` was CONSIDERED and REJECTED (2026-08-20):** run-1 proposed 4000→6000, but that number was chosen to stop the tool flagging B-A-MCP's *own* routing layer (4619 tokens) — tautological self-tuning, and one repo can't constrain the top end (needs a genuinely bloated 10k+-token router). **Stub stays 4000.** Inline-ratio/min-tokens/depth: no contrast data → unchanged.
-- **TBD-12** (`src/tools/context-audit/coverage.ts`): `TBD_12_MIN_FILES=5`, `TBD_12_SOURCE_EXTS=[.ts,.js,.tsx,.jsx,.py,.go,.rs,.java,.rb]`. Test-policy resolved; threshold numbers data-blocked.
-- **Other open TBDs** (see `src/TDD.md`): TBD-1/2 (claude-mem NOTICE; five bundled-component licenses — release-blocking), TBD-4 (ICM reproduce-vs-paraphrase, escalated), TBD-5 (paid price), TBD-7 (Superpowers pin), TBD-8 (launch split), TBD-9 (`doc_drift` scope).
+**Open — do not lose:**
+- **TBD-10** (weights over the **four** sub-scores) — Open. `routing_drift` was non-discriminating until router-path drift gave it teeth; re-assess after the app-repo run. **orphans must not carry weight until TBD-14 settles** (see below).
+- **TBD-11** (per-router / chain cutoff NUMBERS) — Open. `6000` for the old flat cutoff was **rejected** as tautological self-tuning against B-A-MCP's own 4619-token router. Stubs live in `src/tools/context-audit/bloat.ts`.
+- **TBD-12** (`MIN_FILES` significance number) — Open. Run-4 datapoint: superpowers `coverage 100/n1` rests on a **single** test dir (`tests/brainstorm-server`) — thin, bears on `MIN_FILES`.
+- **TBD-14 (NEW)** — **orphan scope**: on superpowers all 61 orphans are structural, not rot — **43 under `docs/`** (19 dated plan docs under `*/plans/`) + **18 under `skills/*/`** (convention-discovered via each `SKILL.md`). `orphans` scored a layout choice; its 0 is an artifact. Open: exclude convention-discovered/archival dirs, and how without reading source? Evidence + counts: `planning/decisions/2026-08-20_orphan-scope-layout-vs-rot.md`.
+- **caveman drift residue (28)** — open second pass (bare `.md`, `AGENTS.md` cross-refs); not decided on one repo. See `planning/calibration/2026-08-20_context-audit-run-4-strict-drift.md`.
+- Other open TBDs (see `src/TDD.md`): TBD-2 (five licenses / caveman path-scope), TBD-4 (ICM paraphrase), TBD-5 (price), TBD-8 (launch split), TBD-9 (`doc_drift` scope).
 
 ---
 
 ## Remaining work
 
-- **Calibration — BLOCKED on user input.** The user must name ≥2–3 **hyperlink-routed** repos (hard filter — backtick-routed repos reproduce the empty-denominator problem): ≥1 with genuinely hyperlinked `CLAUDE.md`/`CONTEXT.md`, ≥1 with a large monolithic `CLAUDE.md` (to constrain TBD-11's top end), one with no context layer at all (zero-doc floor), varied source layouts. Then: run `context_audit` against each → `calibration-run-2/3/4` → resolve TBD-10/11/12 from the fuller data → re-run vs B-A-MCP → README sample. **Do NOT resolve any threshold from B-A-MCP's run alone.**
-- **Deferred minor (rides TBD-12 resolution):** per-file `.gitignore` filtering within an otherwise-significant directory (coverage counts a dir's source files without excluding individually-gitignored ones).
-- **README** — release-blocking-adjacent; leads with `context_audit` + a real sample; waits for the post-calibration re-run (scorer must stop reporting `calibrated: false`).
-- **Legal (release-blocking):** `LICENSE` + `THIRD_PARTY_NOTICES.md` final (TBD-1/2). `ignore` (MIT) already has its notice + Integration_Spec row.
-- **Next tool:** `override_log` (Roadmap #2), then `doc_drift` (TBD-9), then the `.claude/commands/` generator, then `npm publish` dry-run.
+- **Calibration — the next run is the big one.** Clone and audit the **four approved application repos**: `apache/superset`, `PostHog/posthog`, `calcom/cal.com`, `TryGhost/Ghost` (alternate on standby: `twentyhq/twenty`). Produce the **same table format** as run-2/3/4 (headline + four sub-scores, run-over-run), with the **drift count split into broken markdown links vs. unresolvable router paths**.
+- **These four are UNVALIDATED as calibration targets** — chosen from metadata (CLAUDE.md size, md-link/backtick counts, contributor history, age), **not from a run**. Any one could route in a syntax the parser doesn't see, exactly as all five census repos did. **First action on each repo is a structural pre-flight** (link-style / router census) **before its numbers are treated as data** — this session's task-observer observation **#7**.
+- **Then** revisit TBD-10/11/12 NUMBERS from the fuller sample, the caveman-28 residue second pass, and only after that the README sample.
+- **Next tool after calibration:** `override_log` (Roadmap #2), then `doc_drift` (TBD-9), then the `.claude/commands/` generator, then `npm publish` dry-run. Legal (release-blocking): `LICENSE` + `THIRD_PARTY_NOTICES.md` (TBD-1/7 resolved; TBD-2/TBD-4 still gate the notices file).
 
 ---
 
 ## Context not in the docs
 
-- **B-A-MCP is a poor calibration target for TBD-10/11.** Its routers use backtick code-paths (`` `src/CONTEXT.md` ``), not markdown hyperlinks, so `extractLinks` sees ~0 routing edges → `routing_drift`/`broken_ref` denominators are degenerate. Post-confidence-signal these now report `not assessed (n=0)` instead of a misleading 100. Its own plan/design docs' `[a](./a.md)` example links are read as real `broken_ref`s (11 of run-1's 13). This is why calibration needs hyperlink-routed repos.
-- **Watch as a likely v1.1 finding:** if real-world `CLAUDE.md` files commonly route via backtick paths rather than markdown links, that is a **parser coverage gap** in `extractLinks` that no threshold change addresses — potentially more valuable than the thresholds. Surface it across the calibration repos; do not fix it during calibration.
-- **Output contract changed** (confidence signal): `subscores` are `{ score: number|null, n: number }` per sub-score; headline `score` is `number|null`. `outputSchema` widened `score` to nullable; standing tool-definition cost re-measured to **252 / ~4000** (`src/CONTEXT.md`).
-- **The TBD-12 gate** (`emitCoverageFindings`, renamed from `emitHighFindings`) is off by default; `index.ts` calls `scoreCoverage(root, w, g)` with no opts, so neither `coverage` (high) nor `coverage_test` (medium) fires on the production path.
-- **`.claude/commands/` generation still does not exist.** No prompt changed this session → nothing to regenerate (rule 1 is a no-op here).
+- **Standing calibration rules (do not violate):** no threshold gets set from **B-A-MCP's own run** (its backtick routing is a degenerate self-tuning target); `6000` was already rejected as tautological self-tuning; **caveman is shaping two open TBDs at once** (TBD-11 top-end *and* the noisiest drift residue) — its influence must stay **visible**, never silently baked in; the **first post-threshold run is calibration, not the README sample**; the README sample must be a **true run, never a flattering one**.
+- **Why the app-repo sample matters:** the census five are all single-author tool repos whose authors wrote the routers recently and personally — the population **least** likely to have rotted routes. The customer is someone auditing an **inherited** repo they haven't fully read. The four app repos (multi-contributor, older, churned, mixing markdown + backtick routing) are the test of whether `routing_drift` catches real rot or whether the ~1-real-catch result holds.
+- **All drift signal came from the backtick rule** across all four runs — zero from broken markdown links. Reverting router-path drift would return `routing_drift` to a check structurally unable to fire.
+- **Routing convention reality:** real repos route via **backtick code-span paths**, not markdown links (census: 0/5 used markdown links). Backtick edges are recognized in **router docs only**, resolve-doc-relative-OR-root-relative, resolve-only for edges; a non-resolving **strict `.md` doc-shape** router backtick is drift (`routing_path_missing`).
 
 ---
 
@@ -61,14 +62,14 @@
 
 Paste-ready prompt for the next session:
 
-> Continue `context_audit` calibration for the B&A MCP server. The tool is built, live, and merged to `main` (PRs #1–#3, 50/50 tests). Two design decisions landed 2026-08-20: the sub-score confidence signal (`n`; empty denominator → "not assessed", not 100) and test-dir coverage severity (`coverage_test`/medium). TBD-10/11/12 thresholds are still stubbed and **must not be resolved from B-A-MCP's own run** (backtick routing → degenerate denominators; `6000` for TBD-11 was already rejected as tautological self-tuning — see `src/TDD.md`).
+> Continue `context_audit` calibration for the B&A MCP server. Read first: `CLAUDE.md`, this `SESSION_HANDOFF.md`, `src/TDD.md` (TBD tracker), the run records `planning/calibration/2026-08-20_context-audit-run-{2,4}-*.md`, and the `planning/decisions/2026-08-20_*` records (esp. `router-path-drift`, `broken-refs-removed-four-subscores`, `orphan-scope-layout-vs-rot`). The tool is at **four sub-scores** (`bloat`, `orphans`, `routing_drift`, `coverage`); confirm `main` HEAD + `npm test` count before trusting any prior figure.
 >
-> Read first: `CLAUDE.md`, this `SESSION_HANDOFF.md`, `planning/calibration/2026-08-19_context-audit-run-1.md`, and the two `planning/decisions/2026-08-20_*.md` records.
+> Task: clone and audit the four **approved, but UNVALIDATED** application repos — `apache/superset`, `PostHog/posthog`, `calcom/cal.com`, `TryGhost/Ghost` (alternate: `twentyhq/twenty`). **First, a structural pre-flight per repo** (routing convention / link-style census — invoke the mindset of task-observer observation #7) before treating any repo's numbers as data — each could route in a syntax the parser doesn't see. Then run `context_audit` on each and produce the same run-over-run table (headline + four sub-scores), with the **drift count split into broken markdown links vs. `routing_path_missing`**. Write `planning/calibration/2026-0X-XX_context-audit-run-5-appsample.md`.
 >
-> The user will name ≥2–3 hyperlink-routed calibration repos (≥1 hyperlinked routing, ≥1 large monolithic `CLAUDE.md`, one with no context layer, varied layouts). For each: run `context_audit` (`node -e "import('./dist/src/tools/context-audit/index.js')..."`) and write `planning/calibration/2026-08-20_context-audit-run-N.md` recording the run + observations. Then resolve TBD-10/11/12 from the combined data — record each in a `planning/decisions/YYYY-MM-DD_*.md` and update `src/TDD.md` — re-run against B-A-MCP, and only then write the README sample. Note any backtick-vs-hyperlink routing you observe as a v1.1 parser-gap finding. Use `superpowers:test-driven-development` for any code change, the code reviewers before finishing, and `superpowers:finishing-a-development-branch` to integrate. Do all threshold-touching work on a branch + PR (no direct commits to `main`).
+> Standing rules: **no threshold (TBD-10/11/12) resolved from B-A-MCP's own run**; `6000` already rejected as tautological self-tuning; **caveman is shaping two TBDs at once — keep its influence visible**; the first post-threshold run is calibration, and the README sample must be a **true run, never a flattering one**. Also open: **TBD-14 orphan scope** (superpowers' 61 orphans are layout, not rot — settle before orphans carries weight in TBD-10) and **caveman's 28-finding drift residue** (second pass, not on one repo). For any code change use `superpowers:test-driven-development`, run the code reviewers, and `superpowers:finishing-a-development-branch`; all threshold-touching work on a branch + PR (no direct commits to `main`).
 
 ---
 
 ## Open overrides
 
-None. (No `/problem-fit` or `/decisions` override was taken; the two 2026-08-20 design decisions were made by the product owner and recorded in `planning/decisions/`.)
+None. (All 2026-08-20 decisions were made by the product owner and recorded in `planning/decisions/`.)
