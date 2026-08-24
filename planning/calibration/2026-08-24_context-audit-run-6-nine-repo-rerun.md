@@ -111,6 +111,8 @@ Adding the three remaining bare-`.md`-literal artifacts (the original caveman-28
 
 **Opened as TBD-16.** Not fixed here; routes to `/decisions`. Observation 10 in the task-observer log applies directly: this reads as a **definition** problem (what counts as a route), not a filter problem. **The caveman-28 residue is now absorbed into TBD-16 with two-repo evidence** — it was never caveman-specific.
 
+> **Resolved same day (`/decisions` 2026-08-24) — `planning/decisions/2026-08-24_routing-drift-precision-and-interim-disposition.md`.** Two paired interim measures follow from the ≈17 % precision measured above, and **both revert together** when the base-dir precision fix lands and is re-validated: **`routing_drift` contributes a correctness-driven `null` to the headline** (a weight of `0` was measured and rejected — it would leave hygiene-only `bloat` carrying the headline, taking icm-architect from 23 to **90**), and **`routing_path_missing` is demoted to `info`** — interim and reversible, precedent TBD-13. **This section is the standing citation for why those flags are `info`:** an `info`-level `routing_path_missing` in any run between that decision and the fix is reported-but-unscored *because of the 26 prose-relative / 10 placeholder split measured here*, not because the route is unimportant. On the fix landing it returns to `high`.
+
 ---
 
 ## 4. TBD-11 — the top-end data finally exists, and it says the shape is still wrong
@@ -215,6 +217,8 @@ Per the standing rule (and task-observer obs #7), a structural pre-flight ran **
 ---
 
 ## 8. What run-7 needs
+
+> **Update (same day, `/decisions` 2026-08-24).** Items 1–3 below have since been through the gate; they are left as written to preserve what this run recommended. Outcomes: **TBD-16** resolved as policy + shape (precision + display; correctness-null + interim `info`; base-dir fix and md-link disposition authorised as a build loop) — `2026-08-24_routing-drift-precision-and-interim-disposition.md`. **TBD-11 shape** recorded and re-work authorised, `INLINE_RATIO_CUTOFF` flagged for re-derivation, **no number** — `2026-08-24_tbd-11-bloat-aggregation-shape.md`. **TBD-17 RESOLVED** — add no new syntax in v1 — `2026-08-24_tbd-17-no-new-router-syntax-v1.md`. A fourth fork not listed below was also taken: **TBD-14**'s cause identified as routes-to-directories-not-documents, dir-granularity reachability authorised — `2026-08-24_orphans-routes-to-dirs-not-docs.md`. **TBD-10/11/12 numbers all remain deferred.**
 
 1. **`/decisions` on TBD-16** (the drift definition) — the single blocker for TBD-10. Treat as a definition question, not a filter question.
 2. **`/decisions` on TBD-11's shape** — normalize the bloat penalty (per-router or per-chain, not a flat sum over router count) and re-assess `inline_ratio` / `INLINE_MIN_TOKENS` before any cutoff number is set.
