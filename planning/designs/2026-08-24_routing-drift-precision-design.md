@@ -6,6 +6,7 @@
 **TBD:** TBD-16
 **Builds on:** `planning/decisions/2026-08-24_routing-drift-precision-and-interim-disposition.md` (D1–D5)
 **Amends:** `planning/decisions/2026-08-20_router-path-drift.md` (the routing-path definition) · `planning/decisions/2026-08-20_backtick-routing-edges-and-orphans-guard.md` §62.1 (two-base resolution)
+**Amended by:** `planning/decisions/2026-08-24_d2-d3-superseded-before-implementation.md` — §3.4's exit criterion moves from *restore* to *confirm* (D2/D3 were never implemented, so no interim state exists to restore). Paired-coherence requirement unchanged.
 **Status:** Design — WHAT & WHY only. No numbers, no code, no task breakdown.
 
 ---
@@ -94,18 +95,22 @@ The disposition Gate 2 authorised this loop to settle. Evidence: broken markdown
 
 If re-validation after this fix shows md-link drift producing false positives from some *other* mechanism, that is a new `/decisions` item, not a silent adjustment here.
 
-### 3.4 Exit criterion — the two restore triggers flip TOGETHER
+### 3.4 Exit criterion — both surfaces CONFIRMED together
 
-`2026-08-24_routing-drift-precision-and-interim-disposition.md` put two interim measures in force and stated they are **paired**. This design is complete only if landing it flips **both**:
+> **Amended 2026-08-24** — `planning/decisions/2026-08-24_d2-d3-superseded-before-implementation.md`. This section originally read *"the two restore triggers flip TOGETHER"* and required restoring `routing_path_missing` to `high`. **D2 and D3 were never implemented** — Gate 2 is docs-only, so the code never entered the interim state, and there is nothing to restore. A step saying "restore severity to `high`" against code already at `high` would be a no-op that completes without doing anything. **The paired-coherence requirement below is kept in full; only the mechanism changes — from *restore* to *confirm*.**
 
-| interim measure | in force because | restored to |
+`2026-08-24_routing-drift-precision-and-interim-disposition.md` resolved two measures and stated they are **paired**. This design is complete only if landing it leaves **both** surfaces consistent:
+
+| surface | ruling D2/D3 would have imposed had the fix been delayed | must be true after the fix |
 |---|---|---|
-| **D2** — `routing_drift` contributes a correctness-driven `null` to the headline | the measurement is not trusted | a real contribution, eligible for TBD-10 weighting |
-| **D3** — `routing_path_missing` demoted to `info` | ~49 of 59 flags were wrong | severity `high` |
+| **Headline contribution** (D2) | `routing_drift` contributes a correctness-driven `null` | **scored-real** — a genuine value, eligible for TBD-10 weighting |
+| **Finding severity** (D3) | `routing_path_missing` demoted to `info` | **`high`, confirmed never lowered** |
 
-**A design that restores one without the other is an incomplete design.** They describe one condition — "is this measurement trustworthy" — read at two surfaces, the headline and the finding list. Restoring the headline contribution while leaving findings at `info` would weight a signal the tool still presents as low-confidence; restoring severity while leaving the headline null would accuse users at full volume on a measurement the composite refuses to use. Either half alone is incoherent.
+**A design that leaves one surface inconsistent with the other is an incomplete design.** They describe one condition — "is this measurement trustworthy" — read in two places, the headline and the finding list. A scored headline contribution alongside findings rendered at `info` would weight a signal the tool itself presents as low-confidence; full-severity findings alongside a null contribution would accuse users at full volume on a measurement the composite refuses to use. Either half alone is incoherent, however the state was arrived at.
 
-**Both flips are gated on the same event:** this fix landing **and** being re-validated against the pinned nine-repo corpus (`planning/calibration/2026-08-24_context-audit-run-6-nine-repo-rerun.md` §0 — same commits, tool as the only variable). Re-validation is a calibration run, not a build step, and it is what closes TBD-16. **It is not a numeric bar** — no precision threshold is set here or anywhere (rule 7).
+**Both are asserted directly in the fix's own tests** — after the fix, `routing_path_missing` is `high` **and** `routing_drift` is scored — with no lower-then-raise anywhere. Materialising the interim state in order to revert it was considered and rejected: it manufactures history, shipping a state nobody runs so a record's tense stays true. This project corrects the record to match reality, never the reverse.
+
+**Both confirmations are gated on the same event:** this fix landing **and** being re-validated against the pinned nine-repo corpus (`planning/calibration/2026-08-24_context-audit-run-6-nine-repo-rerun.md` §0 — same commits, tool as the only variable). Re-validation is a calibration run, not a build step, and it is what closes TBD-16. **It is not a numeric bar** — no precision threshold is set here or anywhere (rule 7).
 
 **The close condition is CATEGORICAL, not proportional.** TBD-16 closes when **every** residual `routing_drift` / `routing_path_missing` finding across the pinned corpus is classifiable into a class §3.5 names as out of scope, or is a verified genuine broken route. **Any single finding that fits neither goes to `/decisions`** — it is an unnamed mechanism, and an unnamed mechanism is exactly what run-6 found hiding behind a plausible-looking number.
 
