@@ -62,6 +62,13 @@ An unanchored reference is excluded from **both** the `routing_drift` numerator 
 
 **The bounding constraint** on the subtree search is the router's own directory. A path is only ever unanchored *relative to the router that mentions it*; a repo-wide search would let any router excuse any path. The two hard invariants from `2026-08-20_backtick-routing-edges-and-orphans-guard.md` are untouched: never follow a symlink, never read above root.
 
+**The search is over the already-walked document set — NOT a fresh filesystem traversal.** `walk` has already enumerated every in-scope `.md` document once; tier 2 is a lookup against that existing set, filtered to the router's subtree. This is stated explicitly because the alternative reads as licence to re-walk: posthog's `products/signals/skills/` alone holds forty-plus scout directories, and a per-finding traversal would turn a read-only audit into repeated directory scans. Two consequences follow and are accepted:
+
+- The corpus is the **walked doc set**, so tier 2 sees exactly what the audit sees. A tier-2 candidate is always a `.md` path (the shape test requires it), so the walked doc set is the right corpus by construction — no non-`.md` or directory targets are in question at this tier.
+- Documents the walk deliberately excludes — gitignored paths, hard-skips — are **not** in that set, so a router path pointing at one reads as drift rather than unanchored. That is consistent with the tool's existing scope (out-of-scope files are not routes), not a new rule.
+
+**Multiplicity is not a collision.** The match condition is **"at least one file exists in the subtree," not "exactly one."** Where the same filename survives under several sibling directories — the normal case in posthog, where many scout directories each carry a `references/` — every match is equally evidence that the path is real and the base is unknown. **Because tier 2 creates no edge, there is nothing to disambiguate:** the tool is not choosing a target, only declining to call the path broken. Ambiguity is the reason tier 2 exists, not an obstacle to it.
+
 ### 3.2 Template placeholders are not paths, in either syntax
 
 Ten of the 59 findings are template text. The shape definition in `links.ts` (`isRoutingPathShape`) already excludes globs, home paths, env vars and package scopes on the reasoning that they *cannot be a doc route in any repo*. Placeholder-delimited spans belong in that same list by the same argument — `chart:<chart_id>` is not a path that failed to resolve, it is a form with a blank in it.
@@ -70,6 +77,8 @@ Two shape corrections, both of the definition and neither a filter:
 
 - **Placeholder delimiters** join the excluded-marker set (brace forms are already excluded; the angle-bracket form is not).
 - **A bare extension is not a path.** The current shape test accepts a literal `.md` with no stem, which is how prose sentences about file types become drift findings. A routing path needs something to name.
+
+  **"No stem" is not "leading-dot segment."** The exclusion is about the **final** segment having no name before its extension — a span that is *only* an extension (`.md`, or a path whose last segment is `.md`). A leading dot on any segment is untouched: `.claude/CLAUDE.md`, `.github/copilot-instructions.md` and `.agents/CONTEXT.md` all name a file and remain valid routes. Dot-prefixed directories are ordinary and common in this population; excluding them would drop real routes, which is the opposite of this design's purpose.
 
 **This applies to markdown links too, and that is what settles §3.3.** Markdown-link router drift currently has *no* shape test — any non-resolving link from a router is drift — which is exactly why posthog's two `chart:<chart_id>` hits fired. Placeholder exclusion is syntax-independent: a form-with-a-blank is not a route whether it was written in backticks or brackets.
 
@@ -96,9 +105,21 @@ If re-validation after this fix shows md-link drift producing false positives fr
 
 **A design that restores one without the other is an incomplete design.** They describe one condition — "is this measurement trustworthy" — read at two surfaces, the headline and the finding list. Restoring the headline contribution while leaving findings at `info` would weight a signal the tool still presents as low-confidence; restoring severity while leaving the headline null would accuse users at full volume on a measurement the composite refuses to use. Either half alone is incoherent.
 
-**Both flips are gated on the same event:** this fix landing **and** being re-validated against the pinned nine-repo corpus (`planning/calibration/2026-08-24_context-audit-run-6-nine-repo-rerun.md` §0 — same commits, tool as the only variable). Re-validation is a calibration run, not a build step, and it is what closes TBD-16. **It is not a numeric bar** — no precision threshold is set here or anywhere (rule 7). What re-validation checks is whether the residue is dominated by the classes §3.5 names as out of scope. If it is dominated by something else, that is a new finding and goes back to `/decisions`.
+**Both flips are gated on the same event:** this fix landing **and** being re-validated against the pinned nine-repo corpus (`planning/calibration/2026-08-24_context-audit-run-6-nine-repo-rerun.md` §0 — same commits, tool as the only variable). Re-validation is a calibration run, not a build step, and it is what closes TBD-16. **It is not a numeric bar** — no precision threshold is set here or anywhere (rule 7).
+
+**The close condition is CATEGORICAL, not proportional.** TBD-16 closes when **every** residual `routing_drift` / `routing_path_missing` finding across the pinned corpus is classifiable into a class §3.5 names as out of scope, or is a verified genuine broken route. **Any single finding that fits neither goes to `/decisions`** — it is an unnamed mechanism, and an unnamed mechanism is exactly what run-6 found hiding behind a plausible-looking number.
+
+This is deliberately stricter than "the residue is dominated by known classes," which was the earlier wording. *Dominated* is a proportion without a number attached, and a proportion without a number is a threshold waiting to be invented — it invites "precision looks good enough" at the moment the temptation is highest, which is the same failure as the rejected `6000`. **Every residual finding must be accounted for by name.** Counting is for the record; classification is the gate.
 
 ### 3.5 Deliberately skipped
+
+The first entry is different in kind from the rest: everything below it is residue this fix **does not reach**, while the first is a class the fix **itself creates**. It is listed first because a cost the design introduces deserves more scrutiny than one it merely fails to remove.
+
+- **Masked rot — the false negative this architecture INTRODUCES.** D5 warned that a widened resolution "risks a new false-negative class." This is it, named: **tier 2 silences a genuinely broken route whenever a same-named file happens to survive elsewhere in the router's subtree.** A router says `references/conventions.md`; the target it actually meant has rotted away; another scout directory's `references/conventions.md` still exists; the path is classified unanchored and the tool says nothing. A real defect, gone quiet.
+
+  **Accepted, with the reasoning stated so it can be revisited.** The alternative is the status quo, which reports that same class of path as broken **26 times out of 59** when the file is sitting right there. Trading a rare silent miss for a frequent false accusation is the right direction for a tool whose entire claim is that its findings are trustworthy — a user who is lied to five times out of six stops reading the output at all, at which point the genuine findings are lost too. **But the trade is real and it is a loss, not a free win.** It is also structurally invisible: a false positive announces itself the moment a user opens the file, while this failure produces silence, so nothing surfaces it except a deliberate check.
+
+  **Re-validation must EXPECT this class** rather than reading it as a new defect — and, because it is silent, must look for it actively rather than waiting for it to appear. Quantifying its real-world rate needs ground-truth knowledge of what each router *meant*, which the corpus cannot supply; if a later run finds it common rather than rare, that is a `/decisions` item, not a silent adjustment here.
 
 - **Install-target paths.** Router prose describing where files land in the **consumer's** repo (`.windsurf/rules/…`, `.clinerules/…`, `.github/copilot-instructions.md`, `.claude/skills/…` in caveman). These genuinely resolve nowhere in the audited repo, so they remain drift under the corrected rule. Distinguishing "a path in another repo's layout" from "a broken route" needs prose semantics the tool does not have. **Named here so re-validation expects them** rather than reading them as a new defect.
 - **Cross-repo references** (caveman's `agents/AGENTS.md`, `agents/CLAUDE.md` — a sibling repo). Same class, same reason.
@@ -143,7 +164,7 @@ A list of documents and roughly how — **not** their diffs.
 
 | Document | Roughly how |
 |---|---|
-| **`src/API.md`** | The MCP surface contract. Restate what makes a router path a route (the third tier), the placeholder exclusion, and `routing_path_missing`'s severity returning to `high`. **Same commit as the code** (rule 8). |
+| **`src/API.md`** | The MCP surface contract. Restate what makes a router path a route (the third tier), the placeholder exclusion, and `routing_path_missing`'s severity returning to `high` — **including the §3.5 masked-rot limitation**, since a user reading what this finding means is entitled to know what it can miss. No new document: this row already owned the third tier's semantics, and a tier's limitation is part of them. **Same commit as the code** (rule 8). |
 | **`src/TDD.md` — TBD-16 row** | Status moves to Resolved once re-validated; record that both restore triggers fired together, with the closing evidence. |
 | **`src/TDD.md` — TBD-10 row** | Drop the "blocked on TBD-16" gate; `routing_drift` becomes eligible for weighting. The weight **numbers** stay deferred, and `orphans` stays excluded pending its own loop. |
 | **`src/TDD.md` — TBD-13 row** | **Unrelated one-line correction, folded into this loop:** the Status column reads `Open` while its Resolution text reads *RESOLVED (policy) 2026-08-20*. Status → **Resolved**. No scope of its own. |
