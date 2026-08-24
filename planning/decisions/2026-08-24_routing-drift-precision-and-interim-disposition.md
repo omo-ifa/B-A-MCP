@@ -7,6 +7,8 @@
 **Evidence:** `planning/calibration/2026-08-24_context-audit-run-6-nine-repo-rerun.md` §3
 **Forks:** `planning/decisions/2026-08-20_router-path-drift.md` (the strict path-shape definition) and `planning/decisions/2026-08-20_backtick-routing-edges-and-orphans-guard.md` §62.1 (doc-relative OR root-relative resolution)
 
+> **Disposition update — 2026-08-24, `planning/decisions/2026-08-24_d2-d3-superseded-before-implementation.md`.** **D2 and D3 below were never implemented.** This gate is docs-only, and the precision fix reached the build queue before either interim measure was coded — so the tool never entered the interim state, and **there is nothing to restore.** Read D2/D3 as recorded rulings about what would have been required *had the fix been delayed*: correct when made, overtaken by the fix arriving first. Their substance is unchanged and not re-litigated — `routing_drift` at ~17 % precision must not carry headline weight, and its findings must not render at full severity — but the fix satisfies both by removing the cause rather than managing the symptom. The restore triggers named in D2/D3 become **confirmations** (`routing_path_missing` confirmed never lowered; `routing_drift` confirmed scored-real), asserted in the fix's own tests. Materialising the interim state in order to revert it was considered and **rejected** as manufacturing history.
+
 ---
 
 ## Why
