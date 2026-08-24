@@ -1,0 +1,158 @@
+# Design — `routing_drift` precision: the base-directory over-read
+
+**A router path is drift only when it resolves NOWHERE — not when it resolves against a base the tool guessed wrong.**
+
+**Date:** 2026-08-24
+**TBD:** TBD-16
+**Builds on:** `planning/decisions/2026-08-24_routing-drift-precision-and-interim-disposition.md` (D1–D5)
+**Amends:** `planning/decisions/2026-08-20_router-path-drift.md` (the routing-path definition) · `planning/decisions/2026-08-20_backtick-routing-edges-and-orphans-guard.md` §62.1 (two-base resolution)
+**Status:** Design — WHAT & WHY only. No numbers, no code, no task breakdown.
+
+---
+
+## 1. Summary
+
+`routing_drift` accuses a router of a broken route whenever a path-shaped span fails to resolve under either of the two bases the tool tries. Calibration run-6 measured that ~83 % of those accusations are wrong, dominated by a single mechanism: **router prose routinely describes a directory other than the router's own**, so the path is real but the base is not. This design corrects what "resolves" means, excludes template placeholders from being treated as paths in either link syntax, and settles the markdown-link disposition — restoring the sub-score to a state where it can honestly carry weight in TBD-10.
+
+---
+
+## 2. Motivation
+
+### The problem, as a user meets it
+
+A developer points `context_audit` at an inherited repo and is told its routers contain a dozen broken routes. They open one, find the file sitting exactly where the router said, and stop trusting the tool. The tool's entire claim is an *unfakeable diagnosis*; a check that is wrong five times out of six is worse than absent, because it spends the user's attention and their trust at the same time.
+
+Run-6 measured this on the real corpus. Of **59** drift findings across the four repos that produce any:
+
+| bucket | count | mechanism |
+|---|:--:|---|
+| **prose-relative** | **26** | target **exists**, under a directory the prose was describing |
+| **placeholder token** | **10** | `<chart_id>`, `<dir>` — template text, never a path in any syntax |
+| plausibly genuine | ~10 | real broken routes |
+
+The canonical case: posthog's `products/signals/skills/AGENTS.md` documents each scout subdirectory in turn — *"the generalist keeps one progressively-disclosed reference, `references/conventions.md`"*. The tool joins that to the router's own directory, finds nothing, and reports a broken route. The file exists at `products/signals/skills/signals-scout-general/references/conventions.md`. The path was right; the base was invented.
+
+### Which side this serves
+
+The **free tier's credibility**, which is the whole distribution mechanism. `context_audit` is the tool a developer runs before they ever consider the paid record. A false accusation is the single most expensive output this tool can produce.
+
+### Why now
+
+This is the **loop gating TBD-10**. `routing_drift` carries the joint-highest stub weight, and Gate 2 ruled it cannot be weighted at ~17 % precision (`2026-08-24_routing-drift-precision-and-interim-disposition.md` D2). Two interim measures are in force because of it — a correctness-driven headline `null` and an `info` demotion — and **both are explicitly temporary, holding until this fix lands and is re-validated.** Nothing downstream of TBD-10 moves until this does.
+
+---
+
+## 3. Architecture
+
+### 3.1 The corrected resolution: a third tier that is *not* an edge
+
+Resolution today tries two bases (`2026-08-20_backtick-routing-edges-and-orphans-guard.md` §62.1): **doc-relative**, then **root-relative**. Failing both, a path-shaped span becomes `routing_path_missing`.
+
+A third outcome is introduced between "resolves" and "drift":
+
+| tier | condition | outcome |
+|---|---|---|
+| **1. Anchored route** | resolves doc-relative or root-relative | routing **edge** — unchanged |
+| **2. Unanchored reference** | **new** — does not resolve under either base, but the path **does exist somewhere within the router's own subtree** | **not drift, and not an edge** |
+| **3. Drift** | resolves under no base and exists nowhere in the router's subtree | `routing_path_missing` — unchanged |
+
+**Why tier 2 creates no edge.** The tool cannot know *which* directory the prose meant — posthog's `references/conventions.md` could match under any of forty scout directories. Claiming a specific edge would be a guess, and that guess would propagate into `routedDirs`, reachability, `coverage` and `orphans` — three surfaces with open TBDs (TBD-12, TBD-14) whose numbers are actively being derived. So the tool does the one honest thing available: it declines to call the path broken, and declines to claim it knows what the router routes to.
+
+An unanchored reference is excluded from **both** the `routing_drift` numerator and its denominator. The sub-score is then computed over the population it can actually adjudicate.
+
+**The bounding constraint** on the subtree search is the router's own directory. A path is only ever unanchored *relative to the router that mentions it*; a repo-wide search would let any router excuse any path. The two hard invariants from `2026-08-20_backtick-routing-edges-and-orphans-guard.md` are untouched: never follow a symlink, never read above root.
+
+### 3.2 Template placeholders are not paths, in either syntax
+
+Ten of the 59 findings are template text. The shape definition in `links.ts` (`isRoutingPathShape`) already excludes globs, home paths, env vars and package scopes on the reasoning that they *cannot be a doc route in any repo*. Placeholder-delimited spans belong in that same list by the same argument — `chart:<chart_id>` is not a path that failed to resolve, it is a form with a blank in it.
+
+Two shape corrections, both of the definition and neither a filter:
+
+- **Placeholder delimiters** join the excluded-marker set (brace forms are already excluded; the angle-bracket form is not).
+- **A bare extension is not a path.** The current shape test accepts a literal `.md` with no stem, which is how prose sentences about file types become drift findings. A routing path needs something to name.
+
+**This applies to markdown links too, and that is what settles §3.3.** Markdown-link router drift currently has *no* shape test — any non-resolving link from a router is drift — which is exactly why posthog's two `chart:<chart_id>` hits fired. Placeholder exclusion is syntax-independent: a form-with-a-blank is not a route whether it was written in backticks or brackets.
+
+### 3.3 Markdown-link drift: **KEEP**
+
+The disposition Gate 2 authorised this loop to settle. Evidence: broken markdown links in routers have produced **zero** genuine findings across nine repos and six runs; the only two hits ever recorded were the placeholders above.
+
+**Decision: keep the check, with §3.2's placeholder exclusion applied.** Reasoning:
+
+- Once placeholders are excluded, md-link drift has **zero observed false positives** and zero observed true positives — it is a check with no measured error, not a check with a measured problem. Its cost is nothing.
+- The population, not the check, is why it has never fired: **9/9 wild repos route via backtick paths, 0/9 via markdown links.** A check that cannot fire because the convention is absent is different from one that fires wrongly. If an inherited repo ever does route via markdown links, this is the check that catches it.
+- **Demote or drop would be a policy fork, not a design call.** Either changes the scoring contract — the same class of change as removing `broken_refs` as a sub-score, which went through `/decisions` (`2026-08-20_broken-refs-removed-four-subscores.md`). Per the ratchet, this design does **not** bake that in. **Keep** is the option that requires no policy change, so it is the one a design gate may take.
+
+If re-validation after this fix shows md-link drift producing false positives from some *other* mechanism, that is a new `/decisions` item, not a silent adjustment here.
+
+### 3.4 Exit criterion — the two restore triggers flip TOGETHER
+
+`2026-08-24_routing-drift-precision-and-interim-disposition.md` put two interim measures in force and stated they are **paired**. This design is complete only if landing it flips **both**:
+
+| interim measure | in force because | restored to |
+|---|---|---|
+| **D2** — `routing_drift` contributes a correctness-driven `null` to the headline | the measurement is not trusted | a real contribution, eligible for TBD-10 weighting |
+| **D3** — `routing_path_missing` demoted to `info` | ~49 of 59 flags were wrong | severity `high` |
+
+**A design that restores one without the other is an incomplete design.** They describe one condition — "is this measurement trustworthy" — read at two surfaces, the headline and the finding list. Restoring the headline contribution while leaving findings at `info` would weight a signal the tool still presents as low-confidence; restoring severity while leaving the headline null would accuse users at full volume on a measurement the composite refuses to use. Either half alone is incoherent.
+
+**Both flips are gated on the same event:** this fix landing **and** being re-validated against the pinned nine-repo corpus (`planning/calibration/2026-08-24_context-audit-run-6-nine-repo-rerun.md` §0 — same commits, tool as the only variable). Re-validation is a calibration run, not a build step, and it is what closes TBD-16. **It is not a numeric bar** — no precision threshold is set here or anywhere (rule 7). What re-validation checks is whether the residue is dominated by the classes §3.5 names as out of scope. If it is dominated by something else, that is a new finding and goes back to `/decisions`.
+
+### 3.5 Deliberately skipped
+
+- **Install-target paths.** Router prose describing where files land in the **consumer's** repo (`.windsurf/rules/…`, `.clinerules/…`, `.github/copilot-instructions.md`, `.claude/skills/…` in caveman). These genuinely resolve nowhere in the audited repo, so they remain drift under the corrected rule. Distinguishing "a path in another repo's layout" from "a broken route" needs prose semantics the tool does not have. **Named here so re-validation expects them** rather than reading them as a new defect.
+- **Cross-repo references** (caveman's `agents/AGENTS.md`, `agents/CLAUDE.md` — a sibling repo). Same class, same reason.
+- **Promoting unanchored references to edges.** §3.1 explains the deferral: it would move `coverage`, `orphans` and reachability while TBD-12 and TBD-14 are open. Revisitable once those settle.
+- **Fenced-code-block awareness.** Still not tracked (`2026-08-20_backtick-routing-edges-and-orphans-guard.md` §73, and the standing limitation noted in `links.ts`). Out of scope here; it is also the prerequisite TBD-17 named for any future `@`-import support.
+- **Any threshold or weight number.** TBD-10/11/12 untouched. `TBD_10_WEIGHTS` and `ROUTING_LAYER_KEYS` are not edited by this work — D2's restore is the sub-score reporting a real value again, not a weight change.
+- **The TBD-11 bloat-aggregation loop and the TBD-14 dir-granularity loop.** Separately authorised, separately designed.
+- **The `routing_drift` / `routing_path_missing` category split.** Reporting-level, unchanged; both still feed one sub-score.
+
+---
+
+## 4. Decisions
+
+From the Gate 2 ledger (`/decisions` 2026-08-24), carried verbatim:
+
+**RESOLVED — from `2026-08-24_routing-drift-precision-and-interim-disposition.md`:**
+
+- **D1** — TBD-16 is scoped as **PRECISION + DISPLAY**, not a weighting question. At zero weight the ~49 incorrect flags still render; precision cannot be parked behind TBD-10.
+- **D2** — `routing_drift` contributes **`null`** to the headline: a **correctness-driven null, not a data null**. Not resolved by assigning a weight later. Reuses the existing null-drop, weight-renormalisation and §5 guard untouched; **no weight-0 path invented** (weight 0 was measured and rejected — icm-architect 23 → 90, hygiene-only `bloat` carrying the headline).
+- **D3** — `routing_path_missing` demoted to **`info`**, **interim and reversible**, on the TBD-13 precedent. `info` is **not** its permanent home; it returns to `high` on the restore trigger. Suppressing the category entirely was rejected.
+- **D4** — **caveman-28 absorbed** into TBD-16; posthog reproduces every sub-class, so it was never caveman-specific.
+- **D5** — the base-dir over-read fix **and** the md-link-drift disposition are authorised as **this** build loop. Treat the over-read as a **definition** problem, not a filter. Noted: *"add the described directory as a third base" is not obviously right* — it needs prose semantics and risks a new false-negative class.
+
+**RESOLVED IN THIS DESIGN (architecture, within D5's authorisation):**
+
+- **Tier-2 "unanchored reference" is not an edge** (§3.1) — the tool declines to call the path broken and declines to guess which directory was meant, keeping blast radius off `coverage`/`orphans` while TBD-12/TBD-14 are open. This is D5's warning honoured: the described directory is **not** adopted as a third resolution base.
+- **Placeholder exclusion is syntax-independent** (§3.2) — a definition refinement, applying to markdown links and backticks alike.
+- **Markdown-link drift: KEEP** (§3.3) — the only disposition available without a policy fork. Demote/drop would change the scoring contract and must go back to `/decisions`.
+
+**STUBBED / still Open — unchanged by this design:**
+
+- **TBD-16** stays Open until this lands **and** re-validation closes it.
+- **TBD-10** (weights), **TBD-11** (bloat cutoffs), **TBD-12** (`MIN_FILES`), **TBD-14** (orphan granularity) — all numbers remain deferred. **No threshold is set here.**
+
+**Ratchet:** if the build surfaces a decision this ledger missed, it returns to `/decisions` before continuing.
+
+---
+
+## 5. Docs affected
+
+A list of documents and roughly how — **not** their diffs.
+
+| Document | Roughly how |
+|---|---|
+| **`src/API.md`** | The MCP surface contract. Restate what makes a router path a route (the third tier), the placeholder exclusion, and `routing_path_missing`'s severity returning to `high`. **Same commit as the code** (rule 8). |
+| **`src/TDD.md` — TBD-16 row** | Status moves to Resolved once re-validated; record that both restore triggers fired together, with the closing evidence. |
+| **`src/TDD.md` — TBD-10 row** | Drop the "blocked on TBD-16" gate; `routing_drift` becomes eligible for weighting. The weight **numbers** stay deferred, and `orphans` stays excluded pending its own loop. |
+| **`src/TDD.md` — TBD-13 row** | **Unrelated one-line correction, folded into this loop:** the Status column reads `Open` while its Resolution text reads *RESOLVED (policy) 2026-08-20*. Status → **Resolved**. No scope of its own. |
+| **`planning/decisions/2026-08-20_router-path-drift.md`** | Add a pointer noting its routing-path definition is amended here (the third tier + placeholder exclusion). The record itself is not rewritten. |
+| **`planning/decisions/2026-08-20_backtick-routing-edges-and-orphans-guard.md`** | Add a pointer noting §62.1's two-base resolution gains the third tier. |
+| **`planning/decisions/2026-08-24_routing-drift-precision-and-interim-disposition.md`** | Record that D2 and D3 were restored together, and when. |
+| **New calibration record** under `planning/calibration/` | The re-validation run against the pinned nine-repo corpus. It is what closes TBD-16, and it is **not** the README sample. |
+| **`src/CONTEXT.md`** | Context-budget ledger — re-measure **only if** the tool description or schema changes (rule 2). This design changes neither; expected to be a no-op, verified not assumed. |
+
+---
+
+**Review this now — this is the last cheap correction point before it becomes code.**
