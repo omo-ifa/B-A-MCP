@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractLinks, classifyLink } from "../../src/tools/context-audit/links.js";
+import { extractLinks, classifyLink, isRoutingPathShape, hasPlaceholderToken } from "../../src/tools/context-audit/links.js";
 
 test("extractLinks finds inline links with line numbers and flags malformed", () => {
   const md = "intro [a](./a.md)\nline2 [b](../b.md) and [bad]( )\n";
@@ -54,4 +54,36 @@ test("classifyLink separates edge / external / anchor / escapes_root / malformed
   assert.equal(at("../../../etc/passwd").kind, "escapes_root");        // resolves above root
   assert.equal(at("/etc/passwd").kind, "escapes_root");               // absolute
   assert.equal(at("", true).kind, "malformed");
+});
+
+test("T1a isRoutingPathShape rejects template placeholders", () => {
+  assert.equal(isRoutingPathShape("products/desktop/<dir>/AGENTS.md"), false);
+  assert.equal(isRoutingPathShape("chart:<chart_id>.md"), false);
+  assert.equal(isRoutingPathShape("docs/{name}.md"), false);
+});
+
+test("T1b isRoutingPathShape rejects a bare extension", () => {
+  assert.equal(isRoutingPathShape(".md"), false);
+  assert.equal(isRoutingPathShape("docs/.md"), false);
+});
+
+test("T1c isRoutingPathShape keeps leading-dot SEGMENTS", () => {
+  // "no stem" is about the FINAL segment, not a leading dot anywhere.
+  assert.equal(isRoutingPathShape(".claude/CLAUDE.md"), true);
+  assert.equal(isRoutingPathShape(".github/copilot-instructions.md"), true);
+});
+
+test("T1d hasPlaceholderToken is syntax-independent", () => {
+  assert.equal(hasPlaceholderToken("chart:<chart_id>"), true);
+  assert.equal(hasPlaceholderToken("a/{b}/c.md"), true);
+  assert.equal(hasPlaceholderToken("src/CONTEXT.md"), false);
+});
+
+test("T1e a wrapped TOKEN is a placeholder; a wrapped PATH is a delimiter", () => {
+  // Design §3.2 precedence, amended 2026-08-25. The discriminator is
+  // "contains / or ends in an extension".
+  assert.equal(hasPlaceholderToken("<dir>"), true);            // bare token
+  assert.equal(hasPlaceholderToken("<README>"), true);         // no slash, no extension
+  assert.equal(hasPlaceholderToken("<docs/gone.md>"), false);  // slash -> delimiter
+  assert.equal(hasPlaceholderToken("<my file.md>"), false);    // extension -> delimiter
 });

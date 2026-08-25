@@ -1,6 +1,6 @@
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { extractLinks, classifyLink, isRoutingPathShape } from "./links.js";
+import { extractLinks, classifyLink, isRoutingPathShape, hasPlaceholderToken } from "./links.js";
 import type { Root, RawFinding } from "./types.js";
 import type { WalkResult, WalkedDoc } from "./walk.js";
 
@@ -110,6 +110,9 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
       if (link.kind === "malformed") { findings.push(f("malformed_link", doc.relPath, link.line, "link does not parse", link.targetRaw, link.targetRaw)); continue; }
       if (link.kind === "escapes_root") { findings.push(f("escapes_root", doc.relPath, link.line, "link resolves above root or is absolute; recorded, never read", link.targetRaw, link.targetRaw)); continue; }
       if (link.kind !== "edge" || link.targetPath === null) continue;
+      // A template placeholder is not a route in ANY syntax or ANY doc type
+      // (design §3.2, ratified global). Excluded from numerator AND denominator.
+      if (hasPlaceholderToken(raw.targetRaw)) continue;
       // a real, non-escaping edge: count it against the right denominator population
       if (doc.isRoot) refsFromRoots++; else refsFromNonRoots++;
       const targetAbs = join(root.path, link.targetPath);

@@ -237,3 +237,61 @@ test("router-path drift ignores non-route tokens (globs, scopes, org/repo, env/h
     assert.equal(rp[0].evidence, "docs/GONE.md");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("T2a a router markdown link carrying a template placeholder is not drift", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2a-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "see [chart](chart:<chart_id>) and [gone](really-missing.md)\n");
+    const c = cats(dir);
+    assert.equal(c.routing_drift, 1);   // only really-missing.md; the placeholder is not a route
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2b a placeholder link is excluded from the drift DENOMINATOR too", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2b-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "only [chart](chart:<chart_id>)\n");
+    const g = buildGraph(resolveRoot(dir), walk(resolveRoot(dir)));
+    assert.equal(g.routingDriftCount, 0);
+    assert.equal(g.refsFromRoots, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2c GLOBAL: a placeholder in a NON-router doc is not a broken_ref either", () => {
+  // Design §3.2 ratified global (decision 2026-08-24 D3): a form-with-a-blank is
+  // not a path in any syntax OR any doc type. The genuinely broken link survives.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2c-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes [g](docs/guide.md)\n");
+    mkdirSync(join(dir, "docs"));
+    writeFileSync(join(dir, "docs", "guide.md"), "[tpl](templates/{name}.md) and [real](nope.md)\n");
+    const c = cats(dir);
+    assert.equal(c.broken_ref, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2d a CommonMark <dest> wrapper is a delimiter, not a placeholder", () => {
+  // `[x](<docs/gone.md>)` is a genuinely broken link written in CommonMark's
+  // angle-bracket destination form. The wrapper is punctuation, not a blank to
+  // fill in — if the predicate ate it, real rot would vanish silently, and a
+  // vanished finding is invisible to §3.4's categorical close condition.
+  // GUARD: this passes BEFORE and AFTER the change (see Step 3).
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2d-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "see [x](<docs/gone.md>)\n");
+    const c = cats(dir);
+    assert.equal(c.routing_drift, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2e a bare <token> destination is a placeholder, not a route", () => {
+  // The other half of the §3.2 precedence: `<dir>` is template text, so it must
+  // be excluded even though stripping the wrapper would leave a bare path.
+  // The genuinely broken link beside it must still be caught.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2e-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "see [x](<dir>) and [gone](really-missing.md)\n");
+    const c = cats(dir);
+    assert.equal(c.routing_drift, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
