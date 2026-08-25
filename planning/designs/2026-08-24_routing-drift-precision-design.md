@@ -7,9 +7,15 @@
 **Builds on:** `planning/decisions/2026-08-24_routing-drift-precision-and-interim-disposition.md` (D1–D5)
 **Amends:** `planning/decisions/2026-08-20_router-path-drift.md` (the routing-path definition) · `planning/decisions/2026-08-20_backtick-routing-edges-and-orphans-guard.md` §62.1 (two-base resolution)
 **Amended by:** `planning/decisions/2026-08-24_d2-d3-superseded-before-implementation.md` — §3.4's exit criterion moves from *restore* to *confirm* (D2/D3 were never implemented, so no interim state exists to restore). Paired-coherence requirement unchanged.
+**Amended by:** `planning/decisions/2026-08-25_placeholder-vs-commonmark-destination-precedence.md` — §3.2 gains the precedence of placeholder detection over the CommonMark `<dest>` strip, and the discriminator that separates a wrapped token from a wrapped path.
 **Amended by:** `planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md` — §3.1 (root-located routers get no tier 2), §3.2 (placeholder exclusion is global), §3.4 (drift `null` accepted when a router's whole reference set is unanchored), §3.5 (masked rot narrows to nested routers; new accepted-FP class).
 
-> **Plan status:** the first implementation plan against this design (`docs/superpowers/plans/2026-08-24-routing-drift-precision.md`) was **REVIEWED: REJECT** — 2 CRITICAL + 1 IMPORTANT scope findings, now resolved by the amendments above, plus 11 mechanical findings. **The plan must be revised against this amended design and re-reviewed before any code is written.** It is retained as the reviewed artifact; it is not on `main`.
+> **Plan status (2026-08-25).** The implementation plan (`docs/superpowers/plans/2026-08-24-routing-drift-precision.md`) has been through three review cycles and **is not yet cleared for execution.**
+> - **Cycle 1 — REJECT.** 2 CRITICAL + 1 IMPORTANT scope findings (all resolved by the amendments above) plus 11 mechanical.
+> - **Cycle 2 — APPROVE WITH FIXES.** Fixes applied; the cycle also surfaced the CommonMark `<dest>` false negative, whose repair created the collision §3.2 now settles.
+> - **Cycle 3 — FIXES INCOMPLETE**, plus the `<token>` precedence question that became `2026-08-25_placeholder-vs-commonmark-destination-precedence.md`.
+>
+> **Five mechanical findings from cycle 3 remain open and are sequenced AFTER this ruling** — finding 1's correction (a red-state actual recorded against the wrong state) depends on which way precedence went. **The `src/API.md` text the plan specifies must not ship until this ruling lands**, because it names `<dir>` as an excluded example, which is true only under this ruling. No `src/**/*.ts` has been written at any point.
 **Status:** Design — WHAT & WHY only. No numbers, no code, no task breakdown.
 
 ---
@@ -95,6 +101,17 @@ Two shape corrections, both of the definition and neither a filter:
 **The exclusion is GLOBAL — it applies in every document, not only in routers** (ratified 2026-08-24 — `planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md` D3). The reasoning above is independent of **both** the syntax the span was written in **and** the kind of document it appears in: a placeholder is not a path anywhere. Restricting it to routers would mean asserting that `templates/{name}.md` is a real broken link in a non-router doc and not one in a router, which is incoherent. So a placeholder span in an ordinary content doc stops producing a `broken_ref` as well (observed: `broken_ref` 2 → 1 on a doc carrying one placeholder link and one genuinely broken link — the real one survives).
 
 **Scope:** the exclusion applies at the **edge-counting stage**. It does **not** reclassify `malformed_link` or `escapes_root`, which are decided earlier and are unaffected.
+
+**Precedence over the CommonMark `<dest>` wrapper** (amended 2026-08-25 — `planning/decisions/2026-08-25_placeholder-vs-commonmark-destination-precedence.md`). CommonMark allows `<…>` around a link destination as a **delimiter**, which must be stripped so that a genuinely broken `[x](<docs/gone.md>)` is not silently swallowed. That refinement collides with this section for a destination that is *entirely* a `<…>`-wrapped token: stripping leaves a bare path and `<dir>` — named as template text in this very section — would produce a finding while `{name}` would not. **Placeholder detection is adjudicated first:**
+
+| destination is… | verdict |
+|---|---|
+| a `<…>`-wrapped **token** (`<dir>`, `<chart_id>`, `<README>`) | **placeholder** — excluded |
+| a `<…>`-wrapped **path** (`<docs/gone.md>`, `<my file.md>`, `<docs/gone>`) | **delimiter** — stripped, adjudicated normally, and a broken one still drifts |
+
+**The discriminator:** the wrapper is a delimiter when its content **contains `/` or ends in a file extension**; otherwise it is a placeholder. A slash-only test was rejected because it swallows `<my file.md>` — a spaced destination being *the canonical reason CommonMark provides angle brackets* — and an extension-only test was rejected because it swallows `<docs/gone>`.
+
+> **Do not implement this as "test the raw destination for `<>{}` and skip the strip."** That marks `<docs/gone.md>` a placeholder and reintroduces the false negative the strip exists to close. The precedence decides **which rule adjudicates a bare token**, not whether the strip exists.
 
 ### 3.3 Markdown-link drift: **KEEP**
 
