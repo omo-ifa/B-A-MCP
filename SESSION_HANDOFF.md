@@ -6,7 +6,7 @@
 
 ## Repo state — verified 2026-08-25
 
-- **`main` HEAD:** `12da257` (`plan: TBD-16 routing_drift precision — revision 2 (re-reviewed, fixes applied) (#21)`). Verified with `git rev-parse HEAD`.
+- **`main` HEAD:** `12da257` (`plan: TBD-16 routing_drift precision — revision 2 (re-reviewed, fixes applied) (#21)`) **at the moment this file was written.** This file cannot record the commit that contains it: merging it advanced `main` to **`165caf9`**, and this correction advances it once more. **A live `git rev-parse --short HEAD` ahead of `12da257` is expected and correct** — what would be wrong is a HEAD *behind* it, which means you are reading a stale checkout. Everything else below was verified at `12da257`, and no `src/**/*.ts` has changed since.
 - **Tests:** **76 / 76 pass, 0 fail**, `tsc` clean. Verified with `npm test` on `main` at that HEAD. **Node v25.2.1.**
 - **Open PRs: 0.** #17–#22 all merged this session.
 - **`src/**/*.ts` changed since the design landed (`9869d22..HEAD`): 0 files.** No production code has been written in this entire chain.
