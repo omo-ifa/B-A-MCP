@@ -48,7 +48,9 @@ A `<…>` wrapper is a **CommonMark delimiter** when its content **contains `/` 
 
 **Why this discriminator and not a narrower one.** Two alternatives were measured and rejected:
 
-- **Slash only** — calls `<my file.md>` a placeholder. A destination containing a space is *the canonical reason CommonMark provides angle brackets at all*; swallowing it silently recreates precisely the false-negative class this whole refinement exists to close.
+- **Slash only** — calls a wrapped **bare filename** a placeholder: `<README.md>`, `<CHANGELOG.md>`, `<a.b>` all lack a slash, so a genuinely broken link written that way is swallowed silently, recreating precisely the false-negative class this refinement exists to close.
+
+  > **Correction (2026-08-25, from review cycle 4).** This bullet first argued the point from `<my file.md>`, on the reasoning that a spaced destination is the canonical reason CommonMark provides angle brackets. **That example does not reach this rule at all** — `extractLinks` classifies any destination containing whitespace as `malformed`, so it surfaces as `malformed_link` under every candidate discriminator (design §3.2's Scope paragraph already states `malformed_link` is decided earlier and is unaffected). **The ruling is unchanged** — slash-only is still rejected, and the bare-filename cases above are a stronger argument than the spaced one, being far likelier in a real router. Recorded rather than silently edited, so the rationale is not re-relied on in its wrong form.
 - **Extension only** — calls `<docs/gone>` a placeholder, swallowing an extensionless path inside a wrapper. Narrower than the chosen rule with no compensating benefit.
 
 All three candidates agree on every case the ruling names; they diverge only on `a.b`, `docs/gone` and `my file.md`, and on those the chosen rule is the one that never goes silent on something path-shaped.

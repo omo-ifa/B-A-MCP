@@ -124,7 +124,7 @@ export function hasPlaceholderToken(raw: string): boolean {
 }
 ```
 
-> **Change nothing else in this step.** In particular, do **not** narrow the `/[*{}~$]/` character class yet. Narrowing it while `hasPlaceholderToken` is still a stub leaves brace tokens matched by neither rule, which reddens the existing fixture `test/context-audit/graph.test.ts:223` (*"router-path drift ignores non-route tokens…"*, whose router carries `` `a/{x,y}/z.md` ``) — a fourth, unrelated failure that would trip Step 3's stop rule. The narrowing belongs in Step 4, alongside the real predicate. Verified: with the stub alone, that fixture stays green.
+> **Change nothing else in this step.** In particular, do **not** narrow the `/[*{}~$]/` character class yet. Narrowing it while `hasPlaceholderToken` is still a stub leaves brace tokens matched by neither rule, which reddens the existing fixture `test/context-audit/graph.test.ts:223` (*"router-path drift ignores non-route tokens…"*, whose router carries `` `a/{x,y}/z.md` ``) — an additional, unrelated failure that would trip Step 3's stop rule. The narrowing belongs in Step 4, alongside the real predicate. Verified: with the stub alone, that fixture stays green.
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -261,7 +261,7 @@ If any *other* test in either file is red — in particular the existing `graph.
 
 - [ ] **Step 4: Write the implementation**
 
-Replace the stub in `src/tools/context-audit/links.ts` and tighten the shape test:
+In `src/tools/context-audit/links.ts`, **replace the stub body with the first function below, and replace the existing `isRoutingPathShape` with the second** — do not paste the block over both at once, or Step 1's stub placement leaves the `isRoutingPathShape` doc comment orphaned above `hasPlaceholderToken`, where it reads as documenting the wrong function:
 
 ```typescript
 // Template placeholders are not paths in ANY link syntax, and not in any
@@ -309,7 +309,14 @@ export function isRoutingPathShape(raw: string): boolean {
 }
 ```
 
-In the doc comment directly above (`links.ts:62-70` — Step 1's four-line stub shifted it down from 58-66), the excluded-marker list reads *"glob (`*` `{` `}`), home (`~`) …"*. Move the brace forms out of that sentence — they are now owned by `hasPlaceholderToken` — so the comment matches the code.
+In the doc comment directly above (`links.ts:62-70` — Step 1's four-line stub shifted it down from 58-66), the excluded-marker list must lose its brace forms, which `hasPlaceholderToken` now owns. **The sentence wraps across two comment lines, so a single-line search-and-replace silently no-ops.** The text is:
+
+```
+// none of the markers that mean "not a repo doc route" — glob (`*` `{` `}`),
+// home (`~`), env (`$`), package scope (leading `@`), whitespace, or a leading
+```
+
+Delete `` `{` `}` `` from the glob parenthetical on the **first** of those two lines, leaving `` glob (`*`), ``. Touch nothing else in the comment.
 
 In `src/tools/context-audit/graph.ts`, extend the import on line 3:
 
