@@ -7,6 +7,9 @@
 **Builds on:** `planning/decisions/2026-08-24_routing-drift-precision-and-interim-disposition.md` (D1–D5)
 **Amends:** `planning/decisions/2026-08-20_router-path-drift.md` (the routing-path definition) · `planning/decisions/2026-08-20_backtick-routing-edges-and-orphans-guard.md` §62.1 (two-base resolution)
 **Amended by:** `planning/decisions/2026-08-24_d2-d3-superseded-before-implementation.md` — §3.4's exit criterion moves from *restore* to *confirm* (D2/D3 were never implemented, so no interim state exists to restore). Paired-coherence requirement unchanged.
+**Amended by:** `planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md` — §3.1 (root-located routers get no tier 2), §3.2 (placeholder exclusion is global), §3.4 (drift `null` accepted when a router's whole reference set is unanchored), §3.5 (masked rot narrows to nested routers; new accepted-FP class).
+
+> **Plan status:** the first implementation plan against this design (`docs/superpowers/plans/2026-08-24-routing-drift-precision.md`) was **REVIEWED: REJECT** — 2 CRITICAL + 1 IMPORTANT scope findings, now resolved by the amendments above, plus 11 mechanical findings. **The plan must be revised against this amended design and re-reviewed before any code is written.** It is retained as the reviewed artifact; it is not on `main`.
 **Status:** Design — WHAT & WHY only. No numbers, no code, no task breakdown.
 
 ---
@@ -63,6 +66,12 @@ An unanchored reference is excluded from **both** the `routing_drift` numerator 
 
 **The bounding constraint** on the subtree search is the router's own directory. A path is only ever unanchored *relative to the router that mentions it*; a repo-wide search would let any router excuse any path. The two hard invariants from `2026-08-20_backtick-routing-edges-and-orphans-guard.md` are untouched: never follow a symlink, never read above root.
 
+**A ROOT-LOCATED router has no such bound, so it gets no tier 2 at all** (amended 2026-08-24 — `planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md` D2). For a router sitting at the repository root, "the router's own directory" *is* the repo, and the bounding constraint above becomes vacuous: a bare filename would be excused by a same-named document anywhere. Observed — the identical prose span in a repo's root router and in a nested one received **opposite verdicts**, decided purely by which router carried it. For a root-located router, "somewhere in the repo" is not evidence that the prose meant any particular file. **Root-located routers are therefore strict anchored-or-drift, exactly as before this design. Nested routers keep tier 2 unchanged.**
+
+> **Definition — read before implementing.** **"Root-located" means the router's `relPath` contains no `/`.** It does **NOT** mean `isRoot`. In this codebase **`isRoot` means "is a router doc," at any depth**, and the backtick branch is already gated on it — so implementing this exclusion as "skip tier 2 when `isRoot`" would make tier 2 **never fire, silently deleting the whole fix.** The predicate is about **location**, not router-ness.
+
+**Measured cost, pinned corpus only:** of run-6's 26 prose-relative false positives, tier 2 still fixes **17** — every one of posthog's, the canonical case this design was written around — and gives back **9**, all from caveman's root `CLAUDE.md`. §3.5 names those 9 as an accepted class so the close condition still holds.
+
 **The search is over the already-walked document set — NOT a fresh filesystem traversal.** `walk` has already enumerated every in-scope `.md` document once; tier 2 is a lookup against that existing set, filtered to the router's subtree. This is stated explicitly because the alternative reads as licence to re-walk: posthog's `products/signals/skills/` alone holds forty-plus scout directories, and a per-finding traversal would turn a read-only audit into repeated directory scans. Two consequences follow and are accepted:
 
 - The corpus is the **walked doc set**, so tier 2 sees exactly what the audit sees. A tier-2 candidate is always a `.md` path (the shape test requires it), so the walked doc set is the right corpus by construction — no non-`.md` or directory targets are in question at this tier.
@@ -82,6 +91,10 @@ Two shape corrections, both of the definition and neither a filter:
   **"No stem" is not "leading-dot segment."** The exclusion is about the **final** segment having no name before its extension — a span that is *only* an extension (`.md`, or a path whose last segment is `.md`). A leading dot on any segment is untouched: `.claude/CLAUDE.md`, `.github/copilot-instructions.md` and `.agents/CONTEXT.md` all name a file and remain valid routes. Dot-prefixed directories are ordinary and common in this population; excluding them would drop real routes, which is the opposite of this design's purpose.
 
 **This applies to markdown links too, and that is what settles §3.3.** Markdown-link router drift currently has *no* shape test — any non-resolving link from a router is drift — which is exactly why posthog's two `chart:<chart_id>` hits fired. Placeholder exclusion is syntax-independent: a form-with-a-blank is not a route whether it was written in backticks or brackets.
+
+**The exclusion is GLOBAL — it applies in every document, not only in routers** (ratified 2026-08-24 — `planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md` D3). The reasoning above is independent of **both** the syntax the span was written in **and** the kind of document it appears in: a placeholder is not a path anywhere. Restricting it to routers would mean asserting that `templates/{name}.md` is a real broken link in a non-router doc and not one in a router, which is incoherent. So a placeholder span in an ordinary content doc stops producing a `broken_ref` as well (observed: `broken_ref` 2 → 1 on a doc carrying one placeholder link and one genuinely broken link — the real one survives).
+
+**Scope:** the exclusion applies at the **edge-counting stage**. It does **not** reclassify `malformed_link` or `escapes_root`, which are decided earlier and are unaffected.
 
 ### 3.3 Markdown-link drift: **KEEP**
 
@@ -103,8 +116,10 @@ If re-validation after this fix shows md-link drift producing false positives fr
 
 | surface | ruling D2/D3 would have imposed had the fix been delayed | must be true after the fix |
 |---|---|---|
-| **Headline contribution** (D2) | `routing_drift` contributes a correctness-driven `null` | **scored-real** — a genuine value, eligible for TBD-10 weighting |
+| **Headline contribution** (D2) | `routing_drift` contributes a correctness-driven `null` | **scored-real whenever a scoreable population exists** — `null` only when a router's entire reference set is unanchored (see below) |
 | **Finding severity** (D3) | `routing_path_missing` demoted to `info` | **`high`, confirmed never lowered** |
+
+> **Amended 2026-08-24** — `planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md` D1. This row originally required `routing_drift` to be scored-real, full stop. **The criterion was over-stated, not the behaviour.** Because tier 2 excludes an unanchored reference from the denominator as well as the numerator, a router whose **entire** reference set is unanchored leaves no population to compute a rate over, and the sub-score correctly reports `null` (observed: `score 25` → `score null` on three fixtures). That is an ordinary **data null** — `subscoreFromCount`'s existing `n === 0 → null` contract, the same logic as the D3 coverage guard — **not** the correctness-driven null D2 would have imposed, and it adds no new mechanism. With root-located routers excluded from tier 2 (§3.1), **only nested routers can empty a denominator at all.**
 
 **A design that leaves one surface inconsistent with the other is an incomplete design.** They describe one condition — "is this measurement trustworthy" — read in two places, the headline and the finding list. A scored headline contribution alongside findings rendered at `info` would weight a signal the tool itself presents as low-confidence; full-severity findings alongside a null contribution would accuse users at full volume on a measurement the composite refuses to use. Either half alone is incoherent, however the state was arrived at.
 
@@ -122,9 +137,13 @@ The first entry is different in kind from the rest: everything below it is resid
 
 - **Masked rot — the false negative this architecture INTRODUCES.** D5 warned that a widened resolution "risks a new false-negative class." This is it, named: **tier 2 silences a genuinely broken route whenever a same-named file happens to survive elsewhere in the router's subtree.** A router says `references/conventions.md`; the target it actually meant has rotted away; another scout directory's `references/conventions.md` still exists; the path is classified unanchored and the tool says nothing. A real defect, gone quiet.
 
+  **Narrowed 2026-08-24 to NESTED routers only** (`planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md` D2). Root-located routers no longer get tier 2, so they cannot mask anything — which removes by far the widest exposure this class had, since a root-located router's "subtree" was the entire repository.
+
   **Accepted, with the reasoning stated so it can be revisited.** The alternative is the status quo, which reports that same class of path as broken **26 times out of 59** when the file is sitting right there. Trading a rare silent miss for a frequent false accusation is the right direction for a tool whose entire claim is that its findings are trustworthy — a user who is lied to five times out of six stops reading the output at all, at which point the genuine findings are lost too. **But the trade is real and it is a loss, not a free win.** It is also structurally invisible: a false positive announces itself the moment a user opens the file, while this failure produces silence, so nothing surfaces it except a deliberate check.
 
   **Re-validation must EXPECT this class** rather than reading it as a new defect — and, because it is silent, must look for it actively rather than waiting for it to appear. Quantifying its real-world rate needs ground-truth knowledge of what each router *meant*, which the corpus cannot supply; if a later run finds it common rather than rare, that is a `/decisions` item, not a silent adjustment here.
+
+- **Prose-relative spans under a ROOT-LOCATED router — an accepted false positive.** Added 2026-08-24 (`planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md` D2). Because root-located routers get no tier 2, a root router's prose describing a child directory still reports drift even though the file exists. **Measured on the pinned corpus: 9 of run-6's 26 prose-relative findings, all from caveman's root `CLAUDE.md`.** Accepted deliberately — the alternative is a bound so wide it excuses any path anywhere in the repo. **This entry is load-bearing for §3.4's categorical close condition:** without it those 9 would be unclassifiable at re-validation and would bounce the gate. Precedent for naming an accepted-FP class rather than special-casing it: `planning/decisions/2026-08-20_router-path-drift.md` §33 (icm-architect's template false positives). **Do not re-diagnose as a bug.**
 
 - **Install-target paths.** Router prose describing where files land in the **consumer's** repo (`.windsurf/rules/…`, `.clinerules/…`, `.github/copilot-instructions.md`, `.claude/skills/…` in caveman). These genuinely resolve nowhere in the audited repo, so they remain drift under the corrected rule. Distinguishing "a path in another repo's layout" from "a broken route" needs prose semantics the tool does not have. **Named here so re-validation expects them** rather than reading them as a new defect.
 - **Cross-repo references** (caveman's `agents/AGENTS.md`, `agents/CLAUDE.md` — a sibling repo). Same class, same reason.
