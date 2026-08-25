@@ -151,6 +151,17 @@ export function isRoutingPathShape(raw: string): boolean {
   // together or the existing graph.test.ts:223 fixture reddens in between.
   if (/[*~$]/.test(t)) return false;
   if (hasPlaceholderToken(t)) return false;
+  // An ellipsis segment ("...") stands in for an omitted name — a placeholder,
+  // not a path. No real repo path contains a run of 3+ dots. Shape exclusion,
+  // design §3.5 (2026-08-25); lineage of the bare-extension exclusion below.
+  if (/\.{3,}/.test(t)) return false;
+  // A bare filename with NO path segment is not a route: measured across the
+  // nine-repo corpus, no resolving bare-filename route exists, so this carries
+  // zero false-negative risk. A span that DOES resolve is already an edge by
+  // existence (resolve-only, see buildGraph) and never reaches this shape test;
+  // only a NON-resolving bare filename is excluded here. Shape exclusion,
+  // design §3.5 (2026-08-25).
+  if (!t.includes("/")) return false;
   if (!/\.md$/i.test(t)) return false;
   // A routing path needs something to name. Tests the FINAL segment only, so a
   // leading-dot DIRECTORY (.claude/CLAUDE.md) stays valid while a bare

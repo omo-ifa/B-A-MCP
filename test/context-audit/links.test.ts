@@ -111,3 +111,24 @@ test("T1g stripDestDelimiter: fully-wrapped delimiter PATH is stripped, everythi
   assert.equal(stripDestDelimiter("<docs/gone.md>#sec"), "<docs/gone.md>#sec"); // not fully wrapped -> unchanged
   assert.equal(stripDestDelimiter("src/CONTEXT.md"), "src/CONTEXT.md"); // no wrapper -> unchanged
 });
+
+test("T1h isRoutingPathShape rejects an ellipsis segment (design §3.5 shape exclusion 2026-08-25)", () => {
+  // A literal "..." segment stands in for an omitted name; no real path has it.
+  // Lineage of the bare-extension exclusion. Measured: zero FN in the corpus.
+  assert.equal(isRoutingPathShape("stages/01_.../CONTEXT.md"), false);
+  assert.equal(isRoutingPathShape("a/.../b.md"), false);
+  // a genuine path with only single/double dots is untouched
+  assert.equal(isRoutingPathShape("stages/01_intake/CONTEXT.md"), true);
+});
+
+test("T1i isRoutingPathShape rejects a bare filename with no path segment (design §3.5 shape exclusion 2026-08-25)", () => {
+  // A bare filename (no "/") is not a route: measured, no resolving bare-filename
+  // route exists anywhere in the corpus. A resolving span is already an edge by
+  // existence and never reaches this shape test.
+  assert.equal(isRoutingPathShape("SKILL.md"), false);
+  assert.equal(isRoutingPathShape("CONTEXT.md"), false);
+  assert.equal(isRoutingPathShape("README.md"), false);
+  // a path-shaped span (has a segment) is still a route
+  assert.equal(isRoutingPathShape("docs/SKILL.md"), true);
+  assert.equal(isRoutingPathShape(".claude/CLAUDE.md"), true);   // leading-dot dir still a path
+});

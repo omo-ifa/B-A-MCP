@@ -369,10 +369,15 @@ test("T3e tier 2 is bounded: a SIBLING subtree does not excuse it", () => {
 test("T3f ROOT-LOCATED router gets NO tier 2 (design §3.1 amended) — still drift", () => {
   // A repo-root router has no proper subtree bound; "somewhere in the repo" is
   // not evidence it meant a specific file. Strict anchored-or-drift.
+  // Target is PATH-SHAPED (`x/SKILL.md`): a bare filename is no longer a route
+  // (§3.5 shape exclusion 2026-08-25, pinned by T5b), so the tier-2 location
+  // gate must be exercised with a valid route. `x/SKILL.md` resolves nowhere
+  // yet `plugins/x/SKILL.md` exists deeper — a NESTED router would be excused by
+  // tier 2; this ROOT router is not, and drifts.
   const dir = mkdtempSync(join(tmpdir(), "ca-t3f-"));
   try {
     mkdirSync(join(dir, "plugins", "x"), { recursive: true });
-    writeFileSync(join(dir, "CLAUDE.md"), "root mentions `SKILL.md` in prose\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "root mentions `x/SKILL.md` in prose\n");
     writeFileSync(join(dir, "plugins", "x", "SKILL.md"), "unrelated\n");
     const c = cats(dir);
     assert.equal(c.routing_path_missing, 1);
@@ -408,5 +413,30 @@ test("T2g a broken <dest> with trailing text still DRIFTS (no silent swallow)", 
     writeFileSync(join(dir, "CLAUDE.md"), "see [a](<docs/gone.md>#sec) and [b](weird}name.md)\n");
     const c = cats(dir);
     assert.equal(c.routing_drift, 2);                   // neither is a placeholder; both broken -> both drift
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T5a a router ellipsis-segment path is not drift (design §3.5 shape exclusion)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t5a-"));
+  try {
+    mkdirSync(join(dir, "stages"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `stages/AGENTS.md`\n");
+    writeFileSync(join(dir, "stages", "AGENTS.md"), "for a new run see `stages/01_.../CONTEXT.md`\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, undefined);   // the "..." span is not a route
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T5b a bare-filename backtick in a router is not drift (design §3.5 shape exclusion)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t5b-"));
+  try {
+    // A root router mentioning a bare filename in prose: not a route. (This is
+    // the old T3f vehicle; bare filenames are no longer routes, so T3f now uses
+    // a path-shaped target to keep testing the tier-2 location gate.)
+    mkdirSync(join(dir, "plugins", "x"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root mentions `SKILL.md` in prose\n");
+    writeFileSync(join(dir, "plugins", "x", "SKILL.md"), "unrelated\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, undefined);   // bare filename, no path segment
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
