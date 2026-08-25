@@ -776,6 +776,53 @@ Use `superpowers:receiving-code-review` for the findings, then `superpowers:fini
 
 **If a reviewer surfaces a scope question the amended design does not settle, STOP and take it to `/decisions`** — this chain has already caught three that way, and none of them should have been decided inside an execution plan.
 
+> **This is exactly what happened.** Task 4 Step 3's review surfaced the CommonMark `<dest>` handling gap; it went to `/decisions` (the **fifth** ratchet trip) and returned as `planning/decisions/2026-08-25_commonmark-dest-strip-and-partial-wrap.md`. **Task 5 below implements that ruling, and Task 4 Step 4 (finish the branch) resumes only after Task 5 lands.**
+
+---
+
+### Task 5: Implement the CommonMark `<dest>` strip; narrow the markdown-branch placeholder check
+
+Design §3.2 as amended by `planning/decisions/2026-08-25_commonmark-dest-strip-and-partial-wrap.md` (ruling: **option C**). **Stacks on Tasks 1–3** (`3646391`, `c5677f7`, `c88e506`) on the same branch. Fixes a branch-introduced silent-swallow false negative and a false positive the strip was always meant to close.
+
+**The two defects this task closes, both confirmed against the built code:**
+- **FN (must fix — §3.4):** `[x](<docs/gone.md>#sec)` is excluded by the broad `/[<>{}]/` fallback in `hasPlaceholderToken` → `routing_drift: 0`, where `main` reports `1`. A silently-swallowed broken link. That fallback is the raw-string test §3.2's boxed warning forbids.
+- **FP:** `[x](<src/API.md>)` to an **existing** file drifts instead of resolving, because D1's mandated strip was never implemented; `classifyLink` resolves the literal `<src/API.md>`, which fails `existsSync`.
+
+**Files:**
+- Modify: `src/tools/context-audit/links.ts` — narrow the markdown-branch placeholder logic to enumerated forms; add the strip so a delimiter-wrapped path is resolved on its inner.
+- Modify: `src/tools/context-audit/graph.ts` — the markdown-branch resolution uses the strip.
+- Modify: `src/API.md` — **only if** the narrowed behaviour changes the public contract text (rule 8; decide by content).
+- Test: `test/context-audit/links.test.ts`, `test/context-audit/graph.test.ts`.
+
+**Hard constraints (from the ruling):**
+1. **The FN fix is non-negotiable.** The branch must not merge while a broken link can silently vanish. A markdown destination matching **neither** enumerated placeholder form (fully-wrapped token `^<[^/]*>$` naming nothing; `scheme:<token>`) is adjudicated normally and **drifts** if it does not resolve.
+2. **T2d must be made NON-VACUOUS.** It must pass because the wrapped path is **stripped, adjudicated, and drifts for the right reason** — not because the unstripped literal also fails `existsSync`. Add the **mutation check**: with the strip removed, T2d must **fail**. A test green under both mechanisms verifies neither (observation 15).
+3. **Backtick behaviour preserved.** `isRoutingPathShape` still excludes brace-glob backtick forms (`a/{x,y}/z.md`); the existing `graph.test.ts` non-route-tokens fixture and T1d stay green. Narrow **only** the markdown branch's use.
+4. **Not generalised past the evidence.** Do not extend the discriminator to embedded/partial `<…>` groups (multiple groups, empty `<>`, malformed nesting). A real corpus form the enumeration mishandles is a **sixth** `/decisions` trip (the flip-to-A condition), not a silent widening.
+
+- [ ] **Step 1: Write the failing/guarding tests**
+
+Add to `test/context-audit/links.test.ts` (unit) and `test/context-audit/graph.test.ts` (graph):
+
+- **T2f — FP now resolves (RED→GREEN):** a router markdown link `[x](<src/API.md>)` whose target exists resolves as an edge — `routing_drift` is `undefined` (not `1`). Reds before this task, greens after the strip.
+- **T2g — FN now drifts (RED→GREEN):** `[x](<docs/gone.md>#sec)` (and a bare `[x](<a>b.md)`-style stray-bracket broken destination) → `routing_drift: 1`. Reds before (currently excluded by the fallback), greens after the narrowing.
+- **T2d made non-vacuous:** keep the existing `[x](<docs/gone.md>)` → `routing_drift: 1`, and add an accompanying assertion or a documented mutation note that removing the strip flips it. The intent: the wrapped broken path drifts *via the stripped inner*, not via the literal.
+- **T2e, T2a–T2c unchanged and green** — the `scheme:<token>` and `{name}` exclusions still hold.
+
+Record the **exact** red state (executed, not predicted) before implementing.
+
+- [ ] **Step 2: Implement option C**
+
+In `links.ts`, replace the markdown-branch placeholder decision so it recognises only the enumerated placeholder forms (fully-wrapped token; `scheme:<token>`), drops the broad `/[<>{}]/` fallback for that branch, and — for a fully-wrapped **delimiter path** — strips the `<…>` wrapper before the inner path is resolved/existence-checked. Keep the backtick path (`isRoutingPathShape`) unchanged. Exact placement placeholder-first → strip-delimiter → resolve, per §3.2 as amended.
+
+- [ ] **Step 3: Full suite** — `npm test`. All prior tests plus the new ones green; the `graph.test.ts` non-route-tokens fixture and every T1/T2/T3/T4 test still pass. Record the new count.
+
+- [ ] **Step 4: `src/API.md` (rule 8)** — update only if the contract text changes; re-verify the four JSON blocks parse.
+
+- [ ] **Step 5: Corpus re-check (read-only, pinned nine-repo corpus)** — confirm the before/after drift split is unchanged by this task (the FN/FP forms are corpus-invisible, so no pinned number should move); confirm no residual becomes unclassifiable under §3.4.
+
+- [ ] **Step 6: Commit** (stacks on `c88e506`), then resume **Task 4 Step 3–4** (re-review the new diff, then finish the branch).
+
 ---
 
 ## After the plan
