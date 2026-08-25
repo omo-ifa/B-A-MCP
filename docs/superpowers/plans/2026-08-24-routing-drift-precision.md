@@ -1,4 +1,4 @@
-# routing_drift Precision (TBD-16) Implementation Plan — revision 2
+# routing_drift Precision (TBD-16) Implementation Plan — revision 3
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,11 +8,11 @@
 
 **Tech Stack:** TypeScript ESM (`NodeNext`), `node:test` + `node:assert/strict`, no runtime dependencies added.
 
-**Spec:** `planning/designs/2026-08-24_routing-drift-precision-design.md`, as amended by `planning/decisions/2026-08-24_d2-d3-superseded-before-implementation.md` and `planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md`
+**Spec:** `planning/designs/2026-08-24_routing-drift-precision-design.md`, as amended by `planning/decisions/2026-08-24_d2-d3-superseded-before-implementation.md`, `planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md`, and `planning/decisions/2026-08-25_placeholder-vs-commonmark-destination-precedence.md`
 
 ---
 
-## Revision note — what changed since revision 1
+## Revision note — what changed across revisions 1 → 3
 
 Revision 1 was **REVIEWED: REJECT** — 2 CRITICAL scope findings, 1 IMPORTANT, 11 mechanical. The two CRITICALs were **not** plan bugs; they were decisions the design had left open, and they went back through `/decisions`. This revision is written against the amended design.
 
@@ -34,8 +34,14 @@ Revision 1 was **REVIEWED: REJECT** — 2 CRITICAL scope findings, 1 IMPORTANT, 
 | 14 — tail normalisation stripped one `./` | Uses `posix.normalize`, and the escape guard also rejects a bare `".."`. |
 | *(re-review)* CommonMark `<dest>` swallowed by the predicate | A wrapping `<…>` is stripped before testing; **T2d** pins it. |
 | *(re-review)* no branch/PR/reviewer step | Added below as **Task 0** and **Task 4**. |
+| *(cycle 3)* T2d red-state recorded against the wrong state | **Re-derived** at the post-ruling state, not re-labelled — T2d is a **guard** that passes before and after. |
+| *(cycle 3)* stop-rule said "five failures" | Now **eight**, matching the re-derived block. |
+| *(cycle 3)* `&&` chain in Task 0 Step 1 | Changed to `;`. |
+| *(cycle 3)* stale-`dist` note absent | Added to Task 1 Step 3. |
+| *(cycle 3)* `links.ts:58-66` off by the stub's four lines | Corrected to `62-70`. |
+| *(ratchet 4)* `<token>` precedence collision | Settled by `2026-08-25_placeholder-vs-commonmark-destination-precedence.md`; the discriminator lands in Task 1 Step 4 and is pinned by **T1e** and **T2e**. |
 
-**Every test count and red state in this plan was executed, not predicted:** baseline **76** → Task 1 **84** → Task 2 **90** → Task 3 **92**, all green.
+**Every test count and red state in this plan was executed, not predicted:** baseline **76** → Task 1 **86** → Task 2 **92** → Task 3 **94**, all green.
 
 **One existing test reddens transiently and the plan says exactly where.** Under revision 2's original step ordering, `test/context-audit/graph.test.ts:223` went red during Task 1 — caught by the re-review, and the cause was that the verification command used `&&`, which short-circuited before `graph.test.js` ever ran. Step ordering and the command are both fixed; the fixture now stays green throughout, and Step 1 carries a warning explaining why it must not be over-applied.
 
@@ -64,8 +70,8 @@ Every task's requirements implicitly include this section.
 | `src/tools/context-audit/links.ts` | Link extraction + the *definition* of a routing path by shape | Modify — add `hasPlaceholderToken`, tighten `isRoutingPathShape` |
 | `src/tools/context-audit/graph.ts` | Edge resolution, drift/orphan/reachability accounting | Modify — global placeholder exclusion; location-gated tier 2 |
 | `src/API.md` | MCP surface contract | Modify — split across Tasks 1–2 |
-| `test/context-audit/links.test.ts` | Shape-definition tests | Modify — +4 |
-| `test/context-audit/graph.test.ts` | Graph-level behaviour tests | Modify — +4 (Task 1), +6 (Task 2) |
+| `test/context-audit/links.test.ts` | Shape-definition tests | Modify — +5 |
+| `test/context-audit/graph.test.ts` | Graph-level behaviour tests | Modify — +5 (Task 1), +6 (Task 2) |
 | `test/context-audit/orchestrate.test.ts` | End-to-end contract tests | Modify — +2 |
 | `planning/decisions/2026-08-20_router-path-drift.md` | Prior routing-path definition | Modify — pointer only |
 | `planning/decisions/2026-08-20_backtick-routing-edges-and-orphans-guard.md` | Prior two-base resolution | Modify — pointer only |
@@ -81,7 +87,7 @@ Every task's requirements implicitly include this section.
 - [ ] **Step 1: Confirm a clean tree on current `main`**
 
 ```bash
-git checkout main && git pull && git status --short
+git checkout main; git pull; git status --short
 npm test
 ```
 Expected: no output from `status`; **76 tests, 76 pass, 0 fail**. If the count differs, stop — this plan's arithmetic is anchored on 76.
@@ -153,6 +159,15 @@ test("T1d hasPlaceholderToken is syntax-independent", () => {
   assert.equal(hasPlaceholderToken("a/{b}/c.md"), true);
   assert.equal(hasPlaceholderToken("src/CONTEXT.md"), false);
 });
+
+test("T1e a wrapped TOKEN is a placeholder; a wrapped PATH is a delimiter", () => {
+  // Design §3.2 precedence, amended 2026-08-25. The discriminator is
+  // "contains / or ends in an extension".
+  assert.equal(hasPlaceholderToken("<dir>"), true);            // bare token
+  assert.equal(hasPlaceholderToken("<README>"), true);         // no slash, no extension
+  assert.equal(hasPlaceholderToken("<docs/gone.md>"), false);  // slash -> delimiter
+  assert.equal(hasPlaceholderToken("<my file.md>"), false);    // extension -> delimiter
+});
 ```
 
 Append to `test/context-audit/graph.test.ts`:
@@ -195,9 +210,22 @@ test("T2d a CommonMark <dest> wrapper is a delimiter, not a placeholder", () => 
   // angle-bracket destination form. The wrapper is punctuation, not a blank to
   // fill in — if the predicate ate it, real rot would vanish silently, and a
   // vanished finding is invisible to §3.4's categorical close condition.
+  // GUARD: this passes BEFORE and AFTER the change (see Step 3).
   const dir = mkdtempSync(join(tmpdir(), "ca-t2d-"));
   try {
     writeFileSync(join(dir, "CLAUDE.md"), "see [x](<docs/gone.md>)\n");
+    const c = cats(dir);
+    assert.equal(c.routing_drift, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2e a bare <token> destination is a placeholder, not a route", () => {
+  // The other half of the §3.2 precedence: `<dir>` is template text, so it must
+  // be excluded even though stripping the wrapper would leave a bare path.
+  // The genuinely broken link beside it must still be caught.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2e-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "see [x](<dir>) and [gone](really-missing.md)\n");
     const c = cats(dir);
     assert.equal(c.routing_drift, 1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -212,17 +240,24 @@ Run — **`;` not `&&`**, because `node --test` exits non-zero on failure and `l
 npm run build; node --test dist/test/context-audit/links.test.js; node --test dist/test/context-audit/graph.test.js
 ```
 
-Observed (executed, not predicted):
+Observed — **captured at this exact state**: `hasPlaceholderToken` is the stub, the character class is still `/[*{}~$]/`, and `graph.ts` has no placeholder check yet. Re-derived on 2026-08-25 against the merged `<token>` precedence ruling; **not carried forward from any earlier state.**
 
 ```
-✖ T1a   ✖ T1b   ✔ T1c   ✖ T1d
-✖ T2a  actual: 2, expected: 1
-✖ T2b  actual: 1, expected: 0
-✖ T2c  actual: 2, expected: 1
-✖ T2d  actual: 0, expected: 1
+links.test.js:   ✖ T1a   ✖ T1b   ✔ T1c   ✖ T1d   ✖ T1e
+graph.test.js:   ✖ T2a  actual: 2, expected: 1
+                 ✖ T2b  actual: 1, expected: 0
+                 ✖ T2c  actual: 2, expected: 1
+                 ✔ T2d
+                 ✖ T2e  actual: 2, expected: 1
 ```
 
-**T1c passes now and must keep passing** — it guards behaviour the change must not break. **Exactly these five failures and no others.** If any *other* test in either file is red — in particular the existing `graph.test.ts:223` non-route-tokens fixture — Step 1 was over-applied; re-read its warning before continuing.
+**Exactly these eight failures and no others.**
+
+**T1c and T2d pass now and must keep passing** — both are guards, not reds. **T2d is green at this state on purpose:** `graph.ts` has no placeholder check yet, so `<docs/gone.md>` is classified as an ordinary edge, fails `existsSync`, and drifts — which is the assertion's expectation. It stays green after Step 4 because the discriminator recognises the wrapper as a delimiter. A test that is green before *and* after pins behaviour the change must not break, exactly like T3d/T3e/T3f in Task 2.
+
+> **An earlier revision recorded `✖ T2d actual: 0, expected: 1` here. That was wrong** — the number was real but came from a *different* state (an implementation lacking the `<…>` strip). If you see T2d green, that is correct; do not treat it as a mis-transcription.
+
+If any *other* test in either file is red — in particular the existing `graph.test.ts:223` non-route-tokens fixture — Step 1 was over-applied; re-read its warning before continuing. If `tsc` fails, `dist/` is stale and both `node --test` runs will silently report the **previous** build's results; fix the build before reading the table above.
 
 - [ ] **Step 4: Write the implementation**
 
@@ -235,12 +270,25 @@ Replace the stub in `src/tools/context-audit/links.ts` and tighten the shape tes
 // branch in graph.ts. See design §3.2 (ratified global, decision 2026-08-24 D3).
 export function hasPlaceholderToken(raw: string): boolean {
   const t = raw.trim();
-  // CommonMark allows <dest> as a link-destination DELIMITER. That wrapper is
-  // punctuation, not a blank to fill in, so strip it before testing — otherwise
-  // a genuinely broken [x](<docs/gone.md>) would vanish silently, and a vanished
-  // finding is invisible to the categorical close condition.
-  const inner = /^<(.*)>$/.test(t) ? t.slice(1, -1) : t;
-  return /[<>{}]/.test(inner);
+  // Precedence (design §3.2 as amended 2026-08-25): placeholder detection is
+  // adjudicated FIRST. A <...>-wrapped TOKEN is a placeholder; a <...>-wrapped
+  // PATH is a CommonMark destination DELIMITER, stripped and adjudicated
+  // normally so a broken one still drifts.
+  //
+  // Discriminator: the wrapper is a delimiter when its content contains "/" or
+  // ends in a file extension. Slash-only was rejected (it swallows
+  // <my file.md>, and a spaced destination is the canonical reason CommonMark
+  // has angle brackets); extension-only was rejected (it swallows <docs/gone>).
+  //
+  // Do NOT collapse this to a raw /[<>{}]/ test: that marks <docs/gone.md> a
+  // placeholder and silently swallows real rot — a vanished finding is
+  // invisible to §3.4's categorical close condition.
+  const m = /^<(.*)>$/.exec(t);
+  if (m) {
+    const inner = m[1];
+    return !(inner.includes("/") || /\.[a-z0-9]+$/i.test(inner));
+  }
+  return /[<>{}]/.test(t);
 }
 
 export function isRoutingPathShape(raw: string): boolean {
@@ -261,7 +309,7 @@ export function isRoutingPathShape(raw: string): boolean {
 }
 ```
 
-In the doc comment directly above (`links.ts:58-66`), the excluded-marker list reads *"glob (`*` `{` `}`), home (`~`) …"*. Move the brace forms out of that sentence — they are now owned by `hasPlaceholderToken` — so the comment matches the code.
+In the doc comment directly above (`links.ts:62-70` — Step 1's four-line stub shifted it down from 58-66), the excluded-marker list reads *"glob (`*` `{` `}`), home (`~`) …"*. Move the brace forms out of that sentence — they are now owned by `hasPlaceholderToken` — so the comment matches the code.
 
 In `src/tools/context-audit/graph.ts`, extend the import on line 3:
 
@@ -283,7 +331,7 @@ And insert into the markdown branch, after the `kind !== "edge"` guard (line 112
 - [ ] **Step 5: Run the full suite**
 
 Run: `npm test`
-Expected: **84 tests, 84 pass, 0 fail** (76 baseline + 8). Observed. The `graph.test.ts:223` non-route-tokens fixture is green again here. If any pre-existing test is red, stop and diagnose — do not edit the fixture.
+Expected: **86 tests, 86 pass, 0 fail** (76 baseline + 10). Observed. The `graph.test.ts:223` non-route-tokens fixture is green again here. If any pre-existing test is red, stop and diagnose — do not edit the fixture.
 
 - [ ] **Step 6: Update `src/API.md` (rule 8 — same commit as the behaviour)**
 
@@ -505,7 +553,7 @@ Finally, update the `refsFromRoots` field comment at `graph.ts:14`, which curren
 - [ ] **Step 4: Run the full suite**
 
 Run: `npm test`
-Expected: **90 tests, 90 pass, 0 fail** (84 + 6). Observed. All six T3 tests green together.
+Expected: **92 tests, 92 pass, 0 fail** (86 + 6). Observed. All six T3 tests green together.
 
 **If a pre-existing test goes red, stop and diagnose — do not edit the fixture.** A prior build in this repo was nearly derailed when a new guard reddened four existing fixtures that the plan had not anticipated. (In scratch verification none went red, so a red here means the implementation diverged from this plan.)
 
@@ -638,7 +686,7 @@ These are **confirmation** tests, not a red-green cycle: there is no interim sta
 - [ ] **Step 3: Run the full suite**
 
 Run: `npm test`
-Expected: **92 tests, 92 pass, 0 fail** (90 + 2). Observed.
+Expected: **94 tests, 94 pass, 0 fail** (92 + 2). Observed.
 
 - [ ] **Step 4: Add the two decision-record pointers (design §5)**
 
@@ -702,7 +750,7 @@ Refs TBD-16."
 ```bash
 npm test
 ```
-Expected: **92 tests, 92 pass, 0 fail**, and `tsc` clean (it runs via `pretest`).
+Expected: **94 tests, 94 pass, 0 fail**, and `tsc` clean (it runs via `pretest`).
 
 - [ ] **Step 2: Confirm the branch touched only what this plan authorises**
 
@@ -743,6 +791,7 @@ That re-validation is a calibration run, not a build step, and it is **not** the
 | §3.1 **root-located routers get no tier 2** (amended) | Task 2 — location gate, T3f |
 | §3.2 placeholder exclusion, both syntaxes | Task 1 — T1a/T1d/T2a |
 | §3.2 **global, any doc type** (ratified) | Task 1 — T2c |
+| §3.2 **`<token>` precedence + discriminator** (amended 2026-08-25) | Task 1 — implementation in Step 4; pinned by **T1e** (unit) and **T2d/T2e** (graph) |
 | §3.2 bare extension; leading-dot preserved | Task 1 — T1b/T1c |
 | §3.3 markdown-link drift KEEP | Task 1 — kept; only the placeholder exclusion applies. T2a asserts a genuine md-link route still drifts. |
 | §3.4 exit criterion, confirm-not-restore | Task 3 — T4a |
@@ -760,4 +809,4 @@ That re-validation is a calibration run, not a build step, and it is **not** the
 
 **3. Type consistency:** `hasPlaceholderToken` named identically in Tasks 1 and 2. `isUnanchoredInSubtree(docs, routerRelPath, rawTarget)` defined and called with matching argument order. `WalkedDoc` matches `walk.ts:7`. `SEVERITY_BY_CATEGORY` matches `score.ts:8`. `GraphResult.resolvedRefsFromRoots` and `.routingDriftCount` both exist. `posix` imported before use.
 
-**4. Empirical verification:** every red state, green state and test count in this plan was executed in a scratch copy of this repo before the plan was written — **76 → 84 → 90 → 92**, and `src/API.md`'s four JSON blocks verified to parse after both edits.
+**4. Empirical verification:** every red state, green state and test count in this plan was executed in a scratch copy of this repo before the plan was written — **76 → 86 → 92 → 94**, and `src/API.md`'s four JSON blocks verified to parse after both edits.
