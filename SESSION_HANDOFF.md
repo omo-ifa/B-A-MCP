@@ -6,136 +6,74 @@
 
 ## Repo state — verified 2026-08-25
 
-- **`main` HEAD:** `12da257` (`plan: TBD-16 routing_drift precision — revision 2 (re-reviewed, fixes applied) (#21)`) **at the moment this file was written.** This file cannot record the commit that contains it: merging it advanced `main` to **`165caf9`**, and this correction advances it once more. **A live `git rev-parse --short HEAD` ahead of `12da257` is expected and correct** — what would be wrong is a HEAD *behind* it, which means you are reading a stale checkout. Everything else below was verified at `12da257`, and no `src/**/*.ts` has changed since.
-- **Tests:** **76 / 76 pass, 0 fail**, `tsc` clean. Verified with `npm test` on `main` at that HEAD. **Node v25.2.1.**
-- **Open PRs: 0.** #17–#22 all merged this session.
-- **`src/**/*.ts` changed since the design landed (`9869d22..HEAD`): 0 files.** No production code has been written in this entire chain.
-- Working tree clean. Several merged topic branches remain locally (`decisions/*`, `ratchet/*`, `plan/*` was deleted on merge) — safe to prune, none carry unmerged work.
+- **`main` HEAD:** `9b43bf0` (`calibration(context_audit): TBD-16 re-validation — CLOSE NOT SATISFIED, sixth ratchet trip (#27)`) **at the moment this file was written.** This file cannot record the commit that contains it: merging it advances `main` once more. **A live `git rev-parse --short HEAD` ahead of `9b43bf0` is expected and correct** — what would be wrong is a HEAD *behind* it (a stale checkout).
+- **Tests:** **98 / 98 pass, 0 fail**, `tsc` clean. Verified with `npm test` on `main` at `9b43bf0`. **Node v25.2.1.**
+- **Open PRs: 0.** This session merged **#25** (decision), **#26** (the TBD-16 code fix), **#27** (re-validation).
+- Working tree clean. Branches `fix/tbd-16-routing-drift-precision`, `decisions/2026-08-25-commonmark-dest-strip`, `calibration/2026-08-25-tbd-16-revalidation` were merged and deleted on merge.
+- **The TBD-16 fix is now BUILT and on `main`** — the first `src/**/*.ts` writes in the whole design→decisions chain landed this session (Tasks 1–5).
 
 ---
 
 ## Active design doc
 
-**`planning/designs/2026-08-24_routing-drift-precision-design.md`** — **approved, amended three times, NOT yet built.**
+**`planning/designs/2026-08-24_routing-drift-precision-design.md`** — **built and merged, but its TBD (TBD-16) is NOT closed.** Amended **five** times (four before build, one mid-build). §3.2 now carries the CommonMark `<dest>` strip + narrowed markdown-branch check (amendment 2026-08-25).
 
-Its implementation plan is written, reviewed to CLEAN, and on `main`; **no code exists for it yet**. Read the design's **§3.1, §3.2, §3.4, §3.5** before touching the tool — all four were amended after the design was first approved, and the amendments are where the correctness lives. Amending records, all on `main`:
-
-- `2026-08-24_d2-d3-superseded-before-implementation.md` — §3.4 exit criterion moves *restore* → *confirm*
-- `2026-08-24_tier-2-scope-and-placeholder-globality.md` — §3.1 root-located routers get no tier 2; §3.2 placeholder exclusion is global; §3.4 drift `null` accepted; §3.5 new accepted-FP class
-- `2026-08-25_placeholder-vs-commonmark-destination-precedence.md` — §3.2 `<token>` precedence + the slash-or-extension discriminator
-
-The earlier `planning/designs/2026-08-20_agents-md-router-recognition-design.md` is **built and merged** (PR #14). `planning/designs/2026-08-18_context-audit-design.md` remains the tool's base design (built).
-
----
-
-## Where TBD-16 stands: **plan landed, cleared for execution**
-
-The `routing_drift` precision fix (**TBD-16**) has completed the full gate chain and is ready to build. **Execution is the next action and is the first `src/**/*.ts` write in the chain.**
-
-**On `main`, all verified present this session:**
-
-| Artifact | Path |
-|---|---|
-| **Implementation plan (revision 3)** | `docs/superpowers/plans/2026-08-24-routing-drift-precision.md` |
-| **Design (amended ×3)** | `planning/designs/2026-08-24_routing-drift-precision-design.md` |
-| Gate 2 — interim disposition (D1–D5) | `planning/decisions/2026-08-24_routing-drift-precision-and-interim-disposition.md` |
-| Gate 2 — tier-2 scope + placeholder globality | `planning/decisions/2026-08-24_tier-2-scope-and-placeholder-globality.md` |
-| Gate 2 — D2/D3 superseded pre-implementation | `planning/decisions/2026-08-24_d2-d3-superseded-before-implementation.md` |
-| Gate 2 — `<token>` precedence + discriminator | `planning/decisions/2026-08-25_placeholder-vs-commonmark-destination-precedence.md` |
-| Calibration run-6 (the evidence base) | `planning/calibration/2026-08-24_context-audit-run-6-nine-repo-rerun.md` |
-
-Also landed this session, **not** part of TBD-16's build: `2026-08-24_orphans-routes-to-dirs-not-docs.md` (TBD-14), `2026-08-24_tbd-11-bloat-aggregation-shape.md` (TBD-11), `2026-08-24_tbd-17-no-new-router-syntax-v1.md` (TBD-17, **Resolved**).
-
-**Review history:** the plan went through **four** review cycles — REJECT → APPROVE WITH FIXES → FIXES INCOMPLETE → **CLEAN**. Cycle 4 verified on-machine: red state reproduces exactly, no `&&` short-circuit, T2d/T2e non-vacuous under mutation, discriminator matches every ruling row, location-gate reds hold both directions, counts reproduce. **No scope question remained open.**
-
-### The report contract execution must satisfy
-
-Landing the code is not enough — it must be *shown* to do what four design cycles predicted:
-
-1. **Counts `76 → 86 → 92 → 94`** reproduced on the **real repo**, not a scratch tree.
-2. **Before/after audits of the four wild repos that produce drift** (posthog, caveman, superpowers, icm-architect), on the **pinned nine-repo corpus** — clones under `~/dev/ba-calibration/`, verified live at the run-6 commits: `superset 18fc2c6 · posthog 7bd2689 · cal.com 176037d · Ghost 0cd3280 · superpowers b36e082 · caveman a42ef76 · claude-mem e2d1df5 · one-skill-to-rule-them-all 281f134 · icm-architect b20fb45`. **Do not refresh them** — the corpus is pinned so the tool is the only variable.
-3. **The drift split reproduced: 17 of 26 prose-relative false positives fixed** (all posthog's, nested routers), **9 given back** (all caveman's root `CLAUDE.md`, the §3.5 named accepted-FP class).
-4. **`Buddi` and `~/.claude` are barred from threshold reasoning** — correctness probes only, per `2026-08-24_tier-2-scope-and-placeholder-globality.md` D4.
-
-**TBD-16 does not close when the code lands.** It closes on re-validation against the pinned corpus under §3.4's **categorical** close condition: every residual drift finding must be classifiable into a §3.5-named out-of-scope class or be a verified genuine broken route. Any finding fitting neither → `/decisions`.
+Base designs, both built: `2026-08-20_agents-md-router-recognition-design.md` (PR #14), `2026-08-18_context-audit-design.md`.
 
 ---
 
 ## Decisions + TBDs
 
-**Resolved this session:** TBD-13 (Status column corrected — its Resolution text had said Resolved since 2026-08-20), TBD-17 (no new router syntax in v1).
+### Landed this session
+- **PR #25** — `planning/decisions/2026-08-25_commonmark-dest-strip-and-partial-wrap.md` (fifth ratchet trip): the CommonMark `<dest>` strip is implemented and the markdown placeholder check narrowed to enumerated forms (option C). Amends §3.2; added plan Task 5.
+- **PR #26** — the TBD-16 code fix, four commits: Task 1 (global placeholder + bare-extension exclusion), Task 2 (tier-2 **location-gated** unanchored reference — gate on `relPath`, not `isRoot`), Task 3 (exit criterion confirmed), Task 5 (the `<dest>` strip + narrowed check, **non-vacuous** T2d).
+- **PR #27** — `planning/calibration/2026-08-25_context-audit-tbd-16-revalidation.md`: the re-validation run.
 
-**Open — full status in `src/TDD.md` (canonical):**
+### TBD-16 — **still Open. Did NOT close at re-validation.**
+The fix reproduced the predicted headline on the pinned nine-repo corpus — drift **59 → 28**, **17/26 prose-relative FPs fixed** (all posthog's), **9 given back** (all caveman root `CLAUDE.md`), 11 nested residuals verified not tier-2 misses — **but §3.4's categorical close condition FAILED.** Of the 28 residuals, 18 classify into named §3.5 classes and 3 are plausibly genuine broken routes, leaving **7 false positives from three mechanisms §3.5 does not name:**
+- **(A) lexical placeholders** with no syntactic marker — `foo` (posthog `signals-scout-foo`), `...` ellipsis (icm `stages/01_...`).
+- **(B) prose reference / citation** — a path-shaped backtick used referentially (`CONTEXT.md`, `SKILL.md`, `bench/agent/README.md`), not a route.
+- **(C) prose-relative under a NESTED router, target outside its own subtree** — an ancestor (posthog canvas → `products/desktop/docs/…`) or a depth mismatch (icm `setup/questionnaire.md` vs `questionnaire.md`). Tier 2's down-only subtree bound doesn't reach these; §3.5 names only the root-located variant.
 
-- **TBD-16** — Open; plan landed, awaiting execution + re-validation.
-- **TBD-10** (weights) — Open, **blocked on TBD-16**. Two sub-scores are excluded from the composite pending correctness fixes: `routing_drift` (until TBD-16 lands and re-validates) and `orphans` (until dir-granularity reachability lands). With `bloat` shape-blocked too, **`coverage` is currently the only routing-layer sub-score eligible to carry the headline** — a narrowness to watch.
-- **TBD-11** (bloat cutoffs) — Open; data unblocked, **shape re-blocked** (flat-sum aggregation degenerates on router count; `INLINE_RATIO_CUTOFF` flagged for re-derivation). Re-work authorised as its own loop.
-- **TBD-12** (`MIN_FILES`) — Open; best data yet (0 → 1 819 significant dirs), not decided.
-- **TBD-14** (orphan scope) — Open; cause identified as routes-to-directories-not-documents. Dir-granularity reachability authorised as its own loop.
-- **TBD-15** — Open, v1.1, unchanged.
-- **TBD-2 / TBD-4** — Open, still gate `THIRD_PARTY_NOTICES.md` (release-blocking). TBD-3, TBD-5, TBD-8, TBD-9 unchanged.
+**Consequence:** `routing_drift` is **NOT** confirmed scored-real and `routing_path_missing` is **NOT** confirmed at `high` — **D2/D3 do not flip** (§3.4 gates both on this run passing). A **sixth `/decisions` trip** is the next action on TBD-16: name A/B/C as accepted §3.5 classes (with measured counts) or authorise a fix. No threshold set; the 21/28 accounted ratio is **not** a pass (rule 7).
 
-**No threshold number was set anywhere this session. `TBD_10_WEIGHTS` and `ROUTING_LAYER_KEYS` in `src/tools/context-audit/score.ts` were never edited.** Rule 7 intact.
-
----
-
-## PENDING — two process findings that must survive this context boundary
-
-**Not fixed, not logged.** They belong to the observation-review session; named here only so they are not lost.
-
-1. **The state-tagging fault.** A recorded actual must carry the state it was captured in. This fault class recurred **four times** in one chain, always the same shape — verification that ran, but verified the wrong thing: (i) a red state predicted rather than executed; (ii) `&&` short-circuiting so a later test file never ran at the red state; (iii) a real number recorded against a *different* state than the one it was written under; (iv) an ordinal carried forward from an earlier revision. Each was caught only by an independent reviewer re-running it.
-
-2. **The `str_replace` line-wrap no-op hazard.** A single-line search-and-replace against prose that wraps across two source lines silently succeeds-as-no-op. Hit during this chain's plan edits and independently by a reviewer's first pass. Needs a durable rule: verify the match spans what you think it spans, or anchor on a single line.
+### Other open TBDs (unchanged this session)
+- **TBD-10** — sub-score → headline weight NUMBERS. Still Open, data-blocked, **gated on TBD-16 closing**. When TBD-16 does close, `routing_drift` becomes weighting-eligible but the NUMBER stays deferred; `coverage` remains the only load-bearing headline routing-layer sub-score until TBD-14 and TBD-11 land. `TBD_10_WEIGHTS` / `ROUTING_LAYER_KEYS` untouched.
+- **TBD-14** — orphans dir-granularity reachability. Authorised as its own build loop, **not built**. Candidate next code work.
+- **TBD-11** — bloat-aggregation shape. Authorised, **not built**. Candidate next code work.
+- **TBD-12** — coverage `MIN_FILES` / significance numbers. Open, data-blocked. Sharpened by run-6, not forked.
+- **TBD-2, TBD-4, TBD-5, TBD-9** — packaging / notices / pricing / doc_drift scope. Open, untouched this session.
 
 ---
 
-## Remaining work, in order
+## Remaining work
 
-1. **Execute the TBD-16 plan** — first code write in the chain. Sequential TDD build (walk → graph → score order; do **not** parallelize the red/green cycle), then parallel read-only wild-repo audits, then code reviewers, then `superpowers:finishing-a-development-branch`.
-2. **Re-validate against the pinned nine-repo corpus** — the calibration run that closes TBD-16. **Not** the README sample.
-3. **Then** the authorised follow-on loops: TBD-11 bloat-aggregation shape, TBD-14 dir-granularity reachability.
-4. **Then** TBD-10/11/12 numbers, which have been deferred through six calibration runs.
-5. **Then** `override_log` (Roadmap #2), `doc_drift` (TBD-9), the `.claude/commands/` generator, `npm publish` dry-run.
-6. **Legal (release-blocking):** TBD-2 (caveman path-scope + commit pin) and TBD-4 (ICM paraphrase, the product owner's call) still gate the notices file.
+- **TBD-16 sixth `/decisions` trip** — the immediate next step. Rule on the three unnamed residual-FP mechanisms (A/B/C) from the re-validation record. Until then TBD-16 stays Open and D2/D3 stay unconfirmed.
+- **Two authorised-but-unbuilt loops:** TBD-14 (dir-granularity reachability) and TBD-11 (bloat-aggregation shape). Each is its own design + build loop; neither is started.
+- **README true-sample** — gated behind `TBD-10/11/12` NUMBERS. **Not now.** Must be a true run, produced after those numbers exist; the re-validation record is explicitly not the README sample.
+- **`src/API.md`** matches the code as committed (verified: 4 JSON blocks parse; tool schema/description in `index.ts` unchanged, ledger unaffected). No `src/ERD.md` (no database). `prompts/` untouched this session, so `.claude/commands/` was **not** regenerated (rule 1 — regenerate only when a prompt changes).
 
 ---
 
 ## Context not in the docs
 
-- **The ratchet earned its keep four times.** Four questions reached `/decisions` only because a gate refused to decide them inline: the drift-null denominator, the root-router subtree bound, placeholder globality, and the `<token>` precedence collision. Each would have shipped wrong. **If execution surfaces a fifth, stop and take it to `/decisions` rather than deciding it in code.**
-- **Three constraints are individually load-bearing** — any one implemented backwards ships the fix wrong. They are stated in the design and repeated in the plan's Global Constraints; the execution prompt repeats them again deliberately.
-- **`isRoot` is a naming trap.** In this codebase it means *"is a router doc," at any depth* — it is **not** about location, and it already gates the backtick branch. Tier 2's exclusion keys on `relPath` containing no `/`. Implementing it as `isRoot` makes tier 2 never fire and silently deletes the whole fix.
-- **caveman remains disproportionately influential** — the top-end router-count case for TBD-11 *and* one of the two drift-residue repos for TBD-16. Keep its influence visible, never silently baked in.
-- **`index.ts` is context-budget-frozen (rule 2).** The TBD-16 plan does not touch it, so the ledger is a verified no-op.
+- **The ratchet is doing its job — read the re-validation record before touching TBD-16.** The 59→28 and 17/9 numbers look like a clean win; per-finding classification is what caught the unnamed FP mechanisms. Do not read the headline as a pass. §3.4 is categorical: every residual named or fixed, never "precision looks good."
+- **Tier 2's bound is the router's OWN subtree, searched down-only by exact tail-suffix.** That is deliberate (§3.1 rejected a wider bound), but it is exactly why mechanism (C) exists: ancestor-located and depth-mismatched prose-relative targets are unreachable by design. The sixth trip must decide whether that residue is *named-accepted* or *fixed* — widening the bound was already rejected once.
+- **T2d is now non-vacuous** — it asserts the drift evidence is the *stripped* inner (`docs/gone.md`), so removing the strip fails it (mutation-verified this session). If you touch the `<dest>` path, keep that guard; a green T2d under a no-op strip is the exact trap (observation 15) that hid the missing strip for four review cycles.
+- **`hasPlaceholderToken` (backtick path) and `isMarkdownPlaceholder` (markdown branch) are now separate** — the markdown branch dropped the broad `/[<>{}]/` fallback that silently swallowed broken bracketed links. Don't re-merge them.
+
+### Two pending PROCESS items — observation-review-session work, **named not fixed** (must survive this boundary)
+- **The state-tagging fault.** A recorded red/green state (or a claimed observation) must carry *which code-state it was measured against*. This chain twice recorded a T2d red state against the wrong implementation state and had to re-derive it; a state assertion without a state tag is a latent transcription error. Belongs in the next observation-review session as a candidate skill/rule.
+- **The `str_replace` line-wrap no-op hazard.** A single-line search-and-replace whose target text wraps across two source lines matches nothing and **silently no-ops** — the plan itself warned of this at the §3.2 comment edit. An edit that "succeeds" without changing anything is invisible. Belongs in the same review session.
+
+(The observation log itself was not touched beyond this naming; it holds observations 1–15, with **#14** (multiset vs set diff for count reconciliation) and **#15** (a test green under two mechanisms verifies neither) added this session.)
 
 ---
 
 ## Next-session starter
 
-Paste-ready. **Verify the HEAD line below matches `git rev-parse --short HEAD` before trusting anything else in this file.**
-
-> Execute the TBD-16 `routing_drift` precision fix in `B-A-MCP`. **This is the first `src/**/*.ts` write in a long docs-only chain** — the design went through four `/decisions` passes and the plan through four review cycles. Everything is on `main`; you have none of that context, so read before acting.
+> Take TBD-16 to its **sixth `/decisions` trip**. Read `CLAUDE.md`, this file, `planning/calibration/2026-08-25_context-audit-tbd-16-revalidation.md` (§2–§3), and design §3.4–§3.5. Confirm `git rev-parse HEAD` and `npm test` (expect 98) before trusting any figure.
 >
-> **Read first:** `CLAUDE.md` · `SESSION_HANDOFF.md` (verified truth; wins over recall — its Repo-state line must read `main` HEAD **`12da257`** or later) · the plan `docs/superpowers/plans/2026-08-24-routing-drift-precision.md` (**revision 3**) · the amended design `planning/designs/2026-08-24_routing-drift-precision-design.md`, especially **§3.1, §3.2, §3.4, §3.5** · the four Gate 2 records named under *Active design doc* above · `src/TDD.md`. **Confirm `git rev-parse HEAD` and `npm test` before trusting any figure in any document.**
+> The re-validation found **7 residual false positives from three mechanisms §3.5 does not name** — (A) lexical placeholders (`foo`, `...`), (B) prose reference/citation, (C) prose-relative under a nested router with the target outside its subtree. Run `/decisions` on them: for **each** mechanism, either **name it as an accepted §3.5 class** (with its measured count from the record, the way the root-located-router class was named) **or authorise a follow-up fix loop**. Docs only in that pass — no code, no threshold number. If the ruling authorises a fix, it becomes a new plan via `superpowers:writing-plans`, built under `superpowers:test-driven-development`, reviewed with `superpowers:requesting-code-review` → `superpowers:receiving-code-review`, finished with `superpowers:finishing-a-development-branch`. **Only if every residual then classifies** does TBD-16 close: flip it Resolved in `src/TDD.md` and confirm D2/D3 together (routing_drift scored-real, routing_path_missing high). If any residual still fits neither → seventh trip, not a silent close.
 >
-> **Four constraints are load-bearing — any one backwards ships the fix wrong:**
-> 1. **Tier 2 gates on LOCATION** (`relPath` contains no `/`), **not on `isRoot`**. `isRoot` means *"is a router doc," at any depth* and already gates the backtick branch; gating tier 2 on it makes the tier never fire and silently deletes the fix. Tests **T3a and T3f** are the trap detector and must be green together.
-> 2. **The `<token>` discriminator is slash-or-extension.** Do **not** implement it as a raw test-the-raw-string check — see the boxed warning in §3.2. **T2d and T2e** pin both halves.
-> 3. **Exit criterion is CONFIRM, not restore** (§3.4): confirm `routing_path_missing` stays `high` and `routing_drift` is scored-real. **Never add a "restore to `high`" step.**
-> 4. **Placeholder exclusion is global**, including its suppression of non-router `broken_ref` — and that suppression must be tested (**T2c**).
->
-> **Report contract:** counts **76 → 86 → 92 → 94** reproduced on the **real repo, not a scratch tree**; before/after audits of the four wild repos that produce drift (posthog, caveman, superpowers, icm-architect) on the **pinned** nine-repo corpus under `~/dev/ba-calibration/` — **do not refresh the clones**; and the split reproduced: **17 of 26 prose-relative false positives fixed** (all posthog's), **9 given back** (all caveman's root `CLAUDE.md`). **`Buddi` and `~/.claude` are barred from threshold reasoning** — correctness probes only.
->
-> **Subagent decomposition:** **Do NOT parallelize the TDD build** — tasks run walk → graph → score in order, and interleaving red/green states across agents on one tree corrupts state; build sequentially in one agent. **Do fan out the read-only wild-repo audits as parallel subagents** once code lands.
->
-> **The before/after audits require BOTH states run fresh:** capture "before" on the pre-fix tool (`main` HEAD before this branch's code) and "after" on the post-fix branch, **same pinned clones both times**. Do not take "before" numbers from the plan or any prior record — **re-run them**. The 17/26 split is only proof if both sides were executed this session; a fresh *after* compared against a transcribed *before* is exactly the carried-forward-number fault the review cycles kept catching.
->
-> Build under `superpowers:test-driven-development` (the plan is task-by-task; `superpowers:subagent-driven-development` or `superpowers:executing-plans` drives it). Then `superpowers:requesting-code-review`, then `superpowers:receiving-code-review`, then `superpowers:finishing-a-development-branch`.
->
-> **Standing rules:** **no threshold number set** (TBD-10/11/12 deferred; `TBD_10_WEIGHTS` and `ROUTING_LAYER_KEYS` not edited) · branch + PR, **never direct to `main`** · **ratchet: if execution surfaces a decision the design does not settle, STOP → `/decisions`** — four have gone that way and each would otherwise have shipped wrong · don't touch the observation log.
-
----
-
-## Open overrides
-
-None. All 2026-08-24/25 decisions were made by the product owner and recorded in `planning/decisions/`.
+> Ratchet standing: no threshold number; branch + PR for anything code-touching, never direct to `main`; an unclassifiable residual is another `/decisions` trip, not a close. Two authorised-but-unbuilt loops wait behind this: **TBD-14** (dir-granularity reachability) and **TBD-11** (bloat-aggregation shape). The README true-sample stays gated behind TBD-10/11/12 numbers — not now.
