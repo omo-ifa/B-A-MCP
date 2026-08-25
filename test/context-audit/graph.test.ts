@@ -295,3 +295,80 @@ test("T2e a bare <token> destination is a placeholder, not a route", () => {
     assert.equal(c.routing_drift, 1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("T3a tier 2: NESTED router, path exists deeper in its subtree -> NOT drift", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3a-"));
+  try {
+    mkdirSync(join(dir, "skills", "scout-general", "references"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `skills/AGENTS.md`\n");
+    writeFileSync(join(dir, "skills", "AGENTS.md"), "the generalist keeps `references/conventions.md`\n");
+    writeFileSync(join(dir, "skills", "scout-general", "references", "conventions.md"), "real\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, undefined);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3b tier 2: multiplicity is not a collision", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3b-"));
+  try {
+    mkdirSync(join(dir, "skills", "a", "references"), { recursive: true });
+    mkdirSync(join(dir, "skills", "b", "references"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `skills/AGENTS.md`\n");
+    writeFileSync(join(dir, "skills", "AGENTS.md"), "each keeps `references/conventions.md`\n");
+    writeFileSync(join(dir, "skills", "a", "references", "conventions.md"), "one\n");
+    writeFileSync(join(dir, "skills", "b", "references", "conventions.md"), "two\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, undefined);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3c tier 2 creates NO edge: unanchored target stays unreachable", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3c-"));
+  try {
+    mkdirSync(join(dir, "skills", "scout-general", "references"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `skills/AGENTS.md`\n");
+    writeFileSync(join(dir, "skills", "AGENTS.md"), "keeps `references/conventions.md`\n");
+    writeFileSync(join(dir, "skills", "scout-general", "references", "conventions.md"), "real\n");
+    const g = buildGraph(resolveRoot(dir), walk(resolveRoot(dir)));
+    assert.equal(g.routingDriftCount, 0);
+    // only the root's own edge resolved; tier 2 added nothing
+    assert.equal(g.resolvedRefsFromRoots, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3d tier 2 does NOT excuse a path that exists nowhere in the subtree", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3d-"));
+  try {
+    mkdirSync(join(dir, "skills"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `skills/AGENTS.md`\n");
+    writeFileSync(join(dir, "skills", "AGENTS.md"), "routes `references/conventions.md`\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3e tier 2 is bounded: a SIBLING subtree does not excuse it", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3e-"));
+  try {
+    mkdirSync(join(dir, "alpha"), { recursive: true });
+    mkdirSync(join(dir, "beta", "references"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `alpha/AGENTS.md` and `beta/`\n");
+    writeFileSync(join(dir, "alpha", "AGENTS.md"), "routes `references/conventions.md`\n");
+    writeFileSync(join(dir, "beta", "references", "conventions.md"), "elsewhere\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3f ROOT-LOCATED router gets NO tier 2 (design §3.1 amended) — still drift", () => {
+  // A repo-root router has no proper subtree bound; "somewhere in the repo" is
+  // not evidence it meant a specific file. Strict anchored-or-drift.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3f-"));
+  try {
+    mkdirSync(join(dir, "plugins", "x"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root mentions `SKILL.md` in prose\n");
+    writeFileSync(join(dir, "plugins", "x", "SKILL.md"), "unrelated\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

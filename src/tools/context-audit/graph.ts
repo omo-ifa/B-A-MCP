@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { extractLinks, classifyLink, isRoutingPathShape, hasPlaceholderToken } from "./links.js";
 import type { Root, RawFinding } from "./types.js";
 import type { WalkResult, WalkedDoc } from "./walk.js";
@@ -11,7 +11,7 @@ export interface GraphResult {
   orphanCandidateTotal: number;   // docs eligible to be orphans (under a routed dir, non-furniture, non-root)
   brokenRefCount: number;
   routingDriftCount: number;
-  refsFromRoots: number;          // classified edges existence-checked whose source doc is a root
+  refsFromRoots: number;          // classified edges existence-checked whose source doc is a root, excluding placeholder spans and tier-2 unanchored references, which sit outside the adjudicable population
   refsFromNonRoots: number;       // classified edges existence-checked whose source doc is not a root
   resolvedRefsFromRoots: number;  // subset of refsFromRoots that resolve to an existing path — the routing basis
   routerEdges: Map<string, Set<string>>;   // isRoot -> isRoot resolved edges: the routing DAG (for bloat's root->leaf chains)
@@ -24,6 +24,29 @@ function isFurniture(relPath: string): boolean {
 }
 function f(category: RawFinding["category"], file: string, line: number | null, message: string, evidence: string, discriminator: string): RawFinding {
   return { category, file, line, message, evidence, discriminator };
+}
+
+// Tier 2 — an "unanchored reference": the span resolves under neither base the
+// tool can attribute, but a walked document matching it exists inside the
+// router's own subtree. Router prose routinely describes a sibling or child
+// directory, so the path is real and the base is unknowable. Neither drift nor
+// an edge — the tool declines to call it broken and declines to guess.
+//
+// LOCATION GATE (design §3.1 as amended 2026-08-24): a ROOT-LOCATED router —
+// relPath with no "/" — has no proper subtree bound (its subtree is the repo),
+// so it gets NO tier 2. This keys on LOCATION, never on isRoot: isRoot means
+// "is a router doc" at any depth and already gates this branch, so gating on it
+// would make tier 2 never fire.
+//
+// Searches the already-walked doc set, never the filesystem. Match is >= 1, not
+// exactly 1: with no edge created there is nothing to disambiguate.
+function isUnanchoredInSubtree(docs: WalkedDoc[], routerRelPath: string, rawTarget: string): boolean {
+  const i = routerRelPath.lastIndexOf("/");
+  if (i < 0) return false;                       // root-located router: no bound, no tier 2
+  const prefix = routerRelPath.slice(0, i + 1);
+  const tail = posix.normalize(rawTarget.trim().split("#")[0]);
+  if (tail === "" || tail === "." || tail === ".." || tail.startsWith("../") || posix.isAbsolute(tail)) return false;
+  return docs.some((d) => d.relPath.startsWith(prefix) && (d.relPath === tail || d.relPath.endsWith("/" + tail)));
 }
 
 export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
@@ -100,7 +123,11 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
         // path is not a route, so it stays prose. (Resolving spans above are routes
         // by existence and need no shape test.)
         const missing = cands.find((c) => c.kind === "edge" && c.targetPath !== null);
-        if (missing && isRoutingPathShape(raw.targetRaw)) {
+        // Tier 2 is checked INSIDE the shape gate, so only .md-shaped spans ever
+        // reach the doc-set scan — preserving design §3.1's "always a .md path by
+        // construction" guarantee and avoiding an O(docs) scan per prose span.
+        if (missing && isRoutingPathShape(raw.targetRaw)
+            && !isUnanchoredInSubtree(walkRes.docs, doc.relPath, raw.targetRaw)) {
           refsFromRoots++;
           findings.push(f("routing_path_missing", doc.relPath, missing.line, "router path does not resolve to an existing file", missing.targetPath!, missing.targetPath!));
         }
