@@ -14,6 +14,20 @@
 
 ---
 
+## Active design doc
+
+**`planning/designs/2026-08-24_routing-drift-precision-design.md`** — **approved, amended three times, NOT yet built.**
+
+Its implementation plan is written, reviewed to CLEAN, and on `main`; **no code exists for it yet**. Read the design's **§3.1, §3.2, §3.4, §3.5** before touching the tool — all four were amended after the design was first approved, and the amendments are where the correctness lives. Amending records, all on `main`:
+
+- `2026-08-24_d2-d3-superseded-before-implementation.md` — §3.4 exit criterion moves *restore* → *confirm*
+- `2026-08-24_tier-2-scope-and-placeholder-globality.md` — §3.1 root-located routers get no tier 2; §3.2 placeholder exclusion is global; §3.4 drift `null` accepted; §3.5 new accepted-FP class
+- `2026-08-25_placeholder-vs-commonmark-destination-precedence.md` — §3.2 `<token>` precedence + the slash-or-extension discriminator
+
+The earlier `planning/designs/2026-08-20_agents-md-router-recognition-design.md` is **built and merged** (PR #14). `planning/designs/2026-08-18_context-audit-design.md` remains the tool's base design (built).
+
+---
+
 ## Where TBD-16 stands: **plan landed, cleared for execution**
 
 The `routing_drift` precision fix (**TBD-16**) has completed the full gate chain and is ready to build. **Execution is the next action and is the first `src/**/*.ts` write in the chain.**
@@ -93,6 +107,32 @@ Landing the code is not enough — it must be *shown* to do what four design cyc
 - **`isRoot` is a naming trap.** In this codebase it means *"is a router doc," at any depth* — it is **not** about location, and it already gates the backtick branch. Tier 2's exclusion keys on `relPath` containing no `/`. Implementing it as `isRoot` makes tier 2 never fire and silently deletes the whole fix.
 - **caveman remains disproportionately influential** — the top-end router-count case for TBD-11 *and* one of the two drift-residue repos for TBD-16. Keep its influence visible, never silently baked in.
 - **`index.ts` is context-budget-frozen (rule 2).** The TBD-16 plan does not touch it, so the ledger is a verified no-op.
+
+---
+
+## Next-session starter
+
+Paste-ready. **Verify the HEAD line below matches `git rev-parse --short HEAD` before trusting anything else in this file.**
+
+> Execute the TBD-16 `routing_drift` precision fix in `B-A-MCP`. **This is the first `src/**/*.ts` write in a long docs-only chain** — the design went through four `/decisions` passes and the plan through four review cycles. Everything is on `main`; you have none of that context, so read before acting.
+>
+> **Read first:** `CLAUDE.md` · `SESSION_HANDOFF.md` (verified truth; wins over recall — its Repo-state line must read `main` HEAD **`12da257`** or later) · the plan `docs/superpowers/plans/2026-08-24-routing-drift-precision.md` (**revision 3**) · the amended design `planning/designs/2026-08-24_routing-drift-precision-design.md`, especially **§3.1, §3.2, §3.4, §3.5** · the four Gate 2 records named under *Active design doc* above · `src/TDD.md`. **Confirm `git rev-parse HEAD` and `npm test` before trusting any figure in any document.**
+>
+> **Four constraints are load-bearing — any one backwards ships the fix wrong:**
+> 1. **Tier 2 gates on LOCATION** (`relPath` contains no `/`), **not on `isRoot`**. `isRoot` means *"is a router doc," at any depth* and already gates the backtick branch; gating tier 2 on it makes the tier never fire and silently deletes the fix. Tests **T3a and T3f** are the trap detector and must be green together.
+> 2. **The `<token>` discriminator is slash-or-extension.** Do **not** implement it as a raw test-the-raw-string check — see the boxed warning in §3.2. **T2d and T2e** pin both halves.
+> 3. **Exit criterion is CONFIRM, not restore** (§3.4): confirm `routing_path_missing` stays `high` and `routing_drift` is scored-real. **Never add a "restore to `high`" step.**
+> 4. **Placeholder exclusion is global**, including its suppression of non-router `broken_ref` — and that suppression must be tested (**T2c**).
+>
+> **Report contract:** counts **76 → 86 → 92 → 94** reproduced on the **real repo, not a scratch tree**; before/after audits of the four wild repos that produce drift (posthog, caveman, superpowers, icm-architect) on the **pinned** nine-repo corpus under `~/dev/ba-calibration/` — **do not refresh the clones**; and the split reproduced: **17 of 26 prose-relative false positives fixed** (all posthog's), **9 given back** (all caveman's root `CLAUDE.md`). **`Buddi` and `~/.claude` are barred from threshold reasoning** — correctness probes only.
+>
+> **Subagent decomposition:** **Do NOT parallelize the TDD build** — tasks run walk → graph → score in order, and interleaving red/green states across agents on one tree corrupts state; build sequentially in one agent. **Do fan out the read-only wild-repo audits as parallel subagents** once code lands.
+>
+> **The before/after audits require BOTH states run fresh:** capture "before" on the pre-fix tool (`main` HEAD before this branch's code) and "after" on the post-fix branch, **same pinned clones both times**. Do not take "before" numbers from the plan or any prior record — **re-run them**. The 17/26 split is only proof if both sides were executed this session; a fresh *after* compared against a transcribed *before* is exactly the carried-forward-number fault the review cycles kept catching.
+>
+> Build under `superpowers:test-driven-development` (the plan is task-by-task; `superpowers:subagent-driven-development` or `superpowers:executing-plans` drives it). Then `superpowers:requesting-code-review`, then `superpowers:receiving-code-review`, then `superpowers:finishing-a-development-branch`.
+>
+> **Standing rules:** **no threshold number set** (TBD-10/11/12 deferred; `TBD_10_WEIGHTS` and `ROUTING_LAYER_KEYS` not edited) · branch + PR, **never direct to `main`** · **ratchet: if execution surfaces a decision the design does not settle, STOP → `/decisions`** — four have gone that way and each would otherwise have shipped wrong · don't touch the observation log.
 
 ---
 
