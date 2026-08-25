@@ -1,6 +1,6 @@
 import { existsSync, statSync } from "node:fs";
 import { join, posix } from "node:path";
-import { extractLinks, classifyLink, isRoutingPathShape, hasPlaceholderToken } from "./links.js";
+import { extractLinks, classifyLink, isRoutingPathShape, isMarkdownPlaceholder, stripDestDelimiter } from "./links.js";
 import type { Root, RawFinding } from "./types.js";
 import type { WalkResult, WalkedDoc } from "./walk.js";
 
@@ -138,19 +138,33 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
       if (link.kind === "escapes_root") { findings.push(f("escapes_root", doc.relPath, link.line, "link resolves above root or is absolute; recorded, never read", link.targetRaw, link.targetRaw)); continue; }
       if (link.kind !== "edge" || link.targetPath === null) continue;
       // A template placeholder is not a route in ANY syntax or ANY doc type
-      // (design §3.2, ratified global). Excluded from numerator AND denominator.
-      if (hasPlaceholderToken(raw.targetRaw)) continue;
+      // (design §3.2, ratified global). Narrowed to enumerated placeholder forms
+      // (amended 2026-08-25, option C): the broad /[<>{}]/ swallow is gone, so a
+      // broken CommonMark <dest> link no longer vanishes silently. Excluded from
+      // numerator AND denominator.
+      if (isMarkdownPlaceholder(raw.targetRaw)) continue;
+      // D1's strip: a fully-wrapped `<path>` delimiter is stripped and its inner
+      // adjudicated normally — an existing target resolves as an edge, a broken
+      // one still drifts for the right reason. If stripping yields a non-edge
+      // (escapes/malformed inner), keep the original link so nothing is silently
+      // dropped — it drifts visibly on the literal instead.
+      let eff = link;
+      const strippedRaw = stripDestDelimiter(raw.targetRaw);
+      if (strippedRaw !== raw.targetRaw) {
+        const re = classifyLink({ targetRaw: strippedRaw, line: raw.line, malformed: false }, doc.relPath);
+        if (re.kind === "edge" && re.targetPath !== null) eff = re;
+      }
       // a real, non-escaping edge: count it against the right denominator population
       if (doc.isRoot) refsFromRoots++; else refsFromNonRoots++;
-      const targetAbs = join(root.path, link.targetPath);
+      const targetAbs = join(root.path, eff.targetPath!);
       if (!existsSync(targetAbs)) {
-        if (doc.isRoot) findings.push(f("routing_drift", doc.relPath, link.line, "routing file points at a path that does not exist", link.targetPath, link.targetPath));
-        else findings.push(f("broken_ref", doc.relPath, link.line, "link points at a path that does not exist", link.targetPath, link.targetPath));
+        if (doc.isRoot) findings.push(f("routing_drift", doc.relPath, link.line, "routing file points at a path that does not exist", eff.targetPath!, eff.targetPath!));
+        else findings.push(f("broken_ref", doc.relPath, link.line, "link points at a path that does not exist", eff.targetPath!, eff.targetPath!));
         continue;
       }
       // exists: a resolving edge from this doc
       if (doc.isRoot) resolvedRefsFromRoots++;
-      recordResolvedTarget(doc.relPath, link.targetPath, targetAbs);
+      recordResolvedTarget(doc.relPath, eff.targetPath!, targetAbs);
     }
   }
 

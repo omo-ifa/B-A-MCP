@@ -270,17 +270,23 @@ test("T2c GLOBAL: a placeholder in a NON-router doc is not a broken_ref either",
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("T2d a CommonMark <dest> wrapper is a delimiter, not a placeholder", () => {
+test("T2d a CommonMark <dest> wrapper is a delimiter: stripped, adjudicated, drifts for the RIGHT reason", () => {
   // `[x](<docs/gone.md>)` is a genuinely broken link written in CommonMark's
-  // angle-bracket destination form. The wrapper is punctuation, not a blank to
-  // fill in — if the predicate ate it, real rot would vanish silently, and a
-  // vanished finding is invisible to §3.4's categorical close condition.
-  // GUARD: this passes BEFORE and AFTER the change (see Step 3).
+  // angle-bracket destination form. The wrapper is a delimiter, not a blank to
+  // fill in — design §3.2 requires it stripped and adjudicated normally so a
+  // broken one still drifts. NON-VACUOUS (design amendment 2026-08-25, option C;
+  // observation 15): the drift must arise via the STRIPPED inner `docs/gone.md`,
+  // not the literal `<docs/gone.md>` also failing existsSync. Asserting the
+  // finding's evidence is the clean inner is the mutation guard — remove the
+  // strip and the evidence becomes `<docs/gone.md>`, failing this test.
   const dir = mkdtempSync(join(tmpdir(), "ca-t2d-"));
   try {
     writeFileSync(join(dir, "CLAUDE.md"), "see [x](<docs/gone.md>)\n");
-    const c = cats(dir);
-    assert.equal(c.routing_drift, 1);
+    const g = buildGraph(resolveRoot(dir), walk(resolveRoot(dir)));
+    const drift = g.findings.filter((f) => f.category === "routing_drift");
+    assert.equal(drift.length, 1);
+    assert.equal(drift[0].evidence, "docs/gone.md");            // stripped, not <docs/gone.md>
+    assert.ok(!drift[0].evidence.includes("<"), "the <…> wrapper must be stripped before adjudication");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -370,5 +376,37 @@ test("T3f ROOT-LOCATED router gets NO tier 2 (design §3.1 amended) — still dr
     writeFileSync(join(dir, "plugins", "x", "SKILL.md"), "unrelated\n");
     const c = cats(dir);
     assert.equal(c.routing_path_missing, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2f a fully-wrapped <dest> to an EXISTING file resolves as an edge, not drift", () => {
+  // Design §3.2 as amended 2026-08-25 (option C), D1's mandated strip: a
+  // <…>-wrapped delimiter PATH pointing at a file that exists is stripped and
+  // adjudicated normally -> a routing edge, NOT a false drift. Fixes the FP the
+  // strip was always meant to close; before the strip this drifted.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2f-"));
+  try {
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "API.md"), "x\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "see [x](<src/API.md>)\n");
+    const g = buildGraph(resolveRoot(dir), walk(resolveRoot(dir)));
+    const c = g.findings.reduce<Record<string, number>>((a, f) => ((a[f.category] = (a[f.category] ?? 0) + 1), a), {});
+    assert.equal(c.routing_drift, undefined);           // stripped -> resolves -> edge
+    assert.equal(g.resolvedRefsFromRoots, 1);           // the wrapped path counts as a resolved route
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2g a broken <dest> with trailing text still DRIFTS (no silent swallow)", () => {
+  // Design §3.2 as amended 2026-08-25 (option C), D2's narrowed check: a
+  // markdown destination matching NEITHER enumerated placeholder form
+  // (fully-wrapped token, scheme:<token>, brace form) is adjudicated normally
+  // and drifts if unresolved. `[x](<docs/gone.md>#sec)` and a lone stray
+  // bracket were swallowed by the old broad /[<>{}]/ fallback -> drift:0; §3.4
+  // forbids that silent vanish. Both must drift now.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2g-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "see [a](<docs/gone.md>#sec) and [b](weird}name.md)\n");
+    const c = cats(dir);
+    assert.equal(c.routing_drift, 2);                   // neither is a placeholder; both broken -> both drift
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

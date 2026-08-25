@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractLinks, classifyLink, isRoutingPathShape, hasPlaceholderToken } from "../../src/tools/context-audit/links.js";
+import { extractLinks, classifyLink, isRoutingPathShape, hasPlaceholderToken, isMarkdownPlaceholder, stripDestDelimiter } from "../../src/tools/context-audit/links.js";
 
 test("extractLinks finds inline links with line numbers and flags malformed", () => {
   const md = "intro [a](./a.md)\nline2 [b](../b.md) and [bad]( )\n";
@@ -86,4 +86,28 @@ test("T1e a wrapped TOKEN is a placeholder; a wrapped PATH is a delimiter", () =
   assert.equal(hasPlaceholderToken("<README>"), true);         // no slash, no extension
   assert.equal(hasPlaceholderToken("<docs/gone.md>"), false);  // slash -> delimiter
   assert.equal(hasPlaceholderToken("<my file.md>"), false);    // extension -> delimiter
+});
+
+test("T1f isMarkdownPlaceholder: enumerated forms only, stray brackets are NOT placeholders", () => {
+  // Design §3.2 as amended 2026-08-25 (option C). Fully-wrapped token, scheme:<token>,
+  // and brace-PAIR forms are placeholders; a stray bracket or a wrapped PATH is not.
+  assert.equal(isMarkdownPlaceholder("<dir>"), true);              // fully-wrapped token
+  assert.equal(isMarkdownPlaceholder("<README>"), true);          // token, no ext/slash
+  assert.equal(isMarkdownPlaceholder("chart:<chart_id>"), true);  // scheme:<token>
+  assert.equal(isMarkdownPlaceholder("templates/{name}.md"), true); // brace-pair form
+  assert.equal(isMarkdownPlaceholder("a/{x,y}/z.md"), true);       // brace-pair form
+  // NOT placeholders — adjudicated normally, so a broken one drifts (the FN fix):
+  assert.equal(isMarkdownPlaceholder("<docs/gone.md>"), false);   // wrapped PATH -> delimiter
+  assert.equal(isMarkdownPlaceholder("<docs/gone.md>#sec"), false); // partial wrap + fragment
+  assert.equal(isMarkdownPlaceholder("weird}name.md"), false);    // lone stray brace
+  assert.equal(isMarkdownPlaceholder("src/CONTEXT.md"), false);   // ordinary path
+});
+
+test("T1g stripDestDelimiter: fully-wrapped delimiter PATH is stripped, everything else unchanged", () => {
+  assert.equal(stripDestDelimiter("<docs/gone.md>"), "docs/gone.md");  // slash -> delimiter, stripped
+  assert.equal(stripDestDelimiter("<src/API.md>"), "src/API.md");      // slash -> stripped
+  assert.equal(stripDestDelimiter("<a.b>"), "a.b");                    // extension -> stripped
+  assert.equal(stripDestDelimiter("<dir>"), "<dir>");                  // bare token -> unchanged (excluded upstream)
+  assert.equal(stripDestDelimiter("<docs/gone.md>#sec"), "<docs/gone.md>#sec"); // not fully wrapped -> unchanged
+  assert.equal(stripDestDelimiter("src/CONTEXT.md"), "src/CONTEXT.md"); // no wrapper -> unchanged
 });

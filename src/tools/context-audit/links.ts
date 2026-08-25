@@ -82,6 +82,57 @@ export function hasPlaceholderToken(raw: string): boolean {
   return /[<>{}]/.test(t);
 }
 
+// The markdown-branch placeholder check (design §3.2 as amended 2026-08-25 —
+// option C, planning/decisions/2026-08-25_commonmark-dest-strip-and-partial-wrap.md).
+// The earlier markdown branch reused hasPlaceholderToken, whose broad
+// `/[<>{}]/` fallback swallowed any destination carrying a stray angle bracket —
+// including a genuinely broken CommonMark link like `[x](<docs/gone.md>#sec)`,
+// which then vanished silently (the direction §3.4 forbids). This narrows the
+// markdown branch to the placeholder FORMS actually observed, and NOTHING else:
+//   - a fully-wrapped TOKEN: `<dir>`, `<README>` — <...> whose inner names
+//     nothing (no slash, no extension); the discriminator's placeholder side.
+//   - a `scheme:<token>` form: `chart:<chart_id>`, `chart:<id>`.
+//   - a brace-PAIR template form: `templates/{name}.md`, `a/{x,y}/z.md` — the
+//     glob/template brace §3.2 lists (a matched `{...}`, not a lone stray brace).
+// A destination matching NONE of these is adjudicated normally, so if it does
+// not resolve it DRIFTS — a stray `<`, `>`, or lone `{`/`}` no longer excludes
+// it. An unenumerated form is therefore a VISIBLE false positive the user
+// catches on opening the file, never a silent false negative. Embedded/partial
+// <…> groups beyond this set are deliberately NOT defined here (rule 7 — a real
+// corpus form that needs them is a fresh /decisions trip, the flip-to-A
+// condition), not a silent widening.
+export function isMarkdownPlaceholder(raw: string): boolean {
+  const t = raw.trim();
+  // fully-wrapped token: <...> with no slash and no extension inside
+  const m = /^<([^/]*)>$/.exec(t);
+  if (m && !/\.[a-z0-9]+$/i.test(m[1])) return true;
+  // scheme:<token> — e.g. chart:<chart_id>
+  if (/^[a-z][a-z0-9+.-]*:<[^>]*>$/i.test(t)) return true;
+  // brace-PAIR template form (a matched {...}, not a lone stray brace)
+  if (/\{[^}]*\}/.test(t)) return true;
+  return false;
+}
+
+// D1's mandated CommonMark `<dest>` strip (design §3.2 as amended 2026-08-25).
+// A destination that is ENTIRELY a `<…>`-wrapped PATH is a CommonMark
+// destination delimiter, not a placeholder: strip the wrapper and return the
+// inner path so it is resolved and existence-checked normally — an existing
+// target becomes an edge (closing the false-positive the strip was always meant
+// to close), a broken one still drifts, for the right reason. Only a
+// fully-wrapping delimiter PATH (slash or extension inside) is stripped; a
+// placeholder token (<dir>) is excluded by isMarkdownPlaceholder BEFORE this and
+// never reaches here, and a partially-wrapped destination is returned unchanged
+// (adjudicated normally, so it drifts if unresolved). Returns the input
+// unchanged when there is nothing to strip.
+export function stripDestDelimiter(raw: string): string {
+  const t = raw.trim();
+  const m = /^<(.*)>$/.exec(t);
+  if (!m) return raw;
+  const inner = m[1];
+  if (inner.includes("/") || /\.[a-z0-9]+$/i.test(inner)) return inner;   // delimiter path -> strip
+  return raw;                                                              // bare token (should not reach here) -> leave
+}
+
 // The definition of a routing PATH by shape — used to decide whether a
 // NON-resolving router backtick is a broken route (routing_path_missing). A
 // routing path is a plain intra-repo .md doc path: it ends in `.md` and carries
