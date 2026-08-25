@@ -237,3 +237,176 @@ test("router-path drift ignores non-route tokens (globs, scopes, org/repo, env/h
     assert.equal(rp[0].evidence, "docs/GONE.md");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("T2a a router markdown link carrying a template placeholder is not drift", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2a-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "see [chart](chart:<chart_id>) and [gone](really-missing.md)\n");
+    const c = cats(dir);
+    assert.equal(c.routing_drift, 1);   // only really-missing.md; the placeholder is not a route
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2b a placeholder link is excluded from the drift DENOMINATOR too", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2b-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "only [chart](chart:<chart_id>)\n");
+    const g = buildGraph(resolveRoot(dir), walk(resolveRoot(dir)));
+    assert.equal(g.routingDriftCount, 0);
+    assert.equal(g.refsFromRoots, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2c GLOBAL: a placeholder in a NON-router doc is not a broken_ref either", () => {
+  // Design §3.2 ratified global (decision 2026-08-24 D3): a form-with-a-blank is
+  // not a path in any syntax OR any doc type. The genuinely broken link survives.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2c-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes [g](docs/guide.md)\n");
+    mkdirSync(join(dir, "docs"));
+    writeFileSync(join(dir, "docs", "guide.md"), "[tpl](templates/{name}.md) and [real](nope.md)\n");
+    const c = cats(dir);
+    assert.equal(c.broken_ref, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2d a CommonMark <dest> wrapper is a delimiter: stripped, adjudicated, drifts for the RIGHT reason", () => {
+  // `[x](<docs/gone.md>)` is a genuinely broken link written in CommonMark's
+  // angle-bracket destination form. The wrapper is a delimiter, not a blank to
+  // fill in — design §3.2 requires it stripped and adjudicated normally so a
+  // broken one still drifts. NON-VACUOUS (design amendment 2026-08-25, option C;
+  // observation 15): the drift must arise via the STRIPPED inner `docs/gone.md`,
+  // not the literal `<docs/gone.md>` also failing existsSync. Asserting the
+  // finding's evidence is the clean inner is the mutation guard — remove the
+  // strip and the evidence becomes `<docs/gone.md>`, failing this test.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2d-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "see [x](<docs/gone.md>)\n");
+    const g = buildGraph(resolveRoot(dir), walk(resolveRoot(dir)));
+    const drift = g.findings.filter((f) => f.category === "routing_drift");
+    assert.equal(drift.length, 1);
+    assert.equal(drift[0].evidence, "docs/gone.md");            // stripped, not <docs/gone.md>
+    assert.ok(!drift[0].evidence.includes("<"), "the <…> wrapper must be stripped before adjudication");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2e a bare <token> destination is a placeholder, not a route", () => {
+  // The other half of the §3.2 precedence: `<dir>` is template text, so it must
+  // be excluded even though stripping the wrapper would leave a bare path.
+  // The genuinely broken link beside it must still be caught.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2e-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "see [x](<dir>) and [gone](really-missing.md)\n");
+    const c = cats(dir);
+    assert.equal(c.routing_drift, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3a tier 2: NESTED router, path exists deeper in its subtree -> NOT drift", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3a-"));
+  try {
+    mkdirSync(join(dir, "skills", "scout-general", "references"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `skills/AGENTS.md`\n");
+    writeFileSync(join(dir, "skills", "AGENTS.md"), "the generalist keeps `references/conventions.md`\n");
+    writeFileSync(join(dir, "skills", "scout-general", "references", "conventions.md"), "real\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, undefined);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3b tier 2: multiplicity is not a collision", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3b-"));
+  try {
+    mkdirSync(join(dir, "skills", "a", "references"), { recursive: true });
+    mkdirSync(join(dir, "skills", "b", "references"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `skills/AGENTS.md`\n");
+    writeFileSync(join(dir, "skills", "AGENTS.md"), "each keeps `references/conventions.md`\n");
+    writeFileSync(join(dir, "skills", "a", "references", "conventions.md"), "one\n");
+    writeFileSync(join(dir, "skills", "b", "references", "conventions.md"), "two\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, undefined);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3c tier 2 creates NO edge: unanchored target stays unreachable", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3c-"));
+  try {
+    mkdirSync(join(dir, "skills", "scout-general", "references"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `skills/AGENTS.md`\n");
+    writeFileSync(join(dir, "skills", "AGENTS.md"), "keeps `references/conventions.md`\n");
+    writeFileSync(join(dir, "skills", "scout-general", "references", "conventions.md"), "real\n");
+    const g = buildGraph(resolveRoot(dir), walk(resolveRoot(dir)));
+    assert.equal(g.routingDriftCount, 0);
+    // only the root's own edge resolved; tier 2 added nothing
+    assert.equal(g.resolvedRefsFromRoots, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3d tier 2 does NOT excuse a path that exists nowhere in the subtree", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3d-"));
+  try {
+    mkdirSync(join(dir, "skills"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `skills/AGENTS.md`\n");
+    writeFileSync(join(dir, "skills", "AGENTS.md"), "routes `references/conventions.md`\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3e tier 2 is bounded: a SIBLING subtree does not excuse it", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3e-"));
+  try {
+    mkdirSync(join(dir, "alpha"), { recursive: true });
+    mkdirSync(join(dir, "beta", "references"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `alpha/AGENTS.md` and `beta/`\n");
+    writeFileSync(join(dir, "alpha", "AGENTS.md"), "routes `references/conventions.md`\n");
+    writeFileSync(join(dir, "beta", "references", "conventions.md"), "elsewhere\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T3f ROOT-LOCATED router gets NO tier 2 (design §3.1 amended) — still drift", () => {
+  // A repo-root router has no proper subtree bound; "somewhere in the repo" is
+  // not evidence it meant a specific file. Strict anchored-or-drift.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t3f-"));
+  try {
+    mkdirSync(join(dir, "plugins", "x"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root mentions `SKILL.md` in prose\n");
+    writeFileSync(join(dir, "plugins", "x", "SKILL.md"), "unrelated\n");
+    const c = cats(dir);
+    assert.equal(c.routing_path_missing, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2f a fully-wrapped <dest> to an EXISTING file resolves as an edge, not drift", () => {
+  // Design §3.2 as amended 2026-08-25 (option C), D1's mandated strip: a
+  // <…>-wrapped delimiter PATH pointing at a file that exists is stripped and
+  // adjudicated normally -> a routing edge, NOT a false drift. Fixes the FP the
+  // strip was always meant to close; before the strip this drifted.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2f-"));
+  try {
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "API.md"), "x\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "see [x](<src/API.md>)\n");
+    const g = buildGraph(resolveRoot(dir), walk(resolveRoot(dir)));
+    const c = g.findings.reduce<Record<string, number>>((a, f) => ((a[f.category] = (a[f.category] ?? 0) + 1), a), {});
+    assert.equal(c.routing_drift, undefined);           // stripped -> resolves -> edge
+    assert.equal(g.resolvedRefsFromRoots, 1);           // the wrapped path counts as a resolved route
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T2g a broken <dest> with trailing text still DRIFTS (no silent swallow)", () => {
+  // Design §3.2 as amended 2026-08-25 (option C), D2's narrowed check: a
+  // markdown destination matching NEITHER enumerated placeholder form
+  // (fully-wrapped token, scheme:<token>, brace form) is adjudicated normally
+  // and drifts if unresolved. `[x](<docs/gone.md>#sec)` and a lone stray
+  // bracket were swallowed by the old broad /[<>{}]/ fallback -> drift:0; §3.4
+  // forbids that silent vanish. Both must drift now.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2g-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "see [a](<docs/gone.md>#sec) and [b](weird}name.md)\n");
+    const c = cats(dir);
+    assert.equal(c.routing_drift, 2);                   // neither is a placeholder; both broken -> both drift
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

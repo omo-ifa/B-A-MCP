@@ -7,6 +7,8 @@
 
 ---
 
+> **Amended 2026-08-24** — `planning/designs/2026-08-24_routing-drift-precision-design.md` §3.1–§3.2. The routing-path definition here gains a placeholder/bare-extension exclusion, and a non-resolving span in a NESTED router that matches a document inside that router's own subtree is an "unanchored reference" rather than drift. Root-located routers are unchanged by that tier and remain strict anchored-or-drift.
+
 ## Why
 
 `routing_drift` read 100 on every routed repo because a non-resolving **backtick** path in a router is currently **dropped as prose** (resolve-only). But routers route via backtick (the census), so a router pointing at a path that isn't there — the exact failure this tool exists to catch — is precisely what gets hidden. A router that points somewhere missing is drift, not prose.

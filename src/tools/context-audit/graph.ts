@@ -1,6 +1,6 @@
 import { existsSync, statSync } from "node:fs";
-import { join } from "node:path";
-import { extractLinks, classifyLink, isRoutingPathShape } from "./links.js";
+import { join, posix } from "node:path";
+import { extractLinks, classifyLink, isRoutingPathShape, isMarkdownPlaceholder, stripDestDelimiter } from "./links.js";
 import type { Root, RawFinding } from "./types.js";
 import type { WalkResult, WalkedDoc } from "./walk.js";
 
@@ -11,7 +11,7 @@ export interface GraphResult {
   orphanCandidateTotal: number;   // docs eligible to be orphans (under a routed dir, non-furniture, non-root)
   brokenRefCount: number;
   routingDriftCount: number;
-  refsFromRoots: number;          // classified edges existence-checked whose source doc is a root
+  refsFromRoots: number;          // classified edges existence-checked whose source doc is a root, excluding placeholder spans and tier-2 unanchored references, which sit outside the adjudicable population
   refsFromNonRoots: number;       // classified edges existence-checked whose source doc is not a root
   resolvedRefsFromRoots: number;  // subset of refsFromRoots that resolve to an existing path — the routing basis
   routerEdges: Map<string, Set<string>>;   // isRoot -> isRoot resolved edges: the routing DAG (for bloat's root->leaf chains)
@@ -24,6 +24,29 @@ function isFurniture(relPath: string): boolean {
 }
 function f(category: RawFinding["category"], file: string, line: number | null, message: string, evidence: string, discriminator: string): RawFinding {
   return { category, file, line, message, evidence, discriminator };
+}
+
+// Tier 2 — an "unanchored reference": the span resolves under neither base the
+// tool can attribute, but a walked document matching it exists inside the
+// router's own subtree. Router prose routinely describes a sibling or child
+// directory, so the path is real and the base is unknowable. Neither drift nor
+// an edge — the tool declines to call it broken and declines to guess.
+//
+// LOCATION GATE (design §3.1 as amended 2026-08-24): a ROOT-LOCATED router —
+// relPath with no "/" — has no proper subtree bound (its subtree is the repo),
+// so it gets NO tier 2. This keys on LOCATION, never on isRoot: isRoot means
+// "is a router doc" at any depth and already gates this branch, so gating on it
+// would make tier 2 never fire.
+//
+// Searches the already-walked doc set, never the filesystem. Match is >= 1, not
+// exactly 1: with no edge created there is nothing to disambiguate.
+function isUnanchoredInSubtree(docs: WalkedDoc[], routerRelPath: string, rawTarget: string): boolean {
+  const i = routerRelPath.lastIndexOf("/");
+  if (i < 0) return false;                       // root-located router: no bound, no tier 2
+  const prefix = routerRelPath.slice(0, i + 1);
+  const tail = posix.normalize(rawTarget.trim().split("#")[0]);
+  if (tail === "" || tail === "." || tail === ".." || tail.startsWith("../") || posix.isAbsolute(tail)) return false;
+  return docs.some((d) => d.relPath.startsWith(prefix) && (d.relPath === tail || d.relPath.endsWith("/" + tail)));
 }
 
 export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
@@ -100,7 +123,11 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
         // path is not a route, so it stays prose. (Resolving spans above are routes
         // by existence and need no shape test.)
         const missing = cands.find((c) => c.kind === "edge" && c.targetPath !== null);
-        if (missing && isRoutingPathShape(raw.targetRaw)) {
+        // Tier 2 is checked INSIDE the shape gate, so only .md-shaped spans ever
+        // reach the doc-set scan — preserving design §3.1's "always a .md path by
+        // construction" guarantee and avoiding an O(docs) scan per prose span.
+        if (missing && isRoutingPathShape(raw.targetRaw)
+            && !isUnanchoredInSubtree(walkRes.docs, doc.relPath, raw.targetRaw)) {
           refsFromRoots++;
           findings.push(f("routing_path_missing", doc.relPath, missing.line, "router path does not resolve to an existing file", missing.targetPath!, missing.targetPath!));
         }
@@ -110,17 +137,34 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
       if (link.kind === "malformed") { findings.push(f("malformed_link", doc.relPath, link.line, "link does not parse", link.targetRaw, link.targetRaw)); continue; }
       if (link.kind === "escapes_root") { findings.push(f("escapes_root", doc.relPath, link.line, "link resolves above root or is absolute; recorded, never read", link.targetRaw, link.targetRaw)); continue; }
       if (link.kind !== "edge" || link.targetPath === null) continue;
+      // A template placeholder is not a route in ANY syntax or ANY doc type
+      // (design §3.2, ratified global). Narrowed to enumerated placeholder forms
+      // (amended 2026-08-25, option C): the broad /[<>{}]/ swallow is gone, so a
+      // broken CommonMark <dest> link no longer vanishes silently. Excluded from
+      // numerator AND denominator.
+      if (isMarkdownPlaceholder(raw.targetRaw)) continue;
+      // D1's strip: a fully-wrapped `<path>` delimiter is stripped and its inner
+      // adjudicated normally — an existing target resolves as an edge, a broken
+      // one still drifts for the right reason. If stripping yields a non-edge
+      // (escapes/malformed inner), keep the original link so nothing is silently
+      // dropped — it drifts visibly on the literal instead.
+      let eff = link;
+      const strippedRaw = stripDestDelimiter(raw.targetRaw);
+      if (strippedRaw !== raw.targetRaw) {
+        const re = classifyLink({ targetRaw: strippedRaw, line: raw.line, malformed: false }, doc.relPath);
+        if (re.kind === "edge" && re.targetPath !== null) eff = re;
+      }
       // a real, non-escaping edge: count it against the right denominator population
       if (doc.isRoot) refsFromRoots++; else refsFromNonRoots++;
-      const targetAbs = join(root.path, link.targetPath);
+      const targetAbs = join(root.path, eff.targetPath!);
       if (!existsSync(targetAbs)) {
-        if (doc.isRoot) findings.push(f("routing_drift", doc.relPath, link.line, "routing file points at a path that does not exist", link.targetPath, link.targetPath));
-        else findings.push(f("broken_ref", doc.relPath, link.line, "link points at a path that does not exist", link.targetPath, link.targetPath));
+        if (doc.isRoot) findings.push(f("routing_drift", doc.relPath, link.line, "routing file points at a path that does not exist", eff.targetPath!, eff.targetPath!));
+        else findings.push(f("broken_ref", doc.relPath, link.line, "link points at a path that does not exist", eff.targetPath!, eff.targetPath!));
         continue;
       }
       // exists: a resolving edge from this doc
       if (doc.isRoot) resolvedRefsFromRoots++;
-      recordResolvedTarget(doc.relPath, link.targetPath, targetAbs);
+      recordResolvedTarget(doc.relPath, eff.targetPath!, targetAbs);
     }
   }
 

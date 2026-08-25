@@ -8,6 +8,8 @@
 
 ---
 
+> **Amended 2026-08-24** — `planning/designs/2026-08-24_routing-drift-precision-design.md` §3.1. §62.1's doc-relative-OR-root-relative resolution gains a third outcome between "resolves" and "drift": an unanchored reference, in NESTED routers only, which is neither an edge nor a finding.
+
 ## Context
 
 `context_audit`'s `extractLinks` recognized only `[text](target)` markdown links as routing edges. The census proved the dominant real-world convention is backtick code-span paths (`` `src/CONTEXT.md` ``), which produced **zero** routing edges. Two harms followed, confirmed empirically:

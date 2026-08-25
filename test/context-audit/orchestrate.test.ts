@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runContextAudit, toCallToolResult, contextAuditTool } from "../../src/tools/context-audit/index.js";
+import { SEVERITY_BY_CATEGORY } from "../../src/tools/context-audit/score.js";
 
 test("tool definition shape: name, optional path, outputSchema", () => {
   assert.equal(contextAuditTool.name, "context_audit");
@@ -227,5 +228,46 @@ test("D1: AGENTS.md is a router — anchors root and its backtick paths route", 
     assert.ok(outcome.result.stats.routing_files >= 1);
     assert.notEqual(outcome.result.subscores.routing_drift.score, null);
     assert.ok(!outcome.result.findings.some((f) => f.category === "routing_unresolved"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T4a exit criterion: routing_path_missing is high AND routing_drift is scored-real", async () => {
+  // Design §3.4 as amended by 2026-08-24_d2-d3-superseded-before-implementation.md:
+  // both surfaces are CONFIRMED consistent, never restored. D2/D3 were never
+  // implemented, so there is no interim state — assert directly, no lower-then-raise.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t4a-"));
+  try {
+    mkdirSync(join(dir, "skills"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `skills/AGENTS.md`\n");
+    writeFileSync(join(dir, "skills", "AGENTS.md"), "routes `references/conventions.md`\n");
+    const o = await runContextAudit({ path: dir });
+    assert.equal(o.ok, true);
+    const r = (o as any).result;
+    const pm = r.findings.filter((x: any) => x.category === "routing_path_missing");
+    assert.equal(pm.length, 1);                     // the genuine broken route survives
+    assert.equal(pm[0].severity, "high");           // confirmed never lowered
+    assert.equal(SEVERITY_BY_CATEGORY.routing_path_missing, "high");
+    assert.equal(typeof r.subscores.routing_drift.score, "number");   // scored-real
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T4b D1: an ALL-unanchored router yields routing_drift null, and that is correct", async () => {
+  // Design §3.4 as amended by 2026-08-24_tier-2-scope-and-placeholder-globality.md D1:
+  // no population to compute a rate over. An ordinary data null (n === 0), not a
+  // correctness null, and it needs no new mechanism.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t4b-"));
+  try {
+    mkdirSync(join(dir, "skills", "scout", "references"), { recursive: true });
+    // The root router must contribute NO resolving ref, or the denominator is
+    // not empty and drift is scored-real (the ordinary case — that is T4a).
+    writeFileSync(join(dir, "CLAUDE.md"), "prose only, no paths here\n");
+    writeFileSync(join(dir, "skills", "AGENTS.md"), "keeps `references/conventions.md`\n");
+    writeFileSync(join(dir, "skills", "scout", "references", "conventions.md"), "real\n");
+    const o = await runContextAudit({ path: dir });
+    const r = (o as any).result;
+    assert.equal(r.subscores.routing_drift.score, null);
+    assert.equal(r.subscores.routing_drift.n, 0);
+    // the honest companion signal: routers present, nothing resolved
+    assert.equal(r.findings.some((x: any) => x.category === "routing_unresolved"), true);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractLinks, classifyLink } from "../../src/tools/context-audit/links.js";
+import { extractLinks, classifyLink, isRoutingPathShape, hasPlaceholderToken, isMarkdownPlaceholder, stripDestDelimiter } from "../../src/tools/context-audit/links.js";
 
 test("extractLinks finds inline links with line numbers and flags malformed", () => {
   const md = "intro [a](./a.md)\nline2 [b](../b.md) and [bad]( )\n";
@@ -54,4 +54,60 @@ test("classifyLink separates edge / external / anchor / escapes_root / malformed
   assert.equal(at("../../../etc/passwd").kind, "escapes_root");        // resolves above root
   assert.equal(at("/etc/passwd").kind, "escapes_root");               // absolute
   assert.equal(at("", true).kind, "malformed");
+});
+
+test("T1a isRoutingPathShape rejects template placeholders", () => {
+  assert.equal(isRoutingPathShape("products/desktop/<dir>/AGENTS.md"), false);
+  assert.equal(isRoutingPathShape("chart:<chart_id>.md"), false);
+  assert.equal(isRoutingPathShape("docs/{name}.md"), false);
+});
+
+test("T1b isRoutingPathShape rejects a bare extension", () => {
+  assert.equal(isRoutingPathShape(".md"), false);
+  assert.equal(isRoutingPathShape("docs/.md"), false);
+});
+
+test("T1c isRoutingPathShape keeps leading-dot SEGMENTS", () => {
+  // "no stem" is about the FINAL segment, not a leading dot anywhere.
+  assert.equal(isRoutingPathShape(".claude/CLAUDE.md"), true);
+  assert.equal(isRoutingPathShape(".github/copilot-instructions.md"), true);
+});
+
+test("T1d hasPlaceholderToken is syntax-independent", () => {
+  assert.equal(hasPlaceholderToken("chart:<chart_id>"), true);
+  assert.equal(hasPlaceholderToken("a/{b}/c.md"), true);
+  assert.equal(hasPlaceholderToken("src/CONTEXT.md"), false);
+});
+
+test("T1e a wrapped TOKEN is a placeholder; a wrapped PATH is a delimiter", () => {
+  // Design §3.2 precedence, amended 2026-08-25. The discriminator is
+  // "contains / or ends in an extension".
+  assert.equal(hasPlaceholderToken("<dir>"), true);            // bare token
+  assert.equal(hasPlaceholderToken("<README>"), true);         // no slash, no extension
+  assert.equal(hasPlaceholderToken("<docs/gone.md>"), false);  // slash -> delimiter
+  assert.equal(hasPlaceholderToken("<my file.md>"), false);    // extension -> delimiter
+});
+
+test("T1f isMarkdownPlaceholder: enumerated forms only, stray brackets are NOT placeholders", () => {
+  // Design §3.2 as amended 2026-08-25 (option C). Fully-wrapped token, scheme:<token>,
+  // and brace-PAIR forms are placeholders; a stray bracket or a wrapped PATH is not.
+  assert.equal(isMarkdownPlaceholder("<dir>"), true);              // fully-wrapped token
+  assert.equal(isMarkdownPlaceholder("<README>"), true);          // token, no ext/slash
+  assert.equal(isMarkdownPlaceholder("chart:<chart_id>"), true);  // scheme:<token>
+  assert.equal(isMarkdownPlaceholder("templates/{name}.md"), true); // brace-pair form
+  assert.equal(isMarkdownPlaceholder("a/{x,y}/z.md"), true);       // brace-pair form
+  // NOT placeholders — adjudicated normally, so a broken one drifts (the FN fix):
+  assert.equal(isMarkdownPlaceholder("<docs/gone.md>"), false);   // wrapped PATH -> delimiter
+  assert.equal(isMarkdownPlaceholder("<docs/gone.md>#sec"), false); // partial wrap + fragment
+  assert.equal(isMarkdownPlaceholder("weird}name.md"), false);    // lone stray brace
+  assert.equal(isMarkdownPlaceholder("src/CONTEXT.md"), false);   // ordinary path
+});
+
+test("T1g stripDestDelimiter: fully-wrapped delimiter PATH is stripped, everything else unchanged", () => {
+  assert.equal(stripDestDelimiter("<docs/gone.md>"), "docs/gone.md");  // slash -> delimiter, stripped
+  assert.equal(stripDestDelimiter("<src/API.md>"), "src/API.md");      // slash -> stripped
+  assert.equal(stripDestDelimiter("<a.b>"), "a.b");                    // extension -> stripped
+  assert.equal(stripDestDelimiter("<dir>"), "<dir>");                  // bare token -> unchanged (excluded upstream)
+  assert.equal(stripDestDelimiter("<docs/gone.md>#sec"), "<docs/gone.md>#sec"); // not fully wrapped -> unchanged
+  assert.equal(stripDestDelimiter("src/CONTEXT.md"), "src/CONTEXT.md"); // no wrapper -> unchanged
 });
