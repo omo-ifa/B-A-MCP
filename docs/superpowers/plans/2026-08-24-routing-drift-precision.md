@@ -25,15 +25,19 @@ Revision 1 was **REVIEWED: REJECT** — 2 CRITICAL scope findings, 1 IMPORTANT, 
 | 5 — rule 8 violated by commit ordering | Restructured to **3 tasks**, each carrying its own `src/API.md` edit. |
 | 6 — `g.edges` assertion did not compile | Removed; **T3c** asserts `resolvedRefsFromRoots` instead. |
 | 7 — three §5 doc rows dropped | Two decision-record pointers added to **Task 3**. |
-| 8 — ledger check could not fail | Replaced with a content assertion. |
-| 9 — wrong red-state prediction | **Every red state below was executed in a scratch tree and its actual output recorded.** |
+| 8 — ledger check could not fail | Uses `git diff main...HEAD`, whose three-dot form spans committed tasks. |
+| 9 — wrong red-state prediction | **Every red state below was executed in a scratch tree and its actual output recorded** — including, after re-review, the one transient failure the first pass missed. |
 | 10 — tier 2 ran before the shape gate | Moved **inside** the shape gate. |
 | 11 — line citations off | Corrected against the real files. |
 | 12 — Task-1 red state was a compile error | A **stub** makes it a genuine assertion failure. |
-| 13 — `hasPlaceholderToken` half dead code | `{}` moved out of the earlier character class into the predicate. |
-| 14 — tail normalisation stripped one `./` | Uses `posix.normalize`. |
+| 13 — `hasPlaceholderToken` half dead code | `{}` moved out of the earlier character class into the predicate — **in Step 4, not Step 1**, so the two rules arrive together. |
+| 14 — tail normalisation stripped one `./` | Uses `posix.normalize`, and the escape guard also rejects a bare `".."`. |
+| *(re-review)* CommonMark `<dest>` swallowed by the predicate | A wrapping `<…>` is stripped before testing; **T2d** pins it. |
+| *(re-review)* no branch/PR/reviewer step | Added below as **Task 0** and **Task 4**. |
 
-**Every test count and red state in this plan was executed, not predicted:** baseline **76** → Task 1 **83** → Task 2 **89** → Task 3 **91**, all green, no existing test reddened at any stage.
+**Every test count and red state in this plan was executed, not predicted:** baseline **76** → Task 1 **84** → Task 2 **90** → Task 3 **92**, all green.
+
+**One existing test reddens transiently and the plan says exactly where.** Under revision 2's original step ordering, `test/context-audit/graph.test.ts:223` went red during Task 1 — caught by the re-review, and the cause was that the verification command used `&&`, which short-circuited before `graph.test.js` ever ran. Step ordering and the command are both fixed; the fixture now stays green throughout, and Step 1 carries a warning explaining why it must not be over-applied.
 
 ## Global Constraints
 
@@ -61,12 +65,32 @@ Every task's requirements implicitly include this section.
 | `src/tools/context-audit/graph.ts` | Edge resolution, drift/orphan/reachability accounting | Modify — global placeholder exclusion; location-gated tier 2 |
 | `src/API.md` | MCP surface contract | Modify — split across Tasks 1–2 |
 | `test/context-audit/links.test.ts` | Shape-definition tests | Modify — +4 |
-| `test/context-audit/graph.test.ts` | Graph-level behaviour tests | Modify — +3 (Task 1), +6 (Task 2) |
+| `test/context-audit/graph.test.ts` | Graph-level behaviour tests | Modify — +4 (Task 1), +6 (Task 2) |
 | `test/context-audit/orchestrate.test.ts` | End-to-end contract tests | Modify — +2 |
 | `planning/decisions/2026-08-20_router-path-drift.md` | Prior routing-path definition | Modify — pointer only |
 | `planning/decisions/2026-08-20_backtick-routing-edges-and-orphans-guard.md` | Prior two-base resolution | Modify — pointer only |
 
 `score.ts`, `index.ts`, `coverage.ts`, `bloat.ts`, `walk.ts`, `types.ts` are **not** modified. No new files.
+
+---
+
+### Task 0: Branch off `main`
+
+`WORKFLOW.md:43,46` require a `feat/`|`fix/` branch and forbid direct commits to `main`. Every commit below lands on this branch.
+
+- [ ] **Step 1: Confirm a clean tree on current `main`**
+
+```bash
+git checkout main && git pull && git status --short
+npm test
+```
+Expected: no output from `status`; **76 tests, 76 pass, 0 fail**. If the count differs, stop — this plan's arithmetic is anchored on 76.
+
+- [ ] **Step 2: Create the branch**
+
+```bash
+git checkout -b fix/tbd-16-routing-drift-precision
+```
 
 ---
 
@@ -86,7 +110,7 @@ Design §3.2. One coherent deliverable: the definition (`links.ts`) and the plac
 
 - [ ] **Step 1: Add the stub so the red state is a real assertion failure**
 
-Without this the build fails on a missing export and **no test ever runs** — a compile gate, not a red bar. In `src/tools/context-audit/links.ts`, immediately above `isRoutingPathShape`:
+Without this the build fails on a missing export and **no test ever runs** — a compile gate, not a red bar. In `src/tools/context-audit/links.ts`, immediately above the **`isRoutingPathShape` doc comment** at `links.ts:58` (not between the comment and its function):
 
 ```typescript
 export function hasPlaceholderToken(raw: string): boolean {
@@ -94,11 +118,7 @@ export function hasPlaceholderToken(raw: string): boolean {
 }
 ```
 
-In the same file, narrow the existing character class so the two rules do not overlap (finding 13 — `{}` belongs to the placeholder predicate):
-
-```typescript
-  if (/[*~$]/.test(t)) return false;
-```
+> **Change nothing else in this step.** In particular, do **not** narrow the `/[*{}~$]/` character class yet. Narrowing it while `hasPlaceholderToken` is still a stub leaves brace tokens matched by neither rule, which reddens the existing fixture `test/context-audit/graph.test.ts:223` (*"router-path drift ignores non-route tokens…"*, whose router carries `` `a/{x,y}/z.md` ``) — a fourth, unrelated failure that would trip Step 3's stop rule. The narrowing belongs in Step 4, alongside the real predicate. Verified: with the stub alone, that fixture stays green.
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -169,11 +189,28 @@ test("T2c GLOBAL: a placeholder in a NON-router doc is not a broken_ref either",
     assert.equal(c.broken_ref, 1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("T2d a CommonMark <dest> wrapper is a delimiter, not a placeholder", () => {
+  // `[x](<docs/gone.md>)` is a genuinely broken link written in CommonMark's
+  // angle-bracket destination form. The wrapper is punctuation, not a blank to
+  // fill in — if the predicate ate it, real rot would vanish silently, and a
+  // vanished finding is invisible to §3.4's categorical close condition.
+  const dir = mkdtempSync(join(tmpdir(), "ca-t2d-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "see [x](<docs/gone.md>)\n");
+    const c = cats(dir);
+    assert.equal(c.routing_drift, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 ```
 
 - [ ] **Step 3: Run the tests and confirm the EXACT red state**
 
-Run: `npm run build && node --test dist/test/context-audit/links.test.js && node --test dist/test/context-audit/graph.test.js`
+Run — **`;` not `&&`**, because `node --test` exits non-zero on failure and `links.test.js` is *expected* to fail here, so `&&` would short-circuit and `graph.test.js` would never run:
+
+```bash
+npm run build; node --test dist/test/context-audit/links.test.js; node --test dist/test/context-audit/graph.test.js
+```
 
 Observed (executed, not predicted):
 
@@ -182,9 +219,10 @@ Observed (executed, not predicted):
 ✖ T2a  actual: 2, expected: 1
 ✖ T2b  actual: 1, expected: 0
 ✖ T2c  actual: 2, expected: 1
+✖ T2d  actual: 0, expected: 1
 ```
 
-**T1c passes now and must keep passing** — it guards behaviour the change must not break. If any other test in these files is red, stop and diagnose before continuing.
+**T1c passes now and must keep passing** — it guards behaviour the change must not break. **Exactly these five failures and no others.** If any *other* test in either file is red — in particular the existing `graph.test.ts:223` non-route-tokens fixture — Step 1 was over-applied; re-read its warning before continuing.
 
 - [ ] **Step 4: Write the implementation**
 
@@ -196,13 +234,22 @@ Replace the stub in `src/tools/context-audit/links.ts` and tighten the shape tes
 // that failed to resolve. Shared by the shape test below and by the markdown
 // branch in graph.ts. See design §3.2 (ratified global, decision 2026-08-24 D3).
 export function hasPlaceholderToken(raw: string): boolean {
-  return /[<>{}]/.test(raw);
+  const t = raw.trim();
+  // CommonMark allows <dest> as a link-destination DELIMITER. That wrapper is
+  // punctuation, not a blank to fill in, so strip it before testing — otherwise
+  // a genuinely broken [x](<docs/gone.md>) would vanish silently, and a vanished
+  // finding is invisible to the categorical close condition.
+  const inner = /^<(.*)>$/.test(t) ? t.slice(1, -1) : t;
+  return /[<>{}]/.test(inner);
 }
 
 export function isRoutingPathShape(raw: string): boolean {
   const t = raw.trim();
   if (t === "" || /\s/.test(t)) return false;
   if (t.startsWith("-") || t.startsWith("@")) return false;
+  // NOW narrow this class (deferred from Step 1): the brace forms move to
+  // hasPlaceholderToken so the two rules do not overlap, and they must arrive
+  // together or the existing graph.test.ts:223 fixture reddens in between.
   if (/[*~$]/.test(t)) return false;
   if (hasPlaceholderToken(t)) return false;
   if (!/\.md$/i.test(t)) return false;
@@ -236,7 +283,7 @@ And insert into the markdown branch, after the `kind !== "edge"` guard (line 112
 - [ ] **Step 5: Run the full suite**
 
 Run: `npm test`
-Expected: **83 tests, 83 pass, 0 fail** (76 baseline + 7). Observed. If any pre-existing test is red, stop and diagnose — do not edit the fixture.
+Expected: **84 tests, 84 pass, 0 fail** (76 baseline + 8). Observed. The `graph.test.ts:223` non-route-tokens fixture is green again here. If any pre-existing test is red, stop and diagnose — do not edit the fixture.
 
 - [ ] **Step 6: Update `src/API.md` (rule 8 — same commit as the behaviour)**
 
@@ -298,7 +345,7 @@ The core fix. Design §3.1 as amended.
 > In this codebase **`isRoot` means "is a router doc", at any depth**, and it *already gates the backtick branch* (`graph.ts:71`). Gating tier 2 on `isRoot` would make it **never fire — silently deleting the entire fix**. T3a would stay red and T3f would pass for the wrong reason.
 
 **Files:**
-- Modify: `src/tools/context-audit/graph.ts:2` (import `posix`), new helper before `buildGraph` (after the `f(...)` helper, which ends at line 27), call site at `graph.ts:102-107`
+- Modify: `src/tools/context-audit/graph.ts:2` (import `posix`), new helper before `buildGraph` (after the `f(...)` helper, which ends at line 27), call site at `graph.ts:102-106`
 - Modify: `src/API.md`
 - Test: `test/context-audit/graph.test.ts`
 
@@ -432,12 +479,12 @@ function isUnanchoredInSubtree(docs: WalkedDoc[], routerRelPath: string, rawTarg
   if (i < 0) return false;                       // root-located router: no bound, no tier 2
   const prefix = routerRelPath.slice(0, i + 1);
   const tail = posix.normalize(rawTarget.trim().split("#")[0]);
-  if (tail === "" || tail === "." || tail.startsWith("../") || posix.isAbsolute(tail)) return false;
+  if (tail === "" || tail === "." || tail === ".." || tail.startsWith("../") || posix.isAbsolute(tail)) return false;
   return docs.some((d) => d.relPath.startsWith(prefix) && (d.relPath === tail || d.relPath.endsWith("/" + tail)));
 }
 ```
 
-Then change the drift condition at `graph.ts:102-107` so tier 2 is checked **inside** the shape gate:
+Then change the drift condition at `graph.ts:102-106` so tier 2 is checked **inside** the shape gate:
 
 ```typescript
         const missing = cands.find((c) => c.kind === "edge" && c.targetPath !== null);
@@ -453,10 +500,12 @@ Then change the drift condition at `graph.ts:102-107` so tier 2 is checked **ins
 
 Skipping the block skips `refsFromRoots++` as well — the numerator-and-denominator exclusion §3.1 requires.
 
+Finally, update the `refsFromRoots` field comment at `graph.ts:14`, which currently reads *"classified edges existence-checked whose source doc is a root."* That is no longer accurate: placeholder spans (Task 1) and tier-2 unanchored references are both classified and existence-checked, yet are now excluded. Amend to note the exclusions — e.g. *"…excluding placeholder spans and tier-2 unanchored references, which sit outside the adjudicable population."* It travels in this commit because it describes this behaviour.
+
 - [ ] **Step 4: Run the full suite**
 
 Run: `npm test`
-Expected: **89 tests, 89 pass, 0 fail** (83 + 6). Observed. All six T3 tests green together.
+Expected: **90 tests, 90 pass, 0 fail** (84 + 6). Observed. All six T3 tests green together.
 
 **If a pre-existing test goes red, stop and diagnose — do not edit the fixture.** A prior build in this repo was nearly derailed when a new guard reddened four existing fixtures that the plan had not anticipated. (In scratch verification none went red, so a red here means the implementation diverged from this plan.)
 
@@ -589,7 +638,7 @@ These are **confirmation** tests, not a red-green cycle: there is no interim sta
 - [ ] **Step 3: Run the full suite**
 
 Run: `npm test`
-Expected: **91 tests, 91 pass, 0 fail** (89 + 2). Observed.
+Expected: **92 tests, 92 pass, 0 fail** (90 + 2). Observed.
 
 - [ ] **Step 4: Add the two decision-record pointers (design §5)**
 
@@ -607,7 +656,7 @@ To `planning/decisions/2026-08-20_backtick-routing-edges-and-orphans-guard.md`, 
 
 - [ ] **Step 5: Verify the rule-2 ledger really is unaffected**
 
-`git diff` cannot detect this once earlier tasks are committed (it compares the working tree to the index). Assert on content instead:
+Use the **three-dot** form, which compares the merge-base with `main` against `HEAD` and therefore spans every commit this branch has made — unlike a bare `git diff`, which only compares the working tree to the index and would report nothing once earlier tasks are committed:
 
 ```bash
 git diff --stat main...HEAD -- src/tools/context-audit/index.ts
@@ -642,6 +691,38 @@ Refs TBD-16."
 
 ---
 
+### Task 4: Review and finish the branch
+
+`WORKFLOW.md:35` requires the code reviewers before finishing a branch; `WORKFLOW.md:43,46` require a PR rather than a direct commit to `main`. **No code is written in this task.**
+
+**Files:** none modified.
+
+- [ ] **Step 1: Final full-suite run**
+
+```bash
+npm test
+```
+Expected: **92 tests, 92 pass, 0 fail**, and `tsc` clean (it runs via `pretest`).
+
+- [ ] **Step 2: Confirm the branch touched only what this plan authorises**
+
+```bash
+git diff --name-only main...HEAD
+```
+Expected exactly: `src/API.md`, `src/tools/context-audit/graph.ts`, `src/tools/context-audit/links.ts`, `test/context-audit/graph.test.ts`, `test/context-audit/links.test.ts`, `test/context-audit/orchestrate.test.ts`, `planning/decisions/2026-08-20_router-path-drift.md`, `planning/decisions/2026-08-20_backtick-routing-edges-and-orphans-guard.md`. **Anything else — especially `src/tools/context-audit/index.ts` or `score.ts` — means scope leaked; stop.**
+
+- [ ] **Step 3: Run the code reviewers**
+
+Use `superpowers:requesting-code-review` on the branch diff. Give reviewers the spec (`planning/designs/2026-08-24_routing-drift-precision-design.md`) and both amending records, and ask specifically whether the **location gate** is implemented on `relPath` rather than `isRoot`.
+
+- [ ] **Step 4: Address findings, then finish the branch**
+
+Use `superpowers:receiving-code-review` for the findings, then `superpowers:finishing-a-development-branch` to open the PR against `main`.
+
+**If a reviewer surfaces a scope question the amended design does not settle, STOP and take it to `/decisions`** — this chain has already caught three that way, and none of them should have been decided inside an execution plan.
+
+---
+
 ## After the plan
 
 TBD-16 does **not** close when these tasks land. Per design §3.4 it closes on **re-validation against the pinned nine-repo corpus** (`planning/calibration/2026-08-24_context-audit-run-6-nine-repo-rerun.md` §0), under the **categorical** close condition: every residual drift finding must be classifiable into a §3.5-named out-of-scope class — which now includes **"prose-relative under a root-located router"** — or be a verified genuine broken route. Any finding fitting neither goes to `/decisions`.
@@ -672,9 +753,11 @@ That re-validation is a calibration run, not a build step, and it is **not** the
 | §5 ledger no-op verified | Task 3 Step 5 |
 | §5 `src/TDD.md` TBD-16 row → Resolved | **Not in this plan** — happens at re-validation, which closes TBD-16. Correctly out of scope. |
 | §5 `…_routing-drift-precision-and-interim-disposition.md` pointer | **Already satisfied** — it carries its disposition-update note. No task needed. |
+| §5 `src/TDD.md` **TBD-10** row (drop the "blocked on TBD-16" gate) | **Deferred to re-validation**, not this plan. TBD-16 is not closed by landing the code, so the gate on TBD-10 cannot lift here. |
+| §5 `src/TDD.md` **TBD-13** row (Status → Resolved) | **Already satisfied** — corrected on `main` in a separate commit. No task needed. |
 
 **2. Placeholder scan:** No TBD/TODO/"handle edge cases"/"similar to Task N". Every code step carries real code. No step references a type or function not defined here or present in the codebase. The rev-1 `g.edges` defect is gone — T3c asserts `resolvedRefsFromRoots`, which `GraphResult` actually declares (`graph.ts:7-18`).
 
 **3. Type consistency:** `hasPlaceholderToken` named identically in Tasks 1 and 2. `isUnanchoredInSubtree(docs, routerRelPath, rawTarget)` defined and called with matching argument order. `WalkedDoc` matches `walk.ts:7`. `SEVERITY_BY_CATEGORY` matches `score.ts:8`. `GraphResult.resolvedRefsFromRoots` and `.routingDriftCount` both exist. `posix` imported before use.
 
-**4. Empirical verification:** every red state, green state and test count in this plan was executed in a scratch copy of this repo before the plan was written — **76 → 83 → 89 → 91**, no existing test reddened at any stage, and `src/API.md`'s four JSON blocks verified to parse after both edits.
+**4. Empirical verification:** every red state, green state and test count in this plan was executed in a scratch copy of this repo before the plan was written — **76 → 84 → 90 → 92**, and `src/API.md`'s four JSON blocks verified to parse after both edits.
