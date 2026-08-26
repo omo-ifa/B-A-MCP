@@ -4,79 +4,75 @@
 
 ---
 
-## Repo state — verified 2026-08-25
+## Repo state — verified 2026-08-26
 
-- **`main` HEAD:** `fc3e493` (`feat(context_audit): directory-granularity reachability for orphans (#35)`) **at the moment this file was written.** This file cannot record the commit that contains it: merging it advances `main` once more. **A live `git rev-parse --short HEAD` ahead of `fc3e493` is expected and correct** — what would be wrong is a HEAD *behind* it (a stale checkout).
-- **Tests:** **107 / 107 pass, 0 fail**, `tsc` clean. Verified with `npm test` on `main` at `fc3e493`. **Node v25.2.1.** (TBD-14 build landed +5 tests: 102 → 107.)
-- **Open PRs: 0.** This session merged **#35** (TBD-14 directory-granularity reachability code).
-- Working tree clean. `src/API.md` parses (4 JSON blocks). No `src/ERD.md` (no database). `prompts/` untouched → `.claude/commands/` not regenerated (rule 1).
+- **`main` HEAD:** `5572e5d` (`TBD-11: bloat aggregates by worst-case chain, not flat sum (shape built; numbers deferred) (#41)`) **at the moment this file was written.** Merging this handoff advances `main` once more — **a live `git rev-parse --short HEAD` ahead of `5572e5d` is expected and correct**; what would be wrong is a HEAD *behind* it (a stale checkout).
+- **#41 trunk ancestry CONFIRMED**, not trusted from the badge: `git merge-base --is-ancestor 5572e5d6556fc963a99c74b52fb1bed1f64431cc main` → exit 0 (Obs 16 applied).
+- **Tests:** **112 / 112 pass, 0 fail**, `tsc --noEmit` clean. Verified on `main` at `5572e5d` **post-merge** (not just pre-merge). **Node v25.2.1.** (TBD-11 build landed +5 tests: 107 → 112.)
+- **Open PRs: #40 only** (see below). **#41 merged** (TBD-11 bloat shape) and its branch deleted (local + remote). This session opens one further PR for this handoff doc.
+- Working tree clean before this write. `src/API.md` parses (4/4 JSON blocks) and `bloat` is unchanged `{score,n}` — matches code. No `src/ERD.md` (no database). Context-budget ledger unchanged at **252 / ~4000** (bloat reshape touched no tool surface). `prompts/` untouched → `.claude/commands/` not regenerated (rule 1).
+
+### PR #40 — stale, SUPERSEDED by this handoff
+- **#40** (`docs/handoff-2026-08-26-tbd-14-closed`, base `main`) is the *previous* session's handoff. It is MERGEABLE/CLEAN over the new `main` and does **not** conflict with #41 (which never touched `SESSION_HANDOFF.md`) — but its **content is now stale** (it says "TBD-11 next, unbuilt"; TBD-11's shape is now built + merged). **This handoff is a strict superset of #40.** Recommend **closing #40 unmerged** and merging this one instead. Do not merge both — they both rewrite `SESSION_HANDOFF.md`, so whichever lands second will conflict.
 
 ---
 
 ## Where the `context_audit` chain stands
 
-- **TBD-16 (`routing_drift` precision): CLOSED** — re-validated run #2, D2/D3 confirmed. Nothing outstanding.
-- **TBD-14 (`orphans` directory-granularity reachability): CODE BUILT + MERGED (PR #35), still OPEN pending categorical re-validation.** The build is done and reviewed CLEAN; **landing the code does not close TBD-14.** The **only** close condition — a categorical re-validation run on the pinned nine-repo corpus — is still outstanding and is the next actionable unit.
+- **TBD-16 (`routing_drift` precision): CLOSED** (2026-08-25).
+- **TBD-14 (`orphans` directory-granularity reachability): CLOSED / RESOLVED** (2026-08-26, PR #39). `orphans` is weighting-**eligible**.
+- **TBD-11 (`bloat` aggregation shape): SHAPE RESOLVED + BUILT + MERGED** (2026-08-26, PR #41). The flat-sum-over-routers defect (run-6: caveman `0/n40`) is fixed — the sub-score is now driven by the **worst root→leaf chain** (worst-case, count-invariant), `inline_ratio` dropped. **`bloat`'s SHAPE blocker is lifted.** Cutoff NUMBERS stay Open + deferred (rule 7).
+- **All four routing-layer sub-scores (`orphans`, `routing_drift`, `coverage`, `bloat`) are now SHAPE-CLEAN.** No correctness/shape blocker remains on any of them.
+- **Next `context_audit` loop: the TBD-10/11/12 weight & threshold NUMBERS** — the last gating work before the README true-sample. Data-blocked on external hyperlink-routed repos (see below).
 
 ---
 
 ## Active design doc
 
-**`planning/designs/2026-08-25_directory-granularity-reachability-design.md`** — **approved, built, NOT yet re-validated.** Its plan (`docs/superpowers/plans/2026-08-25-directory-granularity-reachability.md`) executed this session task-by-task under TDD; code merged as PR #35.
-
-(TBD-16's design `2026-08-24_routing-drift-precision-design.md` is built and closed. Base designs `2026-08-20_agents-md-router-recognition-design.md` and `2026-08-18_context-audit-design.md` are built.)
+- **TBD-11 (complete):** `planning/designs/2026-08-26_bloat-worst-case-aggregation-design.md` — **built, reviewed CLEAN, merged (#41), complete.**
+- (TBD-14 `2026-08-25_directory-granularity-reachability-design.md`, TBD-16 `2026-08-24_routing-drift-precision-design.md`, and the base designs are built + closed.)
+- **Next loop (TBD-10/11/12 numbers): no design doc exists yet** — it is a calibration + `/decisions` loop, not a code build. Start from data, not code.
 
 ---
 
 ## Decisions + TBDs
 
-### Built this session
-- **TBD-14 directory-granularity reachability** — executed the reviewed plan under `superpowers:test-driven-development`. Implementation in `src/tools/context-audit/graph.ts`: a per-source `dirTargetsBySrc` record (directory targets recorded under the doc that routed them), a `docsByParentDir` index, and **directory-only, root-restricted propagation folded into the reachability DFS** — a reached document also marks reachable every in-scope doc **directly contained** in a directory it routed. `routedDirs`/`coverage.ts`/`score.ts`/`index.ts`/`underRoutedDir`/`TBD_10_WEIGHTS`/`ROUTING_LAYER_KEYS` untouched. `src/API.md` orphans sentence updated same commit (rule 8). Tests T-dir-1…5 (+5 → 107). Reviewed CLEAN (zero Critical/Important; three optional Minor notes, none actionable — the `.`→`""` repo-root-route case is already documented as no-special-handling in the design's "Deliberately skipped"). **No new decision record written — this session executed an already-decided plan; nothing new was ruled.**
+### Resolved this session
+- **TBD-11 aggregation shape → Resolved (numbers still Open).** `planning/decisions/2026-08-26_tbd-11-bloat-worst-case-aggregation.md`: chose **worst-case over the heaviest root→leaf chain** (candidate `worst-case`; `mean` rejected — dilutes a catastrophic router; `per-chain-only` rejected on the house tie-breaker — silent on a mid-chain giant). Per-router size term taken **MAX over routers, never summed**; the two token terms combine by `max(chain_token_term, max_router_term)` (not sum — the heaviest router sits on the worst chain, summing double-counts); **depth adds** (separate axis). **`inline_ratio` dropped** (metric + finding + its two constants) — broken by construction. `src/TDD.md` TBD-11 row updated (shape RESOLVED/BUILT, numbers DEFERRED); `planning/Roadmap.md` updated. **No cutoff NUMBER set (rule 7).**
 
-### TBD-14 — the next actionable unit (Open, code landed, re-validation outstanding)
-- **What remains:** a **categorical re-validation** run on the pinned nine-repo corpus — the **only** thing that closes TBD-14. Every residual orphan must classify as either **genuine-abandoned** or a **named accepted layout class** (route-to-directory-nested, convention-discovered, dated-archival). Any residual fitting neither → `/decisions`. It is **not** a numeric bar (rule 7): counting is for the record, classification is the gate. This is a calibration run in its own session, **not** a build step and **not** the README sample. Written to `planning/calibration/`.
-- **`orphans` stays OUT of TBD-10 weighting** until that re-validation passes — an exclusion pending a correctness fix, not a weighting decision. Only then does `orphans` become *eligible* (eligibility only; the weight NUMBER stays deferred).
-
-### Queue behind TBD-14
-- **TBD-11** — bloat-aggregation shape. Authorised as its own loop, **unbuilt**. No design yet.
-- **TBD-10 / TBD-11 / TBD-12 weight & threshold NUMBERS** — data-blocked. **Calibrate only from external hyperlink-routed repos, never from B-A-MCP's own run** (its backtick routing gives degenerate denominators). `routing_drift` is weighting-**eligible** (TBD-16 lifted its correctness-null) but the NUMBER is deferred; `orphans` becomes eligible only after TBD-14 re-validates.
-- **`coverage` remains the sole load-bearing headline routing-layer sub-score** until TBD-14 (orphans) re-validates and TBD-11 (bloat shape) lands.
-- **README true-sample** — gated behind the TBD-10/11/12 numbers. Not now; must be a true run.
+### Still deferred / blocked
+- **TBD-10 / TBD-11 / TBD-12 weight & threshold NUMBERS — the next actionable unit, data-blocked.** Calibrate **only from external hyperlink-routed repos, never from B-A-MCP's own run** (its backtick routing gives degenerate denominators). Eligibility now: `routing_drift` (TBD-16), `orphans` (TBD-14), `bloat` (TBD-11 shape) all eligible; `coverage` was never blocked. `coverage` is no longer the sole load-bearing headline sub-score. Current stub weights (`src/tools/context-audit/score.ts` `TBD_10_WEIGHTS`) and per-term cutoffs (`bloat.ts`: `ROUTER_TOKEN_CUTOFF=3000`, `CHAIN_TOKEN_CUTOFF=6000`, `CHAIN_DEPTH_CUTOFF=4`; `coverage.ts`: `MIN_FILES=5`) stay stubbed — **read from source, not from a tracker.**
+- **TBD-12** `MIN_FILES`/coverage-significance numbers — data-blocked, sharpened by run-6, not forked, unresolved.
+- **README true-sample** — gated behind the TBD-10/11/12 numbers. Must be a true run.
 - **TBD-2 / TBD-4 / TBD-5 / TBD-9** — packaging / notices / pricing / doc_drift scope. Open, untouched.
 
 ---
 
 ## Remaining work
 
-- **Re-validate TBD-14** (next session): a categorical re-validation run on the pinned nine-repo corpus. This is the **only** thing that closes TBD-14. The code is already on `main`.
-- **TBD-11** design → build, when picked.
-- The README true-sample and the TBD-10/11/12 numbers stay gated as above.
+- **TBD-10/11/12 NUMBERS calibration** (next): the gating work. Needs external hyperlink-routed calibration repos (run-6's nine-repo corpus gave shape data but the NUMBERS still need a neutral, non-single-author sample). Then the README true-sample.
+- **PR #40** — close unmerged (superseded); **this handoff PR** — merge.
+- The README true-sample and the numbers stay gated as above.
 
 ---
 
 ## Context not in the docs
 
-- **The whole `context_audit` chain runs on one tie-breaker: visible false positive over silent false negative.** Every ratchet trip resolved that way — TBD-16's loose-C1 rejection, the CommonMark `<dest>` fix, the placeholder/bare-filename shape exclusions, TBD-14's depth (directory-only over full-subtree) and origin (root-restricted over flat). When a new choice appears, decide it on error *direction*, not on how small the affected corner is; a small corner on the silent-FN side is exactly what ships wrong because nobody is forced to look.
-- **Re-validation is categorical, never a proportion.** A clean-looking headline is not a pass — every residual is named against an accepted class or it goes to `/decisions`. TBD-16 run #1 looked great yet failed the gate on 7 unnamed FPs; that is the mechanism working. The TBD-14 re-validation must anticipate four accepted residue classes (route-to-directory-nested, convention-discovered, dated-archival, genuine-abandoned) per design §3.4 — anything else is a `/decisions` item.
-- **The TBD-14 build's subtle correctness point (as-built, confirmed by review):** propagation is sourced from **directory targets recorded per source doc** (`dirTargetsBySrc`), NOT from `routedDirs` (which also holds doc-parent dirs for `coverage`); and it is **folded into the DFS** so only a reached node propagates. The three counterfactuals (flat, full-subtree, all-`routedDirs`) each break a specific guard test — T-dir-4 (flat), T-dir-2 (full-subtree), T-dir-3 + the pre-existing `orphan: routed-workspace…` fixture (all-`routedDirs`). Keep all five; a green suite under a wrong implementation is the trap.
+- **The `max`-combine guard was proven by mutation this session.** Flipping `Math.max(chainTokenTerm, maxRouterTerm)` → `+` in `bloat.ts:102` reddens exactly one test — `token terms MAX-combine, not SUM: a lone router that IS its own heavy chain is not double-counted` (`test/context-audit/bloat.test.ts`, the 9000-token-lone-router fixture asserting `subscore===70`, not the sum-combine `55`). 111 pass / 1 fail under `+`; reverted → 112/112. The double-count the design forbids is genuinely guarded.
+- **Obs 16 (stacked-PR mis-merge) re-applied and held.** #41 was based directly on `main` (no stacking); post-merge ancestry was verified by `git merge-base --is-ancestor`, not the MERGED badge. Keep doing this after every merge.
+- **The whole `context_audit` chain still runs on one tie-breaker: visible false positive over silent false negative.** TBD-11's worst-case-over-per-chain-only choice and its "findings enumerate every breaching router while the subscore scores only the worst" split were both decided this way. Decide any new choice on error *direction*, not on how small the affected corner is.
+- **Findings vs. subscore are deliberately decoupled in `bloat`.** The findings array lists **every** breaching router/chain (transparency); only the **subscore** is worst-case. Do not "fix" this into scoring every finding — that reintroduces the count-domination defect.
 
-### `task-observer` was NOT invoked this session — carry to the re-val session
-- **CLAUDE.md requires `task-observer` at the start of any task-oriented session; this session skipped it.** The re-validation session **must invoke `task-observer` at start** (before any work), and should also surface any observations that this build session would have logged (the TDD execution went clean — red states matched the plan's derivation exactly, no corrections — so the likely yield is low, but the skip means it was never watched). Named, not fixed.
-
-### Three named-not-fixed PROCESS items — one family, for the observation-review session (its own session)
-All three are the same root cause: **literal text handed to a shell-adjacent tool must be verified as literal, not silently transformed.** Named, not fixed; carry them across this boundary.
-- **State-tagging fault** — a recorded red/green state must carry *which code-state it was measured against*.
-- **`str_replace` line-wrap no-op hazard** — a single-line search-and-replace whose target wraps across two source lines matches nothing and silently no-ops.
-- **Commit-message backtick shell-eval trap** — `git commit -m "…"` with backticks lets the shell command-substitute them; use `git commit -F -` / a heredoc. (Followed this session — the TBD-14 commit used `git commit -F -`.)
-
-(The observation log holds observations 1–15 and was not touched this session.)
+### `task-observer` — invoked this session; backlog still owed its own review session
+- `task-observer` **was** invoked at session start. **One observation logged this session: Obs 18** — a TDD guard test can silently rely on the very code path a change removes (the mid-chain-giant guard initially "passed" only via the soon-removed `inline_ratio` term, and its intended router term rounded to 0 because the fixture was under a full `floor()`-step over the cutoff; caught by hand-tracing the arithmetic).
+- **Backlog is now 18 OPEN and `last-review-date.txt` is `never` — never reviewed.** A dedicated observation-review session is still owed (load `task-observer`'s `references/weekly-review.md`). The three earlier named-not-fixed process items (state-tagging, `str_replace` line-wrap, commit-backtick shell-eval) are in that backlog. **Named, not fixed** — carry, do not action here.
 
 ---
 
 ## Next-session starter
 
-> **Re-validate TBD-14** — the directory-granularity reachability code is built and merged (PR #35, `main` `fc3e493`), but **landing the code does NOT close TBD-14**. TBD-14 stays **Open pending a categorical re-validation** run on the pinned nine-repo corpus — the only close condition. **First, invoke `task-observer` at session start** (CLAUDE.md requires it; the build session skipped it — carry that forward). Then read `CLAUDE.md`, this file, the design `planning/designs/2026-08-25_directory-granularity-reachability-design.md` (§3.3–§3.4 name the accepted residue classes), and TBD-16's re-validation records under `planning/calibration/` for the categorical-gate precedent. Confirm `git rev-parse HEAD` and `npm test` (expect **107**) before trusting any figure.
+> **Start the TBD-10/11/12 weight & threshold NUMBERS calibration** — the last gating work before the README true-sample. All four `context_audit` routing-layer sub-scores (`orphans`, `routing_drift`, `coverage`, `bloat`) are now **shape-clean and eligible**; only the NUMBERS remain. **First, invoke `task-observer` at session start** (CLAUDE.md requires it). Then read `CLAUDE.md`, this file, `src/CONTEXT.md`, `src/TDD.md` (the TBD-10 / TBD-11 / TBD-12 rows), and `planning/calibration/2026-08-24_context-audit-run-6-nine-repo-rerun.md`. Confirm `git rev-parse HEAD` (≥ `5572e5d`) and `npm test` (expect **112**) before trusting any figure.
 >
-> Run the re-validation against the pinned nine-repo corpus and classify **every** residual orphan as genuine-abandoned or a named accepted layout class (**route-to-directory-nested**, **convention-discovered**, **dated-archival**). Write the calibration record to `planning/calibration/`. **The gate is categorical, not a proportion** — any residual fitting no class goes to `/decisions`, not into a silent pass. Only when every residual classifies does TBD-14 close; **only then** does `orphans` become *eligible* for TBD-10 weighting (eligibility only — the weight NUMBER stays deferred, data-blocked, external repos only, never B-A-MCP's own run).
+> This is a **data + `/decisions` loop, not a code build** — there is no design doc yet. **Calibrate ONLY from external hyperlink-routed repos, never from B-A-MCP's own run** (its backtick routing gives degenerate denominators). Run-6's nine-repo corpus gave the *shape* data; the *numbers* need a neutral, non-single-author sample — decide whether run-6's repos suffice or a fresh external sample is required, then derive the weights (`TBD_10_WEIGHTS`) and per-term cutoffs. Route every number through `/decisions` (Gate 2) and record the reasoning; if it needs a design, `superpowers:brainstorming` first. Keep the standing tie-breaker (visible FP over silent FN) and the ratchet (a decision the design does not settle goes to `/decisions`, not into the work). When code changes, build under `superpowers:test-driven-development`, run the code reviewers before finishing, land via `superpowers:finishing-a-development-branch` — **branch + PR, never direct to `main`; after any merge verify trunk ancestry with `git merge-base --is-ancestor`, never the MERGED badge (Obs 16).** `src/API.md` updates in the same commit as any tool-schema change (rule 8); re-measure the ledger if the surface changes (rule 2).
 >
-> Standing: no threshold/weight number; branch + PR, never direct to `main`; the ratchet — a decision the design does not settle goes to `/decisions`, not into the work. Behind TBD-14: **TBD-11** (bloat shape, authorised/unbuilt). `coverage` stays the sole load-bearing headline sub-score until TBD-14 re-validates and TBD-11 lands. The three process items and the `task-observer` skip wait for a dedicated observation-review session — named, not fixed.
+> **Housekeeping owed, each its own session:** the **`task-observer` backlog review** (18 OPEN, never reviewed) carrying the three named process items plus this session's Obs 18. And **PR #40** should be closed unmerged (this handoff superseded it).
