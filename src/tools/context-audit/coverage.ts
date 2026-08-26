@@ -13,9 +13,12 @@ const HARD_SKIP = new Set(["node_modules", "dist", "build", "vendor", ".venv", "
 // invisible to walk/graph but still counted (and flagged) by coverage.
 const DOT_ALLOW = new Set([".claude", ".github"]);
 
-// TODO: TBD-12 — significance classification + thresholds are stubbed; calibrate from the first dogfood run.
-const TBD_12_MIN_FILES = 5;                 // "significant" = at least this many files
-const TBD_12_SOURCE_EXTS = [".ts", ".js", ".tsx", ".jsx", ".py", ".go", ".rs", ".java", ".rb"]; // provisional
+// TBD-12 — MIN_FILES RATIFIED 2026-08-26 (planning/decisions/2026-08-26_tbd-11-tbd-12-cutoff-numbers-ratified.md).
+// STILL OPEN under TBD-12 (its own later loop, not this decision): the source-vs-test significance
+// BASIS (weight source dirs above test dirs) and SOURCE_EXTS remain provisional; the coverage-finding
+// emission (line ~104) is still gated off.
+const TBD_12_MIN_FILES = 5;                 // RATIFIED: a directory is "significant" at >=5 source files. Raising it would drop small-real uncovered dirs to silent FN (against the house tie-breaker); the `n` denominator already exposes thin anchors (e.g. superpowers coverage 100/n1).
+const TBD_12_SOURCE_EXTS = [".ts", ".js", ".tsx", ".jsx", ".py", ".go", ".rs", ".java", ".rb"]; // TODO: TBD-12 — still provisional
 
 function listDirs(rootPath: string): { rel: string; fileCount: number; hasContext: boolean }[] {
   const out: { rel: string; fileCount: number; hasContext: boolean }[] = [];
@@ -67,7 +70,7 @@ export function isTestDir(relPath: string): boolean {
 }
 
 function isSignificant(dir: { rel: string; fileCount: number }, rootPath: string): boolean {
-  // TODO: TBD-12 — provisional: a directory with >= MIN_FILES source files.
+  // MIN_FILES ratified (run-7); the source-vs-test significance BASIS is still TBD-12 (deferred).
   try {
     const src = readdirSync(join(rootPath, dir.rel), { withFileTypes: true })
       .filter((e) => e.isFile() && TBD_12_SOURCE_EXTS.some((x) => e.name.toLowerCase().endsWith(x))).length;

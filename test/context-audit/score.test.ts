@@ -85,3 +85,36 @@ test("normalizeFindings output never carries `discriminator` — the public Find
   assert.equal((out[0] as unknown as Record<string, unknown>).discriminator, undefined);
   assert.deepEqual(Object.keys(out[0]).sort(), ["category", "evidence", "file", "id", "line", "message", "severity"]);
 });
+
+// --- TBD-10 weights (partial): coverage:3, bloat:1, routing_drift:1; orphans NOT weighted (gated on TBD-18).
+//     Decision: planning/decisions/2026-08-26_tbd-10-weights-partial-and-tbd-18-orphans-rebase.md ---
+
+test("headlineScore weights are coverage:3, bloat:1, routing_drift:1 (TBD-10 partial)", () => {
+  // weighted = 90*1 (drift) + 60*3 (coverage) + 100*1 (bloat) = 370; weightSum = 5 => 74. orphans excluded.
+  const s = headlineScore({
+    bloat: { score: 100, n: 1 },
+    orphans: { score: 0, n: 5 },
+    routing_drift: { score: 90, n: 5 },
+    coverage: { score: 60, n: 5 },
+  });
+  assert.equal(s, 74);
+});
+
+test("headlineScore does NOT weight orphans (gated on TBD-18): its score cannot move the headline", () => {
+  const base = { bloat: { score: 100, n: 1 }, routing_drift: { score: 90, n: 5 }, coverage: { score: 60, n: 5 } };
+  const withLowOrphans  = headlineScore({ ...base, orphans: { score: 0,   n: 5 } });
+  const withHighOrphans = headlineScore({ ...base, orphans: { score: 100, n: 5 } });
+  assert.equal(withLowOrphans, withHighOrphans);
+});
+
+test("headlineScore: orphans alone (routing_drift + coverage both null) does NOT form a headline — returns null", () => {
+  // orphans is no longer a weighted routing-layer measurement, so an assessed orphans + bloat must not
+  // yield a bloat-carried 'health' composite. The routing-layer guard rests on routing_drift/coverage only.
+  const s = headlineScore({
+    bloat: { score: 100, n: 1 },
+    orphans: { score: 50, n: 5 },
+    routing_drift: { score: null, n: 0 },
+    coverage: { score: null, n: 0 },
+  });
+  assert.equal(s, null);
+});
