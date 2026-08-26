@@ -149,14 +149,9 @@ Expected: FAIL — `computeSkillDirs` / `isSkillDiscovered` not exported.
 ```typescript
 // Append to src/tools/context-audit/accepted-layout.ts
 
-// All directory ancestors INCLUDING none-extra: same as ancestorDirs but exported
-// use-site needs the immediate parent included, which ancestorDirs already gives.
-function ancestorDirsInclusive(relPath: string): string[] {
-  return ancestorDirs(relPath);   // ["a/b","a",""] — immediate parent first, up to root
-}
-
 // D2 — skill-discovery. Build the set of directories that directly contain a
 // SKILL.md; a doc is skill-discovered if any ancestor directory is such a dir.
+// Reuses ancestorDirs (Task 1) — immediate parent first, up to "" (root).
 export function computeSkillDirs(docRelPaths: string[]): Set<string> {
   const s = new Set<string>();
   for (const p of docRelPaths) {
@@ -166,12 +161,10 @@ export function computeSkillDirs(docRelPaths: string[]): Set<string> {
 }
 
 export function isSkillDiscovered(relPath: string, skillDirs: Set<string>): boolean {
-  for (const a of ancestorDirsInclusive(relPath)) if (skillDirs.has(a)) return true;
+  for (const a of ancestorDirs(relPath)) if (skillDirs.has(a)) return true;
   return false;
 }
 ```
-
-> Note: `ancestorDirs` is already defined in Task 1 (module-private). `ancestorDirsInclusive` is a thin alias documenting intent; if a reviewer prefers, call `ancestorDirs` directly and drop the alias. Either is acceptable — keep one name.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -403,7 +396,7 @@ test("genuineAbandonedCount: a nested (D1-accepted) orphan is a finding but not 
   try {
     // root routes the `src` directory; docs DIRECTLY in src/ are reached, a doc
     // in src/sub/ is not (directory-only depth) -> an orphan, and D1-accepted.
-    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src`\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src/`\n");   // trailing slash: a bare `src` is not a backtick path candidate (links.ts)
     mkdirSync(join(dir, "src"));
     writeFileSync(join(dir, "src", "reached.md"), "directly in routed src -> reached\n");
     mkdirSync(join(dir, "src", "sub"));
@@ -521,29 +514,33 @@ git commit -m "feat(context_audit): compute genuineAbandonedCount in graph (TBD-
 
 ```typescript
 // Append to test/context-audit/orchestrate.test.ts
-test("orphans re-base: score is reconstructable from stats.genuine_abandoned_count", async () => {
+test("orphans re-base: score is reconstructable from stats.genuine_abandoned_count (genuine orphan present)", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ca-rebase-"));
   try {
-    // root routes src/ ; nested doc under src is an orphan but accepted (D1).
-    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src`\n");
-    mkdirSync(join(dir, "src"));
-    writeFileSync(join(dir, "src", "reached.md"), "reached\n");
-    mkdirSync(join(dir, "src", "sub"));
-    writeFileSync(join(dir, "src", "sub", "nested.md"), "nested -> D1 accepted\n");
+    // Same genuine-orphan shape as graph Test B: one reached candidate
+    // (keep/CONTEXT.md) and one genuine orphan (zone/GENUINE.md, in a dir routed
+    // only by the unreached island/notes.md). candidateTotal=2, genuine=1 -> score 50.
+    writeFileSync(join(dir, "CLAUDE.md"), "root [keep](keep/CONTEXT.md)\n");
+    mkdirSync(join(dir, "keep"));
+    writeFileSync(join(dir, "keep", "CONTEXT.md"), "reached leaf\n");
+    mkdirSync(join(dir, "island"));
+    writeFileSync(join(dir, "island", "notes.md"), "unreached; routes [z](../zone)\n");
+    mkdirSync(join(dir, "zone"));
+    writeFileSync(join(dir, "zone", "GENUINE.md"), "plain genuine orphan\n");
     const outcome = await runContextAudit({ path: dir });
     assert.equal(outcome.ok, true);
     if (!outcome.ok) return;
     const r = outcome.result;
-    // the new stat is present
+    // the new stat is present and reflects the one genuine orphan
     assert.equal(typeof r.stats.genuine_abandoned_count, "number");
-    // orphan_count counts the finding; genuine_abandoned_count is <= it
+    assert.equal(r.stats.genuine_abandoned_count, 1);
+    // genuine_abandoned_count <= orphan_count (every genuine orphan is also a finding)
     assert.ok(r.stats.genuine_abandoned_count <= r.stats.orphan_count);
-    // reconstruction: orphans.score == round(100 * (1 - genuine/candidateTotal))
+    // reconstruction (non-vacuous: score is a number here): orphans.score == round(100 * (1 - genuine/n))
     const gac = r.stats.genuine_abandoned_count;
     const os = r.subscores.orphans;
-    if (os.score !== null) {
-      assert.equal(os.score, Math.round(100 * (1 - gac / os.n)), "orphans.score reconstructs from genuine_abandoned_count and orphans.n");
-    }
+    assert.notEqual(os.score, null, "orphans is assessed (a root edge resolves)");
+    assert.equal(os.score, Math.round(100 * (1 - gac / os.n)), "orphans.score reconstructs from genuine_abandoned_count and orphans.n");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -551,7 +548,7 @@ test("orphans re-base: an all-accepted-layout repo scores ~100 (was low pre-reba
   const dir = mkdtempSync(join(tmpdir(), "ca-allaccepted-"));
   try {
     // root routes src/ ; the only orphan candidates are nested (D1 accepted).
-    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src`\n");
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src/`\n");   // trailing slash: a bare `src` is not a backtick path candidate (links.ts)
     mkdirSync(join(dir, "src"));
     writeFileSync(join(dir, "src", "reached.md"), "reached\n");
     mkdirSync(join(dir, "src", "a")); writeFileSync(join(dir, "src", "a", "x.md"), "nested accepted\n");
@@ -625,15 +622,24 @@ Expected: PASS (`standing cost < 4000`). Then capture the exact number:
 Run: `node -e "const {contextAuditTool}=require('./dist/src/tools/context-audit/index.js');const {countTokens}=require('./dist/src/tools/context-audit/tokens.js');console.log(countTokens(JSON.stringify(contextAuditTool)))"`
 Expected: `252` (unchanged — `outputSchema.properties.stats` is opaque `{ type: "object" }`, so the new field adds no standing tokens).
 
-- [ ] **Step 2: Update `src/API.md` (rule 8)**
+- [ ] **Step 2: Update the `stats` JSON schema in `src/API.md` (rule 8)**
 
-In the `stats` object description, document the new field (keep the existing `orphan_count` sentence):
+`src/API.md`'s `stats` is a real JSON schema block (`src/API.md:105-116`) with a `required` array and `properties` — prose alone is not enough; the field must appear in BOTH, or the schema-of-record is inaccurate and the Step 4 JSON-parse check will still pass while missing it.
 
+1. Add `"genuine_abandoned_count"` to the `stats.required` array, immediately after `"orphan_count"`:
+
+```json
+"required": ["docs_in_scope", "routing_files", "routing_tokens", "orphan_count", "genuine_abandoned_count", "files_skipped", "token_count_method", "calibrated"],
 ```
-"genuine_abandoned_count": the orphans scored as rot — unreachable candidates that are NOT a detected accepted-layout class (route-to-directory-nested, skill-discovery, agent-runtime config, tight dated-archival). The orphans sub-score is 1 − genuine_abandoned_count / (its n); orphan_count remains the count of every orphan finding, so genuine_abandoned_count ≤ orphan_count.
+
+2. Add the property to `stats.properties`, immediately after the `orphan_count` line:
+
+```json
+        "orphan_count": { "type": "number" },
+        "genuine_abandoned_count": { "type": "number", "description": "orphans scored as rot — unreachable candidates that are NOT a detected accepted-layout class (route-to-directory-nested, skill-discovery, agent-runtime config, tight dated-archival). The orphans sub-score is 1 − genuine_abandoned_count / (its n); orphan_count stays the count of every orphan finding, so genuine_abandoned_count ≤ orphan_count." },
 ```
 
-In the `subscores` description, update the `orphans` sentence so it states the re-based basis: the sub-score now scores **genuine-abandoned** orphans only (accepted-layout classes are still enumerated as `orphan` findings but excluded from the numerator; the sub-score is reconstructable from `stats.genuine_abandoned_count`).
+3. In the `subscores` description prose (the `orphans` sentence in the `subscores` object's `description`), state the re-based basis: the `orphans` sub-score now scores **genuine-abandoned** orphans only (accepted-layout classes are still enumerated as `orphan` findings but excluded from the scored numerator; the score is reconstructable from `stats.genuine_abandoned_count`).
 
 - [ ] **Step 3: Update the context-budget ledger in `src/CONTEXT.md` (rule 2)**
 
