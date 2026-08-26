@@ -4,18 +4,20 @@ import type { WalkResult } from "./walk.js";
 
 export interface BloatResult { subscore: number | null; n: number; routingTokens: number; findings: RawFinding[]; }
 
-// TODO: TBD-11 — SHAPE resolved. Bloat is the cost to orient on ONE path, not how many
-// routers a repo has:
+// TBD-11 RESOLVED — shape (#41) and cutoff numbers (run-7 2026-08-26) both decided.
+// Bloat is the cost to orient on ONE path, not how many routers a repo has:
 //  - per-router + per root->leaf chain metric (2026-08-20_tbd-11-bloat-per-router-not-total.md).
 //  - WORST-CASE aggregation, never a flat sum over routers, so router COUNT cannot drive the
 //    score (2026-08-26_tbd-11-bloat-worst-case-aggregation.md). The two TOKEN terms MAX-combine
 //    (the heaviest router usually sits on the worst chain — summing double-counts); DEPTH is a
 //    separate axis (hops, not tokens) and ADDS. inline_ratio was dropped there (broken by
 //    construction — "mostly prose + a few paths" describes what a router IS).
-// The cutoff NUMBERS below are still unresolved placeholders (data-blocked). char-approx-v1 tokens.
-const TBD_11_ROUTER_TOKEN_CUTOFF = 3000;   // a single router heavier than this = load cost to orient here
-const TBD_11_CHAIN_TOKEN_CUTOFF  = 6000;   // total tokens along one root->leaf routing chain above this = heavy chain
-const TBD_11_CHAIN_DEPTH_CUTOFF  = 4;      // a routing chain longer than this many routers = deep chain
+// Cutoff NUMBERS RATIFIED 2026-08-26 from calibration run-7 (char-approx-v1 tokens):
+// planning/decisions/2026-08-26_tbd-11-tbd-12-cutoff-numbers-ratified.md,
+// evidence planning/calibration/2026-08-26_context-audit-run-7-numbers-calibration.md §2.
+const TBD_11_ROUTER_TOKEN_CUTOFF = 3000;   // RATIFIED: score-neutral in-sample (no repo's heaviest router in the 3000-4000 band); reference router (2211) below, genuine bloat (8k-22k) above.
+const TBD_11_CHAIN_TOKEN_CUTOFF  = 6000;   // RATIFIED: sits in a clean natural gap in worst-chain tokens (2211 -> [gap] -> 7437).
+const TBD_11_CHAIN_DEPTH_CUTOFF  = 4;      // KEPT, flagged UNDER-DETERMINED: only one corpus obs exceeds it (posthog depth 5); zero obs at depth 3-4, so the corpus cannot distinguish 3/4/5. Revisit only if a deeper corpus lands.
 
 function low(file: string, message: string, evidence: string, discriminator: string): RawFinding {
   return { category: "bloat", file, line: null, message, evidence, discriminator };
@@ -75,7 +77,7 @@ export function scoreBloat(walk: WalkResult, routerEdges: Map<string, Set<string
 
     // per-router size: a single router that is itself large is bloat (a reader
     // must load all of it to orient here).
-    if (tks > TBD_11_ROUTER_TOKEN_CUTOFF) {   // TODO: TBD-11
+    if (tks > TBD_11_ROUTER_TOKEN_CUTOFF) {   // TBD-11 ratified (run-7)
       findings.push(low(r.relPath, "routing file is large; a reader must load it all to orient here", `router_tokens=${tks}`, "router_token_weight"));
       maxRouterTerm = Math.max(maxRouterTerm, Math.min(30, Math.floor((tks - TBD_11_ROUTER_TOKEN_CUTOFF) / 1000) * 5));
     }
@@ -84,12 +86,12 @@ export function scoreBloat(walk: WalkResult, routerEdges: Map<string, Set<string
   // per root->leaf chain: the total a reader pays to follow one routing path.
   const chain = chainMetrics(routers.map((r) => r.relPath), tokensByPath, routerEdges);
   let chainTokenTerm = 0;
-  if (chain.tokens > TBD_11_CHAIN_TOKEN_CUTOFF) {   // TODO: TBD-11
+  if (chain.tokens > TBD_11_CHAIN_TOKEN_CUTOFF) {   // TBD-11 ratified (run-7)
     findings.push(low(routers[0]?.relPath ?? "CLAUDE.md", "one routing chain (root to leaf) is heavy to follow", `chain_tokens=${chain.tokens}`, "routing_chain_weight"));
     chainTokenTerm = Math.min(40, Math.floor((chain.tokens - TBD_11_CHAIN_TOKEN_CUTOFF) / 1000) * 5);
   }
   let chainDepthTerm = 0;
-  if (chain.depth > TBD_11_CHAIN_DEPTH_CUTOFF) {   // TODO: TBD-11
+  if (chain.depth > TBD_11_CHAIN_DEPTH_CUTOFF) {   // TBD-11 depth: kept 4, under-determined (see constant)
     findings.push(low(routers[0]?.relPath ?? "CLAUDE.md", "routing chain is deep (many routers root to leaf)", `chain_depth=${chain.depth}`, "routing_chain_depth"));
     chainDepthTerm = 5;
   }
