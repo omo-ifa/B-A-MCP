@@ -27,7 +27,7 @@ TBD-14 established the accepted classes and closed by **hand-classifying** each 
 
 ### 2.2 This is NOT a `FURNITURE`-style exclusion
 
-`FURNITURE` (readme/license/… and `.github/`) removes a doc from **candidacy entirely** — no candidate, no finding, no denominator seat. The accepted-layout split is different and must stay different: an accepted-layout orphan **remains a candidate, remains a finding, remains in the denominator** — it is only removed from the **scored numerator**. Findings enumerate every unreachable candidate exactly as today (transparency; a reader can still see every accepted-layout doc the tool declined to score as rot). Do **not** implement this by moving classes into `FURNITURE`.
+`FURNITURE` (readme/license/… and `.github/`) removes a doc from **candidacy entirely** — no candidate, no finding, no denominator seat. The accepted-layout split is different and must stay different: an accepted-layout orphan **remains a candidate, remains a finding, remains in the denominator** — it is only removed from the **scored numerator**. Findings enumerate every unreachable candidate exactly as today, and the score is **reconcilable from output**: a reader sees every candidate as a finding (`stats.orphan_count`) **and** can reconstruct the sub-score from the surfaced numerator (`stats.genuine_abandoned_count`, §2.3) as `1 − genuine_abandoned_count / orphanCandidateTotal`. What is **not** in v1 output is the **per-doc attribution** — which specific detector netted each accepted-layout orphan. That is a machine-readable convenience, not a correctness requirement (the counts already reconcile the score), and it is explicitly deferred (§9). Do **not** implement this by moving classes into `FURNITURE`.
 
 ### 2.3 What does NOT change
 
@@ -36,7 +36,11 @@ TBD-14 established the accepted classes and closed by **hand-classifying** each 
 - **`FURNITURE`** and the `.github/` exclusion — unchanged.
 - **The `resolvedRefsFromRoots === 0` guard** (orphans → `null` when routing resolves nothing) — unchanged.
 - **The `orphans` weight in `TBD_10_WEIGHTS`** — still gated under TBD-10; **this design does not set it.** `orphans` re-enters the headline only after this builds and the close-condition re-validation (§6) passes.
-- **`stats.orphan_count`** — stays the count of orphan **findings** (all unreachable candidates), for transparency; the sub-score reads `genuineAbandonedCount` separately.
+- **`stats.orphan_count`** — stays the count of orphan **findings** (every unreachable candidate), for transparency. Unchanged.
+
+And one output field **is added** (so the re-based score is reconstructable from output, not just internal):
+
+- **`stats.genuine_abandoned_count`** (NEW) — the scored numerator: unreachable candidates for which `isAcceptedLayout(doc)` is false. Surfacing it lets any consumer verify **`orphans.score == 1 − stats.genuine_abandoned_count / orphanCandidateTotal`** from the output alone. The two counts are stated explicitly and are different by design: `orphan_count` = every unreachable candidate (the findings population); `genuine_abandoned_count` = the subset scored as rot. `genuine_abandoned_count ≤ orphan_count`, and the gap is exactly the accepted-layout orphans the re-base declines to score.
 
 ## 3. The detectors — `isAcceptedLayout(doc)`
 
@@ -105,7 +109,9 @@ TBD-18 closes when, after the build (TDD detectors + sub-score tests), a **categ
 
 ## 7. Testing approach (for the build loop, not this document)
 
-Unit tests (TDD, `node:test`): one per detector (D1 nested vs. direct-in-routed-dir; D2 SKILL.md ancestor vs. none; D3 each path form; D4a dated-filename, D4b plans/CHANGELOG, and a bare `docs/` doc that must **stay counted**); sub-score tests (an accepted-layout orphan does not move the score; a genuine-abandoned orphan does; `orphanCandidateTotal` and the findings array are unchanged; an all-accepted repo scores ~100). `src/API.md` updates in the same build commit (rule 8 — the `orphans` semantics description changes); the context-budget ledger is unaffected (schema shape unchanged, rule 2).
+Unit tests (TDD, `node:test`): one per detector (D1 nested vs. direct-in-routed-dir; D2 SKILL.md ancestor vs. none; D3 each path form; D4a dated-filename, D4b plans/CHANGELOG, and a bare `docs/` doc that must **stay counted**); sub-score tests (an accepted-layout orphan does not move the score; a genuine-abandoned orphan does; `orphanCandidateTotal` and the findings array are unchanged; an all-accepted repo scores ~100). **Reconstruction test:** `stats.genuine_abandoned_count` is present in the output and satisfies `orphans.score == 1 − stats.genuine_abandoned_count / orphanCandidateTotal` (the score is reconstructable from output).
+
+`src/API.md` updates in the same build commit (rule 8 — the `orphans` semantics description changes **and** the new `stats.genuine_abandoned_count` field is documented). **Rule 2: the context-budget ledger is RE-MEASURED this build** — adding `stats.genuine_abandoned_count` is a **schema addition** (it widens the `tools/list` output schema / `stats` object), so the standing tool-definition cost must be re-measured and the ledger updated in the same commit, not assumed unchanged. (The earlier "ledger unaffected" reading was for a numerator-only change with no new field; surfacing the count changes that.)
 
 ## 8. Out of scope
 
@@ -120,3 +126,4 @@ Unit tests (TDD, `node:test`): one per detector (D1 nested vs. direct-in-routed-
 2. test-harness-fixture detection.
 3. bare-`docs/**` disposition.
 4. If re-validation (§6.2) shows `plans/` or `CHANGELOG/` is loose on-corpus, that segment's disposition.
+5. **Per-doc attribution (v1.1)** — surfacing *which* detector netted each accepted-layout orphan (a per-finding tag), beyond the reconcilable `stats.genuine_abandoned_count`. Deferred as a machine-readable convenience, not a correctness need; it widens the findings schema, so it is its own decision.
