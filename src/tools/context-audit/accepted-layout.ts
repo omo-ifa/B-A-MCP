@@ -43,3 +43,14 @@ export function isSkillDiscovered(relPath: string, skillDirs: Set<string>): bool
   for (const a of ancestorDirs(relPath)) if (skillDirs.has(a)) return true;
   return false;
 }
+
+// D3 — agent-runtime config. Path-recognition is sanctioned for THIS class by the
+// TBD-14 ruling (unlike test fixtures). .claude/commands is hard-skipped by the
+// walk, so it never reaches here; the rest of .claude/** is runtime config.
+export function isAgentRuntimeConfig(relPath: string): boolean {
+  const segs = relPath.split("/");
+  if (segs[0] === ".claude") return true;
+  if (relPath === "WARP.md") return true;
+  if (segs.includes("cursor-hooks")) return true;
+  return false;
+}

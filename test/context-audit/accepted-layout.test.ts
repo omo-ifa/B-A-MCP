@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parentDir, isRouteToDirNested } from "../../src/tools/context-audit/accepted-layout.js";
 import { computeSkillDirs, isSkillDiscovered } from "../../src/tools/context-audit/accepted-layout.js";
+import { isAgentRuntimeConfig } from "../../src/tools/context-audit/accepted-layout.js";
 
 test("parentDir returns the directory portion, empty for root-level", () => {
   assert.equal(parentDir("a/b/c.md"), "a/b");
@@ -25,4 +26,13 @@ test("D2 skill-discovery: a doc under a SKILL.md directory is accepted", () => {
   assert.equal(isSkillDiscovered("skills/foo/reference.md", skillDirs), true);   // sibling of SKILL.md
   assert.equal(isSkillDiscovered("skills/foo/lib/util.md", skillDirs), true);    // nested under the skill dir
   assert.equal(isSkillDiscovered("docs/guide.md", skillDirs), false);            // no skill ancestor
+});
+
+test("D3 agent-runtime config: .claude/**, root WARP.md, cursor-hooks/**", () => {
+  assert.equal(isAgentRuntimeConfig(".claude/agents/foo.md"), true);
+  assert.equal(isAgentRuntimeConfig(".claude/projects/x/AGENT.md"), true);
+  assert.equal(isAgentRuntimeConfig("WARP.md"), true);
+  assert.equal(isAgentRuntimeConfig("cursor-hooks/pre.md"), true);
+  assert.equal(isAgentRuntimeConfig("src/WARP.md"), false);   // WARP.md only at repo root
+  assert.equal(isAgentRuntimeConfig("docs/guide.md"), false);
 });
