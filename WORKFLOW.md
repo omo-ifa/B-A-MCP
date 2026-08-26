@@ -60,6 +60,59 @@ These bindings exist so docs can't drift from code:
 
 ---
 
+## Review-derived checklists
+
+Distilled from the first full task-observer backlog review (2026-08-26; the 20-observation log at `~/.claude/projects/<id>/skill-observations/log.md`). Each rule cites the observation it generalizes. These are project-local applications; the ones marked *(upstream)* also target read-only Superpowers skills and may be proposed there separately.
+
+### Merge verification (Obs 16, **corrected by Obs 20**)
+
+After any merge, confirm the change is actually on the trunk — the "MERGED" badge is not proof (a PR stacked on another PR's branch can land on that feature base, off-trunk — Obs 16). **Match the check to the merge strategy:**
+
+- **Fast-forward / true merge:** `git merge-base --is-ancestor <branch-sha> main` (expect exit 0).
+- **Squash merge:** the branch commits are DISCARDED into one new trunk commit, so `--is-ancestor <branch-sha>` **fails by design** — that is NOT a broken merge. Verify **content on trunk** instead: pull `main`, grep the changed symbols/values, confirm any new files exist, and re-run the suite on `main` so new tests execute there.
+- **Never** check `git merge-base --is-ancestor <post-merge-HEAD> main` — a commit is its own ancestor, so it passes trivially and verifies nothing.
+
+This **supersedes** any ancestry-only phrasing of the merge check. Do not reinstate "verify the branch SHA is an ancestor of main" as a universal rule — it is correct only for fast-forward/true merges.
+
+### Commit & edit: literal text to shell-adjacent tools (Obs 21)
+
+When handing literal text to a tool the shell or a matcher re-interprets, verify it lands literally:
+
+- **`git commit -m`:** backticks trigger command substitution. Use `-F -` with a quoted heredoc (`<<'EOF'`), or `$(cat <<'EOF' … EOF)`; never bare backticks inside `-m "…"`.
+- **Edit / `str_replace`:** an `old_string` whose whitespace or line-wrapping does not match the file byte-for-byte is a silent no-op. Match exact indentation/wrapping and confirm the tool reported a change.
+- **A state/status tag written for a later matcher** (e.g. a `**Status:**` line a grep keys on): write the exact literal form the matcher expects, then read it back.
+
+### Plan & test authoring (Obs 1, 2, 6, 9, 15, 18) *(upstream: writing-plans / TDD)*
+
+- A task's **verification command silently defines its scope.** A file-wide `grep`/count over a single-region edit is a contradiction — scope the check to the edited region, or enumerate every region the invariant touches (Obs 1).
+- Specify tests by **intent + a required-coverage checklist** (the highest-risk behavior each task must assert), not verbatim source — verbatim freezes the author's bugs and coverage blind spots behind a "use as-is" shield (Obs 2, 6).
+- A fixture must make the **varying parameter actually vary** (a nested case where resolution bases differ, not only a root case where they collapse) (Obs 9).
+- For any **transform-then-adjudicate** step (strip/normalize/canonicalize), add a discriminating input where the mechanism and its absence give different outputs — else a green bar certifies the outcome while the mandated mechanism is absent (Obs 15).
+- When a change **removes/reshapes one contributor** to an aggregate, hand-trace which term satisfies each nearby test; a guard can pass on the soon-removed path, and a `floor()`-quantized fixture must clear a full step or the term under test is silently 0 (Obs 18).
+
+### Calibration & measurement (Obs 7, 8, 11, 12, 14, 17, 19) — the `planning/calibration/` pattern
+
+- **Structural pre-flight** before calibrating: verify the metric's core input assumption holds in the sample (a cheap grep) before any threshold run (Obs 7).
+- **Pin the corpus** and record the pins; change one variable per run; an unmoved control is itself a result (Obs 12).
+- **Verify a hoped-for positive on ground truth** before it enters a table — sample positives against the filesystem/source, report the verified fraction, never the raw count (Obs 11).
+- **Localize an aggregate rate** by source before blaming a mechanism — inspect the largest cluster first (Obs 8).
+- **Multiset (Counter) diff, not set diff**, when attributing a count delta for a tool that emits duplicates; reconcile the multiset total against the tool's own reported count (Obs 14).
+- **Cross-foot every headline total/delta** against its itemized breakdown, computed not eyeballed; carry a machine-printed total (Obs 17).
+- **Instrumentation fidelity:** any harness reproducing scorer internals must re-derive a shipped output and assert equality with the production entrypoint before its raw numbers are trusted (Obs 19).
+
+### Code review (Obs 5)
+
+- Flag any module that **re-implements a scope/traversal/filter another module owns** — each copy passes its own tests while the pair produces an inconsistent combined result. Prefer one shared predicate; if duplication is deliberate, cross-reference both sides and add a boundary test (Obs 5).
+
+### Deferrals & trackers (Obs 3, 4, 10, 13) — already standing practice, restated
+
+- A **"defer, a tool catches it later"** rationale is valid only if that tool's scope actually includes the item — name the specific behavior that flags it, else give it an owner/schedule (Obs 3).
+- **Exit criteria are entry criteria** — run a build prompt's acceptance checks as an entry gate; if they already pass on the base, report done rather than manufacturing a diff (Obs 4).
+- A **false-positive-dominated heuristic is usually a definition problem**, not a missing filter — tighten the definition and write it AS the definition (Obs 10).
+- **Trackers point at a stub's location (file + symbol), not a copied value** — read the value from source before quoting; a copied value drifts and manufactures phantom bugs (Obs 13).
+
+---
+
 ## Release
 
 - Free tier publishes to npm on a **semver tag**. Nothing deploys to a server.
