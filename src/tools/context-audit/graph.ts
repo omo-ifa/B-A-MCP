@@ -52,6 +52,7 @@ function isUnanchoredInSubtree(docs: WalkedDoc[], routerRelPath: string, rawTarg
 export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
   const findings: RawFinding[] = [];
   const routedDirs = new Set<string>();
+  const dirTargetsBySrc = new Map<string, Set<string>>();   // source doc relPath -> directory TARGETS it routed (reachability basis; NOT coverage)
   const docByPath = new Map<string, WalkedDoc>(walkRes.docs.map((d) => [d.relPath, d]));
   const edges = new Map<string, Set<string>>();   // doc -> doc edges (in-scope targets only)
   let refsFromRoots = 0;
@@ -72,7 +73,10 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
       try { isDir = statSync(targetAbs).isDirectory(); } catch { isDir = false; }
       if (isDir) {
         const d = targetPath.replace(/\/$/, "");
-        routedDirs.add(d === "." ? "" : d);                 // directory target: the dir itself (normalize "." -> "")
+        const norm = d === "." ? "" : d;
+        routedDirs.add(norm);                               // directory target: the dir itself (normalize "." -> "")
+        if (!dirTargetsBySrc.has(srcRel)) dirTargetsBySrc.set(srcRel, new Set());
+        dirTargetsBySrc.get(srcRel)!.add(norm);             // AND record it under the doc that routed it (root-restricted propagation basis)
       } else {
         const parent = targetPath.includes("/") ? targetPath.slice(0, targetPath.lastIndexOf("/")) : "";
         routedDirs.add(parent);                              // non-doc file target: its parent dir
@@ -168,13 +172,34 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
     }
   }
 
+  // index of in-scope documents by their parent directory (directory-only
+  // propagation basis; reads only the already-walked doc set, no new traversal)
+  const docsByParentDir = new Map<string, string[]>();
+  for (const d of walkRes.docs) {
+    if (d.content === null) continue;
+    const parent = d.relPath.includes("/") ? d.relPath.slice(0, d.relPath.lastIndexOf("/")) : "";
+    let arr = docsByParentDir.get(parent);
+    if (!arr) { arr = []; docsByParentDir.set(parent, arr); }
+    arr.push(d.relPath);
+  }
+
   // reachability DFS from every root doc
   const roots = walkRes.docs.filter((d) => d.isRoot).map((d) => d.relPath);
   const reached = new Set<string>(roots);
   const stack = [...roots];
   while (stack.length) {
     const cur = stack.pop()!;
+    // document edges (unchanged)
     for (const nxt of edges.get(cur) ?? []) if (!reached.has(nxt)) { reached.add(nxt); stack.push(nxt); }
+    // directory-target edges (design 2026-08-25 §3.1–§3.2, root-restricted by
+    // construction: only a REACHED `cur` reaches this line). A directory routed
+    // by cur makes the documents DIRECTLY inside it reachable — DIRECTORY-ONLY
+    // depth: a doc in a SUBDIRECTORY is not reached (the visible-FP-never-silent-
+    // FN boundary). Pushing them means a doc reached via a directory route can
+    // in turn propagate its own directory routes (naturally transitive).
+    for (const d of dirTargetsBySrc.get(cur) ?? []) {
+      for (const doc of docsByParentDir.get(d) ?? []) if (!reached.has(doc)) { reached.add(doc); stack.push(doc); }
+    }
   }
 
   const underRoutedDir = (relPath: string): boolean => {

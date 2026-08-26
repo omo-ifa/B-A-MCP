@@ -440,3 +440,83 @@ test("T5b a bare-filename backtick in a router is not drift (design §3.5 shape 
     assert.equal(c.routing_path_missing, undefined);   // bare filename, no path segment
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("T-dir-1 dir-granularity: a doc directly in a routed DIRECTORY is reachable, not an orphan", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-dg1-"));
+  try {
+    mkdirSync(join(dir, "workspace"), { recursive: true });
+    // Router routes to a DIRECTORY (trailing slash), not a document.
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `workspace/`\n");
+    // A document sitting DIRECTLY inside the routed directory.
+    writeFileSync(join(dir, "workspace", "NOTES.md"), "a doc directly under the routed dir\n");
+    const c = cats(dir);
+    assert.equal(c.orphan, undefined);   // reachable via the directory route (was an orphan before)
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T-dir-2 dir-granularity is DIRECTORY-ONLY: a doc in a SUBDIRECTORY of a routed dir stays an orphan", () => {
+  // Pins the depth choice (§3.2). A full-subtree implementation would reach
+  // BURIED.md and make this assert 0 — the masked-rot direction the design refused.
+  const dir = mkdtempSync(join(tmpdir(), "ca-dg2-"));
+  try {
+    mkdirSync(join(dir, "workspace", "deep"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `workspace/`\n");
+    writeFileSync(join(dir, "workspace", "NOTES.md"), "direct child — reachable\n");
+    writeFileSync(join(dir, "workspace", "deep", "BURIED.md"), "one level down — not reached by a directory-only route\n");
+    const c = cats(dir);
+    assert.equal(c.orphan, 1);   // only workspace/deep/BURIED.md; NOTES.md is reachable
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T-dir-3 only directory TARGETS propagate: a routed DOCUMENT does not rescue its siblings", () => {
+  // Trap detector for the directory-target-vs-routedDirs distinction (§3.1).
+  // `src/CONTEXT.md` is a DOCUMENT target — it records `src` into routedDirs for
+  // coverage, but must NOT make src/orphan.md reachable. Green before AND after.
+  const dir = mkdtempSync(join(tmpdir(), "ca-dg3-"));
+  try {
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src/CONTEXT.md`\n");
+    writeFileSync(join(dir, "src", "CONTEXT.md"), "the routed document\n");
+    writeFileSync(join(dir, "src", "orphan.md"), "sibling of the routed doc, never linked\n");
+    const c = cats(dir);
+    assert.equal(c.orphan, 1);   // src/orphan.md stays an orphan — a document route is not a directory route
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T-dir-4 ROOT-RESTRICTED: a directory link from an UNREACHED non-root doc does NOT rescue that dir's docs", () => {
+  // The trap detector for the root-restriction ruling
+  // (planning/decisions/2026-08-25_tbd-14-root-restricted-dir-propagation.md).
+  // stray.md is a non-root doc that never gets reached (nothing links to it) and
+  // markdown-links to directory `data/`. Under FLAT propagation, data/buried.md
+  // would be rescued (silent false negative). Under root-restriction it stays an
+  // orphan, because stray.md is not reachable. Green before AND after — it bites
+  // only a flat implementation (verified by counterfactual at review).
+  const dir = mkdtempSync(join(tmpdir(), "ca-dg4-"));
+  try {
+    mkdirSync(join(dir, "src"), { recursive: true });
+    mkdirSync(join(dir, "data"), { recursive: true });
+    // A root routing basis (so orphan enumeration runs) that reaches src/CONTEXT.md only.
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src/CONTEXT.md`\n");
+    writeFileSync(join(dir, "src", "CONTEXT.md"), "reached; no directory links\n");
+    // An UNREACHED non-root doc whose markdown link points at a bare directory.
+    writeFileSync(join(dir, "stray.md"), "unreached doc pointing at [d](data/)\n");
+    writeFileSync(join(dir, "data", "buried.md"), "under a dir routed only by an unreached doc\n");
+    const c = cats(dir);
+    assert.equal(c.orphan, 1);   // data/buried.md only; stray.md sits under no routed dir, so it is not even a candidate
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T-dir-5 ROOT-RESTRICTED is REACHED-based, not root-only: a REACHED non-root doc's dir link DOES propagate", () => {
+  // The positive half of the ruling: propagation follows any reached document,
+  // not only routers. root -> notes.md (a non-root doc edge) reaches notes.md;
+  // notes.md's markdown link to `pkg/` then propagates to pkg/leaf.md.
+  const dir = mkdtempSync(join(tmpdir(), "ca-dg5-"));
+  try {
+    mkdirSync(join(dir, "pkg"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `notes.md`\n");           // reaches notes.md (non-root doc)
+    writeFileSync(join(dir, "notes.md"), "reached non-root doc, routes [p](pkg/)\n");  // dir link from a reached doc
+    writeFileSync(join(dir, "pkg", "leaf.md"), "directly under a dir routed by a reached doc\n");
+    const c = cats(dir);
+    assert.equal(c.orphan, undefined);   // pkg/leaf.md reachable via the reached notes.md's directory route
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
