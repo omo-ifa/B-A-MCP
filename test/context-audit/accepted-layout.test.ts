@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parentDir, isRouteToDirNested } from "../../src/tools/context-audit/accepted-layout.js";
+import { computeSkillDirs, isSkillDiscovered } from "../../src/tools/context-audit/accepted-layout.js";
 
 test("parentDir returns the directory portion, empty for root-level", () => {
   assert.equal(parentDir("a/b/c.md"), "a/b");
@@ -15,4 +16,13 @@ test("D1 route-to-dir-nested: nested under a routed dir is accepted; direct chil
   assert.equal(isRouteToDirNested("src/direct.md", routedDirs), false);
   // outside any routed dir -> not nested
   assert.equal(isRouteToDirNested("other/x.md", routedDirs), false);
+});
+
+test("D2 skill-discovery: a doc under a SKILL.md directory is accepted", () => {
+  const docs = ["skills/foo/SKILL.md", "skills/foo/reference.md", "skills/foo/lib/util.md", "docs/guide.md"];
+  const skillDirs = computeSkillDirs(docs);
+  assert.deepEqual([...skillDirs].sort(), ["skills/foo"]);        // parent of the SKILL.md
+  assert.equal(isSkillDiscovered("skills/foo/reference.md", skillDirs), true);   // sibling of SKILL.md
+  assert.equal(isSkillDiscovered("skills/foo/lib/util.md", skillDirs), true);    // nested under the skill dir
+  assert.equal(isSkillDiscovered("docs/guide.md", skillDirs), false);            // no skill ancestor
 });

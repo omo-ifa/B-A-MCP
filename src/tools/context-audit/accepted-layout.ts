@@ -27,3 +27,19 @@ export function isRouteToDirNested(relPath: string, routedDirs: Set<string>): bo
   for (const a of ancestorDirs(relPath)) if (a !== parent && routedDirs.has(a)) return true;
   return false;
 }
+
+// D2 — skill-discovery. Build the set of directories that directly contain a
+// SKILL.md; a doc is skill-discovered if any ancestor directory is such a dir.
+// Reuses ancestorDirs (Task 1) — immediate parent first, up to "" (root).
+export function computeSkillDirs(docRelPaths: string[]): Set<string> {
+  const s = new Set<string>();
+  for (const p of docRelPaths) {
+    if (p.split("/").pop()!.toLowerCase() === "skill.md") s.add(parentDir(p));
+  }
+  return s;
+}
+
+export function isSkillDiscovered(relPath: string, skillDirs: Set<string>): boolean {
+  for (const a of ancestorDirs(relPath)) if (skillDirs.has(a)) return true;
+  return false;
+}
