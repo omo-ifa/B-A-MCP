@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { parentDir, isRouteToDirNested } from "../../src/tools/context-audit/accepted-layout.js";
 import { computeSkillDirs, isSkillDiscovered } from "../../src/tools/context-audit/accepted-layout.js";
 import { isAgentRuntimeConfig } from "../../src/tools/context-audit/accepted-layout.js";
+import { isTightDatedArchival } from "../../src/tools/context-audit/accepted-layout.js";
 
 test("parentDir returns the directory portion, empty for root-level", () => {
   assert.equal(parentDir("a/b/c.md"), "a/b");
@@ -35,4 +36,17 @@ test("D3 agent-runtime config: .claude/**, root WARP.md, cursor-hooks/**", () =>
   assert.equal(isAgentRuntimeConfig("cursor-hooks/pre.md"), true);
   assert.equal(isAgentRuntimeConfig("src/WARP.md"), false);   // WARP.md only at repo root
   assert.equal(isAgentRuntimeConfig("docs/guide.md"), false);
+});
+
+test("D4 tight dated-archival: dated filename, plans/, CHANGELOG/ — but NOT bare docs/", () => {
+  // D4a — dated filename (structural)
+  assert.equal(isTightDatedArchival("posts/published-2014-12-19-hello.md"), true);
+  assert.equal(isTightDatedArchival("x/plans/2026-08-25-thing.md"), true);
+  // D4b — plans/ and CHANGELOG/ directory segments (convention)
+  assert.equal(isTightDatedArchival("skills/foo/plans/old.md"), true);
+  assert.equal(isTightDatedArchival("CHANGELOG/2020.md"), true);
+  // NOT netted: bare docs/ (spec gap — stays counted)
+  assert.equal(isTightDatedArchival("docs/architecture.md"), false);
+  // NOT netted: a file literally named plans.md (not a plans/ directory)
+  assert.equal(isTightDatedArchival("plans.md"), false);
 });

@@ -54,3 +54,17 @@ export function isAgentRuntimeConfig(relPath: string): boolean {
   if (segs.includes("cursor-hooks")) return true;
   return false;
 }
+
+const DATED_FILENAME = /\d{4}-\d{2}-\d{2}/;   // D4a: a full ISO-ish date anywhere in the path
+
+// D4 — tight dated-archival. D4a (dated filename) is structurally tight. D4b
+// (plans/ or CHANGELOG/ DIRECTORY segment) is convention tight — the close-
+// condition re-validation checks D4b nets individually (spec §6.2). Bare docs/**
+// is deliberately NOT netted (spec §4 gap).
+export function isTightDatedArchival(relPath: string): boolean {
+  if (DATED_FILENAME.test(relPath)) return true;                       // D4a
+  const dirSegs = relPath.split("/").slice(0, -1);                     // directory segments only (exclude the filename)
+  if (dirSegs.includes("plans")) return true;                         // D4b
+  if (dirSegs.includes("CHANGELOG")) return true;                     // D4b
+  return false;
+}
