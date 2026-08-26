@@ -71,3 +71,60 @@ test("chain metric is cycle-safe: two routers referencing each other do not loop
   ]));
   assert.ok(res.subscore !== null && res.subscore >= 0 && res.subscore <= 100);   // terminates, valid score
 });
+
+// ---- TBD-11 worst-case-chain aggregation (2026-08-26 ruling) ----
+
+test("count-invariance: many small healthy routers do NOT drive the score down (the caveman defect)", () => {
+  // 20 disconnected routers, each 300 tokens of prose, none over any cutoff.
+  // Old flat-sum + inline_ratio penalized each (+10) → floor 0. Worst-case aggregation
+  // scores the worst ONE path, which here is a single 300-token router → near 100.
+  const docs = Array.from({ length: 20 }, (_, i) => ({
+    relPath: `pkg${i}/CONTEXT.md`,
+    content: "p".repeat(1200),   // 300 tokens, no links
+    isRoot: true,
+  }));
+  const res = scoreBloat(wr(docs));
+  assert.equal(res.n, 20);
+  assert.ok(res.subscore !== null && res.subscore >= 90, `count must not drive the score; got ${res.subscore}`);
+});
+
+test("count-invariance: adding extra small routers leaves the subscore unchanged", () => {
+  const one = scoreBloat(wr([{ relPath: "CLAUDE.md", content: "q".repeat(1200), isRoot: true }]));
+  const many = scoreBloat(wr([
+    { relPath: "CLAUDE.md", content: "q".repeat(1200), isRoot: true },
+    { relPath: "a/CONTEXT.md", content: "q".repeat(1200), isRoot: true },
+    { relPath: "b/CONTEXT.md", content: "q".repeat(1200), isRoot: true },
+    { relPath: "c/CONTEXT.md", content: "q".repeat(1200), isRoot: true },
+  ]));
+  assert.equal(many.subscore, one.subscore);
+});
+
+test("inline_ratio is removed: a large mostly-prose router emits NO inline_ratio finding", () => {
+  // 5000-token prose router: old code emitted an inline_ratio finding (ratio 1.0, > min tokens).
+  // The metric is dropped entirely; only the size term (router_token_weight) survives.
+  const res = scoreBloat(wr([{ relPath: "CLAUDE.md", content: "z".repeat(20000), isRoot: true }]));
+  assert.ok(res.findings.every((f) => f.discriminator !== "inline_ratio"), "inline_ratio finding must not be emitted");
+  assert.ok(res.findings.some((f) => f.discriminator === "router_token_weight"), "the size term still fires");
+});
+
+test("token terms MAX-combine, not SUM: a lone router that IS its own heavy chain is not double-counted", () => {
+  // One 9000-token router. It is over the per-router cutoff AND its 1-hop chain is over the
+  // chain cutoff — the SAME tokens. Old code summed router_term(30)+chain_term(15)=45 → 55.
+  // Worst-case takes max(30,15)=30 → 70. (Depends on current stub cutoffs, like the tests above.)
+  const res = scoreBloat(wr([{ relPath: "CLAUDE.md", content: "w".repeat(36000), isRoot: true }]));
+  assert.equal(res.subscore, 70);
+});
+
+test("mid-chain giant still penalized (why worst-case keeps the per-router term, not per-chain-only)", () => {
+  // Chain total (4600) stays under the chain cutoff, but one router (4500) is over the per-router
+  // cutoff. Per-chain-only would go silent here; worst-case's single-router term catches it.
+  const res = scoreBloat(wr([
+    { relPath: "CLAUDE.md", content: "a".repeat(18000), isRoot: true },   // 4500 tokens (meaningfully over the 3000 cutoff)
+    { relPath: "a/CONTEXT.md", content: "b".repeat(400), isRoot: true },  // 100 tokens
+  ]), new Map([["CLAUDE.md", new Set(["a/CONTEXT.md"])]]));
+  assert.equal(res.findings.filter((f) => f.discriminator === "routing_chain_weight").length, 0, "chain total is under cutoff");
+  assert.ok(res.findings.some((f) => f.discriminator === "router_token_weight"), "the oversized mid-chain router is still flagged");
+  // penalty = max(chainTokenTerm=0, maxRouterTerm=min(30, floor(1500/1000)*5)=5) + depth(0) = 5.
+  // Exact value pins the single-router term's contribution — a regression to per-chain-only would score 100.
+  assert.equal(res.subscore, 95);
+});
