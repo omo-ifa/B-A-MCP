@@ -68,8 +68,8 @@ const TBD_10_WEIGHTS: Partial<Record<keyof Subscores, number>> = {
 const ROUTING_LAYER_KEYS: (keyof Subscores)[] = ["routing_drift", "coverage"];
 
 export function headlineScore(subscores: Subscores): number | null {
-  // A routing-HEALTH composite must rest on at least one real routing-layer
-  // measurement. If none of routing_drift/coverage/orphans was assessed (e.g. a
+  // A routing-HEALTH composite must rest on at least one real WEIGHTED routing-layer
+  // measurement. If none of routing_drift/coverage was assessed (e.g. a
   // repo with no routing root, or routers that resolve nothing), the only
   // survivor is the hygiene sub-score (bloat) — reporting a confident
   // "health" number off those alone is exactly the fabricated-100 failure this
