@@ -1,18 +1,21 @@
 import { countTokens } from "./tokens.js";
-import { extractLinks } from "./links.js";
 import type { RawFinding } from "./types.js";
 import type { WalkResult } from "./walk.js";
 
 export interface BloatResult { subscore: number | null; n: number; routingTokens: number; findings: RawFinding[]; }
 
-// TODO: TBD-11 — SHAPE resolved (bloat is per-router + per root->leaf chain, NOT a
-// flat total across all routers — decision 2026-08-20_tbd-11-bloat-per-router-not-total.md).
-// The cutoff NUMBERS below are still unresolved placeholders. char-approx-v1 tokens.
+// TODO: TBD-11 — SHAPE resolved. Bloat is the cost to orient on ONE path, not how many
+// routers a repo has:
+//  - per-router + per root->leaf chain metric (2026-08-20_tbd-11-bloat-per-router-not-total.md).
+//  - WORST-CASE aggregation, never a flat sum over routers, so router COUNT cannot drive the
+//    score (2026-08-26_tbd-11-bloat-worst-case-aggregation.md). The two TOKEN terms MAX-combine
+//    (the heaviest router usually sits on the worst chain — summing double-counts); DEPTH is a
+//    separate axis (hops, not tokens) and ADDS. inline_ratio was dropped there (broken by
+//    construction — "mostly prose + a few paths" describes what a router IS).
+// The cutoff NUMBERS below are still unresolved placeholders (data-blocked). char-approx-v1 tokens.
 const TBD_11_ROUTER_TOKEN_CUTOFF = 3000;   // a single router heavier than this = load cost to orient here
 const TBD_11_CHAIN_TOKEN_CUTOFF  = 6000;   // total tokens along one root->leaf routing chain above this = heavy chain
 const TBD_11_CHAIN_DEPTH_CUTOFF  = 4;      // a routing chain longer than this many routers = deep chain
-const TBD_11_INLINE_RATIO_CUTOFF = 0.85;   // fraction of non-link chars above this = inlining
-const TBD_11_INLINE_MIN_TOKENS   = 200;    // inline-ratio check only fires if tokens exceed this
 
 function low(file: string, message: string, evidence: string, discriminator: string): RawFinding {
   return { category: "bloat", file, line: null, message, evidence, discriminator };
@@ -56,9 +59,13 @@ export function scoreBloat(walk: WalkResult, routerEdges: Map<string, Set<string
   const routers = walk.docs.filter((d) => d.isRoot && d.content !== null);
   const n = routers.length;
   const findings: RawFinding[] = [];
-  let routingTokens = 0;   // flat total is reported (stats.routing_tokens) but no longer the penalty basis
-  let penalty = 0;
+  let routingTokens = 0;   // flat total is reported (stats.routing_tokens) but is NOT the penalty basis
   const tokensByPath = new Map<string, number>();
+
+  // Per-router size penalty is taken WORST-CASE over routers (max), never summed — adding more
+  // routers must not lower the score. Every breaching router still emits a finding (transparency;
+  // visible FP > silent FN), but only the heaviest one contributes to the sub-score.
+  let maxRouterTerm = 0;
 
   for (const r of routers) {
     const content = r.content as string;
@@ -70,28 +77,29 @@ export function scoreBloat(walk: WalkResult, routerEdges: Map<string, Set<string
     // must load all of it to orient here).
     if (tks > TBD_11_ROUTER_TOKEN_CUTOFF) {   // TODO: TBD-11
       findings.push(low(r.relPath, "routing file is large; a reader must load it all to orient here", `router_tokens=${tks}`, "router_token_weight"));
-      penalty += Math.min(30, Math.floor((tks - TBD_11_ROUTER_TOKEN_CUTOFF) / 1000) * 5);
-    }
-
-    // inline-ratio: mostly prose/tables rather than routing content out.
-    const linkChars = extractLinks(content).reduce((a, l) => a + l.targetRaw.length, 0);
-    const ratio = content.length === 0 ? 0 : 1 - Math.min(1, linkChars / content.length);
-    if (ratio > TBD_11_INLINE_RATIO_CUTOFF && tks > TBD_11_INLINE_MIN_TOKENS) {
-      findings.push(low(r.relPath, "routing file is mostly prose/tables; consider routing content out", `inline_ratio=${ratio.toFixed(2)}`, "inline_ratio"));
-      penalty += 10;
+      maxRouterTerm = Math.max(maxRouterTerm, Math.min(30, Math.floor((tks - TBD_11_ROUTER_TOKEN_CUTOFF) / 1000) * 5));
     }
   }
 
   // per root->leaf chain: the total a reader pays to follow one routing path.
   const chain = chainMetrics(routers.map((r) => r.relPath), tokensByPath, routerEdges);
+  let chainTokenTerm = 0;
   if (chain.tokens > TBD_11_CHAIN_TOKEN_CUTOFF) {   // TODO: TBD-11
     findings.push(low(routers[0]?.relPath ?? "CLAUDE.md", "one routing chain (root to leaf) is heavy to follow", `chain_tokens=${chain.tokens}`, "routing_chain_weight"));
-    penalty += Math.min(40, Math.floor((chain.tokens - TBD_11_CHAIN_TOKEN_CUTOFF) / 1000) * 5);
+    chainTokenTerm = Math.min(40, Math.floor((chain.tokens - TBD_11_CHAIN_TOKEN_CUTOFF) / 1000) * 5);
   }
+  let chainDepthTerm = 0;
   if (chain.depth > TBD_11_CHAIN_DEPTH_CUTOFF) {   // TODO: TBD-11
     findings.push(low(routers[0]?.relPath ?? "CLAUDE.md", "routing chain is deep (many routers root to leaf)", `chain_depth=${chain.depth}`, "routing_chain_depth"));
-    penalty += 5;
+    chainDepthTerm = 5;
   }
+
+  // Worst-case aggregation (2026-08-26 ruling): the chain-token term and the single-router-token
+  // term describe the SAME worst path, so they MAX-combine (summing double-counts the heaviest
+  // router, which usually sits on the worst chain). DEPTH is a separate axis (files to open, not
+  // tokens) and ADDS on top. The single-router term only tops up when a lone router's own weight
+  // exceeds what the chain already captured (the mid-chain-giant case).
+  const penalty = Math.max(chainTokenTerm, maxRouterTerm) + chainDepthTerm;
 
   // n === 0: no routing docs measured — not assessed, never a fabricated number.
   const subscore = n === 0 ? null : Math.max(0, 100 - penalty);
