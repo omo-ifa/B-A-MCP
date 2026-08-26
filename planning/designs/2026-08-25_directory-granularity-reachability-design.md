@@ -74,6 +74,7 @@ Accepted layout classes the design expects in the residue, so re-validation anti
 - **Any threshold, weight, or precision number.** `TBD_10_WEIGHTS` / `ROUTING_LAYER_KEYS` are not touched. TBD-10/11/12 numbers stay deferred.
 - **Changing candidate determination (`underRoutedDir`), `routedDirs` population, or promoting unanchored references to edges.** Unchanged.
 - **The two standing invariants remain:** never follow a symlink, never read above root (`2026-08-20_backtick-routing-edges-and-orphans-guard.md`). Directory-only propagation reads only the already-walked in-scope document set; it introduces no new traversal.
+- **A repo-root directory route (a router routing to `.`/`./`) is a consistent edge, not a special case.** The directory target normalises to `""`, so directory-only propagation marks the repo's **top-level** documents reachable — parallel to how `underRoutedDir` already treats `""`. It stays on the visible-false-positive-safe side (it reaches only direct top-level docs, never a subtree) and needs no special handling; noted so the record is complete.
 
 ## 4. Decisions
 
