@@ -116,7 +116,7 @@ test("token terms MAX-combine, not SUM: a lone router that IS its own heavy chai
 });
 
 test("mid-chain giant still penalized (why worst-case keeps the per-router term, not per-chain-only)", () => {
-  // Chain total (3600) stays under the chain cutoff, but one router (3500) is over the per-router
+  // Chain total (4600) stays under the chain cutoff, but one router (4500) is over the per-router
   // cutoff. Per-chain-only would go silent here; worst-case's single-router term catches it.
   const res = scoreBloat(wr([
     { relPath: "CLAUDE.md", content: "a".repeat(18000), isRoot: true },   // 4500 tokens (meaningfully over the 3000 cutoff)
@@ -124,5 +124,7 @@ test("mid-chain giant still penalized (why worst-case keeps the per-router term,
   ]), new Map([["CLAUDE.md", new Set(["a/CONTEXT.md"])]]));
   assert.equal(res.findings.filter((f) => f.discriminator === "routing_chain_weight").length, 0, "chain total is under cutoff");
   assert.ok(res.findings.some((f) => f.discriminator === "router_token_weight"), "the oversized mid-chain router is still flagged");
-  assert.ok(res.subscore !== null && res.subscore < 100, "and it lowers the score");
+  // penalty = max(chainTokenTerm=0, maxRouterTerm=min(30, floor(1500/1000)*5)=5) + depth(0) = 5.
+  // Exact value pins the single-router term's contribution — a regression to per-chain-only would score 100.
+  assert.equal(res.subscore, 95);
 });
