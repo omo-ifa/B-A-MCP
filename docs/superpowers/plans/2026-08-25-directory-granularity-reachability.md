@@ -4,7 +4,7 @@
 
 **Goal:** Stop `orphans` scoring the legitimate route-to-directory convention as a broken graph — a document directly contained in a routed **directory** becomes reachable.
 
-**Architecture:** Reachability is a DFS over document→document edges seeded from router docs; a resolved edge whose target is a **directory** creates no edge, so documents under it orphan. This plan adds a distinct `routedDirTargets` set (populated only when a resolved edge's target is itself a directory) and, after the DFS, marks reachable every in-scope document **directly contained** in one of those directories — **directory-only** depth. Nothing else moves.
+**Architecture:** Reachability is a DFS over document→document edges seeded from router docs; a resolved edge whose target is a **directory** creates no edge, so documents under it orphan. This plan records directory targets **per source document** (populated only when a resolved edge's target is itself a directory) and **folds propagation into the reachability DFS** so a reached document also marks reachable every in-scope document **directly contained** in a directory it routed — **directory-only** depth, **root-restricted** (only reached docs propagate). Nothing else moves.
 
 **Tech Stack:** TypeScript ESM (`NodeNext`), `node:test` + `node:assert/strict`, no runtime dependencies added.
 
@@ -15,7 +15,8 @@
 Every task's requirements implicitly include this section — values copied from the spec.
 
 - **Propagation depth is DIRECTORY-ONLY.** A document in a **subdirectory** of a routed directory is **not** reached (§3.2). Immediate-children and full-subtree are rejected — full-subtree is the masked-rot / silent-false-negative class the whole chain refuses.
-- **Propagation basis is directory TARGETS only — a new `routedDirTargets` set, NOT `routedDirs`.** `routedDirs` also holds parent-dirs recorded for *document* and non-doc-file targets; propagating from it would let a routed document rescue its siblings and break existing orphan behavior (§3.1).
+- **Propagation basis is directory TARGETS only — recorded per source document, NOT `routedDirs`.** `routedDirs` also holds parent-dirs recorded for *document* and non-doc-file targets; propagating from it would let a routed document rescue its siblings and break existing orphan behavior (§3.1).
+- **Propagation is ROOT-RESTRICTED — it originates only from a REACHED document** (`planning/decisions/2026-08-25_tbd-14-root-restricted-dir-propagation.md`). `recordResolvedTarget` fires from the backtick branch (routers) AND the markdown branch (any doc), so an unrestricted rule would let an abandoned non-root doc's directory link mark that directory's docs reachable — a silent false negative. Propagation is folded **into** the reachability DFS so a document's directory targets are followed exactly when that document is reached — uniform with document-edge reachability (only reached nodes propagate), and naturally transitive.
 - **`coverage` is NOT touched.** `routedDirs` (which `coverage` reads) is unchanged; the new set is additive. `underRoutedDir` (the candidate/subtree test) is unchanged.
 - **`orphans` stays OUT of TBD-10 weighting** until this lands **and** re-validates. No weight is set or touched. `TBD_10_WEIGHTS` / `ROUTING_LAYER_KEYS` are **not** edited. No threshold or precision number anywhere.
 - **Two hard invariants preserved:** never follow a symlink, never read above root. Propagation reads only the already-walked in-scope document set — no new traversal.
@@ -29,9 +30,9 @@ Every task's requirements implicitly include this section — values copied from
 
 | File | Responsibility | Change |
 |---|---|---|
-| `src/tools/context-audit/graph.ts` | edge resolution, reachability, orphan accounting | Modify — add `routedDirTargets`; populate it in the directory-target branch; propagate reachability directory-only |
+| `src/tools/context-audit/graph.ts` | edge resolution, reachability, orphan accounting | Modify — record directory targets per source doc; fold directory-only, root-restricted propagation into the reachability DFS |
 | `src/API.md` | MCP surface contract | Modify — one sentence in the `orphans` description |
-| `test/context-audit/graph.test.ts` | graph-level behaviour tests | Modify — +3 |
+| `test/context-audit/graph.test.ts` | graph-level behaviour tests | Modify — +5 |
 
 No new files. `score.ts`, `coverage.ts`, `index.ts`, `links.ts`, `walk.ts`, `types.ts` are **not** modified.
 
@@ -59,16 +60,16 @@ git checkout -b feat/tbd-14-dir-granularity-reachability
 
 ### Task 1: Directory-only reachability propagation
 
-Design §3.1–§3.2. One coherent deliverable: the `routedDirTargets` set, the propagation loop, and the `src/API.md` sentence describing it.
+Design §3.1–§3.2 (as amended for root-restriction). One coherent deliverable: the per-source `dirTargetsBySrc` record, the DFS-folded propagation, and the `src/API.md` sentence describing it.
 
 **Files:**
-- Modify: `src/tools/context-audit/graph.ts` — declare `routedDirTargets`; add it in `recordResolvedTarget`'s directory branch; add the propagation loop after the reachability DFS.
+- Modify: `src/tools/context-audit/graph.ts` — declare `dirTargetsBySrc`; record targets per source in `recordResolvedTarget`'s directory branch; precompute `docsByParentDir`; fold directory propagation into the reachability DFS.
 - Modify: `src/API.md` — the `orphans` sentence in the `subscores` description.
 - Test: `test/context-audit/graph.test.ts`.
 
 **Interfaces:**
 - Consumes: `WalkedDoc { relPath; absPath; content; isRoot }`, `routedDirs`, `reached`, `resolvedRefsFromRoots` — all already present in `buildGraph`.
-- Produces: no new exported symbol. `routedDirTargets` is module-local to `buildGraph`. Observable behaviour: `orphanCount` and the `orphan` findings shrink by the documents directly contained in directory-target directories.
+- Produces: no new exported symbol. `dirTargetsBySrc` / `docsByParentDir` are module-local to `buildGraph`. Observable behaviour: `orphanCount` and the `orphan` findings shrink by the documents directly contained in directories routed by a reached document.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -103,7 +104,7 @@ test("T-dir-2 dir-granularity is DIRECTORY-ONLY: a doc in a SUBDIRECTORY of a ro
 });
 
 test("T-dir-3 only directory TARGETS propagate: a routed DOCUMENT does not rescue its siblings", () => {
-  // Trap detector for the routedDirTargets-vs-routedDirs distinction (§3.1).
+  // Trap detector for the directory-target-vs-routedDirs distinction (§3.1).
   // `src/CONTEXT.md` is a DOCUMENT target — it records `src` into routedDirs for
   // coverage, but must NOT make src/orphan.md reachable. Green before AND after.
   const dir = mkdtempSync(join(tmpdir(), "ca-dg3-"));
@@ -116,31 +117,77 @@ test("T-dir-3 only directory TARGETS propagate: a routed DOCUMENT does not rescu
     assert.equal(c.orphan, 1);   // src/orphan.md stays an orphan — a document route is not a directory route
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("T-dir-4 ROOT-RESTRICTED: a directory link from an UNREACHED non-root doc does NOT rescue that dir's docs", () => {
+  // The trap detector for the root-restriction ruling
+  // (planning/decisions/2026-08-25_tbd-14-root-restricted-dir-propagation.md).
+  // stray.md is a non-root doc that never gets reached (nothing links to it) and
+  // markdown-links to directory `data/`. Under FLAT propagation, data/buried.md
+  // would be rescued (silent false negative). Under root-restriction it stays an
+  // orphan, because stray.md is not reachable. Green before AND after — it bites
+  // only a flat implementation (verified by counterfactual at review).
+  const dir = mkdtempSync(join(tmpdir(), "ca-dg4-"));
+  try {
+    mkdirSync(join(dir, "src"), { recursive: true });
+    mkdirSync(join(dir, "data"), { recursive: true });
+    // A root routing basis (so orphan enumeration runs) that reaches src/CONTEXT.md only.
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src/CONTEXT.md`\n");
+    writeFileSync(join(dir, "src", "CONTEXT.md"), "reached; no directory links\n");
+    // An UNREACHED non-root doc whose markdown link points at a bare directory.
+    writeFileSync(join(dir, "stray.md"), "unreached doc pointing at [d](data/)\n");
+    writeFileSync(join(dir, "data", "buried.md"), "under a dir routed only by an unreached doc\n");
+    const c = cats(dir);
+    assert.equal(c.orphan, 1);   // data/buried.md only; stray.md sits under no routed dir, so it is not even a candidate
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("T-dir-5 ROOT-RESTRICTED is REACHED-based, not root-only: a REACHED non-root doc's dir link DOES propagate", () => {
+  // The positive half of the ruling: propagation follows any reached document,
+  // not only routers. root -> notes.md (a non-root doc edge) reaches notes.md;
+  // notes.md's markdown link to `pkg/` then propagates to pkg/leaf.md.
+  const dir = mkdtempSync(join(tmpdir(), "ca-dg5-"));
+  try {
+    mkdirSync(join(dir, "pkg"), { recursive: true });
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `notes.md`\n");           // reaches notes.md (non-root doc)
+    writeFileSync(join(dir, "notes.md"), "reached non-root doc, routes [p](pkg/)\n");  // dir link from a reached doc
+    writeFileSync(join(dir, "pkg", "leaf.md"), "directly under a dir routed by a reached doc\n");
+    const c = cats(dir);
+    assert.equal(c.orphan, undefined);   // pkg/leaf.md reachable via the reached notes.md's directory route
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 ```
+
+> **Red-state note (state-tagging discipline).** Under root-restriction, **T-dir-1**, **T-dir-2**, and **T-dir-5** are red→green (they change from the pre-implementation `main` behaviour); **T-dir-3** and **T-dir-4** are **guards** — green before *and* after, because pre-implementation `main` does no propagation at all, so nothing is wrongly rescued either way. A guard is not a defect: T-dir-3 and T-dir-4 each fail under a *specific wrong* implementation (T-dir-3 under an all-`routedDirs` basis; T-dir-4 under flat, non-root-inclusive propagation), which the reviewer confirms by counterfactual. Do **not** relabel T-dir-4 as red-at-pre-impl — it guards the non-root-unreached corner, whose correct behaviour is *unchanged* from pre-impl.
 
 - [ ] **Step 2: Run the tests and confirm the EXACT red state**
 
-Run: `npm run build && node --test dist/test/context-audit/graph.test.js`
+Run — **`;` not `&&`** so a failing `graph.test.js` cannot short-circuit anything after it, and the assertions actually execute:
 
-Expected (derived from the code trace; confirm on-machine before implementing):
-
-```
-✖ T-dir-1   actual orphan: 1, expected: undefined
-✖ T-dir-2   actual orphan: 2, expected: 1
-✔ T-dir-3   (guard — passes before and after)
+```bash
+npm run build; node --test dist/test/context-audit/graph.test.js
 ```
 
-**Exactly these two failures (T-dir-1, T-dir-2) and no others.** T-dir-3 is a guard and must be green now. If any pre-existing test is red — in particular the existing `orphan: routed-workspace doc unreachable from any root` fixture (a `[dir](src/CONTEXT.md)` document route with an unreferenced `src/orphan.md`) — stop: that fixture is a second guard for the directory-target distinction, and a red there means the plan was misread. If `tsc` fails, `dist/` is stale and both runs report the previous build — fix the build first.
+Expected (derived from the code trace; **confirm on-machine before implementing** and record which state each red was measured against — state-tagging discipline):
+
+```
+✖ T-dir-1   actual orphan: 1,         expected: undefined     (red -> green)
+✖ T-dir-2   actual orphan: 2,         expected: 1             (red -> green)
+✔ T-dir-3   (guard — green before and after)
+✔ T-dir-4   (guard — green before and after; bites a FLAT impl)
+✖ T-dir-5   actual orphan: 1 (leaf),  expected: undefined     (red -> green)
+```
+
+**Exactly these three failures (T-dir-1, T-dir-2, T-dir-5) and no others.** T-dir-3 and T-dir-4 are guards and must be green now (pre-impl `main` does no propagation, so neither is wrongly rescued). If any pre-existing test is red — in particular the existing `orphan: routed-workspace doc unreachable from any root` fixture (a `[dir](src/CONTEXT.md)` document route with an unreferenced `src/orphan.md`) — stop: that fixture is a second guard for the directory-target distinction, and a red there means the plan was misread. If `tsc` fails, `dist/` is stale and both runs report the previous build — fix the build first.
 
 - [ ] **Step 3: Write the implementation**
 
-In `src/tools/context-audit/graph.ts`, declare the new set next to `routedDirs` (where `routedDirs` is created at the top of `buildGraph`):
+In `src/tools/context-audit/graph.ts`, declare a **per-source** record of directory targets next to `routedDirs` (where `routedDirs` is created at the top of `buildGraph`):
 
 ```typescript
-  const routedDirTargets = new Set<string>();   // dirs that were themselves a resolved routing TARGET (reachability basis; NOT coverage)
+  const dirTargetsBySrc = new Map<string, Set<string>>();   // source doc relPath -> directory TARGETS it routed (reachability basis; NOT coverage)
 ```
 
-In `recordResolvedTarget`, the directory-target branch currently reads:
+In `recordResolvedTarget` (whose signature is `(srcRel, targetPath, targetAbs)`), the directory-target branch currently reads:
 
 ```typescript
       if (isDir) {
@@ -149,42 +196,65 @@ In `recordResolvedTarget`, the directory-target branch currently reads:
       } else {
 ```
 
-Add the new set alongside `routedDirs` in that branch — do not change the `routedDirs.add` line:
+Record the directory target against its **source document** — do not change the `routedDirs.add` line:
 
 ```typescript
       if (isDir) {
         const d = targetPath.replace(/\/$/, "");
         const norm = d === "." ? "" : d;
         routedDirs.add(norm);                               // directory target: the dir itself (normalize "." -> "")
-        routedDirTargets.add(norm);                         // AND record it as a reachability-propagation basis
+        if (!dirTargetsBySrc.has(srcRel)) dirTargetsBySrc.set(srcRel, new Set());
+        dirTargetsBySrc.get(srcRel)!.add(norm);             // AND record it under the doc that routed it (root-restricted propagation basis)
       } else {
 ```
 
-Then, immediately **after** the reachability DFS `while` loop and **before** the `underRoutedDir` helper / orphan enumeration, insert the propagation:
+Precompute an index of documents by their parent directory once, **immediately before the reachability DFS** (it only reads `walkRes.docs`):
 
 ```typescript
-  // Directory-granularity reachability (design 2026-08-25 §3.1–§3.2): a resolved
-  // edge whose target IS a directory makes the documents DIRECTLY contained in
-  // that directory reachable — routing is frequently expressed over directories,
-  // not documents (superset routes to directories; every doc under them otherwise
-  // orphans while coverage reads healthy). DIRECTORY-ONLY depth: a document in a
-  // SUBDIRECTORY of a routed directory is NOT reached — that visible-FP-never-
-  // silent-FN boundary is the design's chosen error direction. Sourced from
-  // routedDirTargets (directory TARGETS only), so a routed DOCUMENT does not
-  // rescue its siblings and routedDirs / coverage stay untouched.
-  if (routedDirTargets.size) {
-    for (const doc of walkRes.docs) {
-      if (doc.content === null) continue;
-      const parent = doc.relPath.includes("/") ? doc.relPath.slice(0, doc.relPath.lastIndexOf("/")) : "";
-      if (routedDirTargets.has(parent)) reached.add(doc.relPath);
+  const docsByParentDir = new Map<string, string[]>();
+  for (const d of walkRes.docs) {
+    if (d.content === null) continue;
+    const parent = d.relPath.includes("/") ? d.relPath.slice(0, d.relPath.lastIndexOf("/")) : "";
+    let arr = docsByParentDir.get(parent);
+    if (!arr) { arr = []; docsByParentDir.set(parent, arr); }
+    arr.push(d.relPath);
+  }
+```
+
+Then **fold directory-target propagation into the reachability DFS**. The DFS `while` loop currently reads:
+
+```typescript
+  while (stack.length) {
+    const cur = stack.pop()!;
+    for (const nxt of edges.get(cur) ?? []) if (!reached.has(nxt)) { reached.add(nxt); stack.push(nxt); }
+  }
+```
+
+Extend it so a reached document also propagates through its **directory** targets, directory-only:
+
+```typescript
+  while (stack.length) {
+    const cur = stack.pop()!;
+    // document edges (unchanged)
+    for (const nxt of edges.get(cur) ?? []) if (!reached.has(nxt)) { reached.add(nxt); stack.push(nxt); }
+    // directory-target edges (design 2026-08-25 §3.1–§3.2, root-restricted by
+    // construction: only a REACHED `cur` reaches this line). A directory routed
+    // by cur makes the documents DIRECTLY inside it reachable — DIRECTORY-ONLY
+    // depth: a doc in a SUBDIRECTORY is not reached (the visible-FP-never-silent-
+    // FN boundary). Pushing them means a doc reached via a directory route can
+    // in turn propagate its own directory routes (naturally transitive).
+    for (const d of dirTargetsBySrc.get(cur) ?? []) {
+      for (const doc of docsByParentDir.get(d) ?? []) if (!reached.has(doc)) { reached.add(doc); stack.push(doc); }
     }
   }
 ```
 
+This keeps `routedDirs` (and `coverage`) untouched, sources propagation from directory TARGETS only (so a routed document does not rescue siblings), and gates propagation on reached origin (so an unreached non-root doc's directory link rescues nothing).
+
 - [ ] **Step 4: Run the full suite**
 
 Run: `npm test`
-Expected: **105 tests, 105 pass, 0 fail** (102 + 3). T-dir-1 and T-dir-2 now green; T-dir-3 and the existing `orphan: routed-workspace…` fixture still green. If any pre-existing test is red, stop and diagnose — do not edit the fixture.
+Expected: **107 tests, 107 pass, 0 fail** (102 + 5). T-dir-1, T-dir-2, T-dir-5 now green; T-dir-3, T-dir-4 and the existing `orphan: routed-workspace…` fixture still green. If any pre-existing test is red, stop and diagnose — do not edit the fixture.
 
 - [ ] **Step 5: Update `src/API.md` (rule 8 — same commit as the behaviour)**
 
@@ -212,7 +282,7 @@ Expected: `4 blocks` then `all parse`.
 
 ```bash
 git diff --stat main...HEAD -- src/tools/context-audit/coverage.ts src/tools/context-audit/score.ts src/tools/context-audit/index.ts
-git diff main...HEAD -- src/tools/context-audit/graph.ts | grep -iE "TBD_10_WEIGHTS|ROUTING_LAYER_KEYS|routedDirs\.delete|coverage" || echo "no coverage/weight touch"
+git diff main...HEAD -- src/tools/context-audit/graph.ts | grep -iE "TBD_10_WEIGHTS|ROUTING_LAYER_KEYS|routedDirs\.(delete|clear)|coverage" || echo "no coverage/weight touch"
 ```
 Expected: **no output** from the first command (those three files untouched); the grep prints only the `routedDirs.add` context (unchanged) and `no coverage/weight touch`. If `coverage.ts`/`score.ts`/`index.ts` show any change, stop — scope leaked.
 
@@ -232,8 +302,12 @@ is not reached — the visible-false-positive, never silent-false-negative
 boundary the design chose (full-subtree would recreate the masked-rot
 class the routing-drift chain refused).
 
-Sourced from a new routedDirTargets set (directory TARGETS only), not
-routedDirs, so a routed document does not rescue its siblings and
+ROOT-RESTRICTED: propagation is folded into the reachability DFS, so a
+directory route propagates only from a REACHED document -- uniform with
+document-edge reachability, and naturally transitive. An abandoned
+non-root doc's directory link rescues nothing (that would be a silent
+false negative). Sourced from directory TARGETS recorded per source doc,
+not routedDirs, so a routed document does not rescue its siblings and
 coverage's routedDirs is untouched. No new edge; the routing DAG, drift,
 and coverage accounting are unchanged.
 
@@ -249,7 +323,7 @@ Refs TBD-14."
 
 `WORKFLOW.md` requires the code reviewers before finishing and a PR rather than a direct commit to `main`. **No code is written in this task.**
 
-- [ ] **Step 1: Final full-suite run** — `npm test`. Expected: **105 / 105**, `tsc` clean.
+- [ ] **Step 1: Final full-suite run** — `npm test`. Expected: **107 / 107**, `tsc` clean.
 - [ ] **Step 2: Confirm the branch touched only what this plan authorises**
 
 ```bash
@@ -274,7 +348,8 @@ TBD-14 does **not** close when this lands. It closes on **re-validation** agains
 
 | Spec section | Task |
 |---|---|
-| §3.1 directory-target propagation, directory-only, `routedDirTargets` distinct from `routedDirs` | Task 1 — Step 3 |
+| §3.1 directory-target propagation, directory-only, per-source basis distinct from `routedDirs` | Task 1 — Step 3 |
+| §3.1 **root-restricted** — propagation folded into the DFS, only reached docs propagate | Task 1 — Step 3 (DFS fold); T-dir-4 (unreached does not rescue), T-dir-5 (reached non-root does) |
 | §3.2 depth = directory-only (subdir not reached) | Task 1 — T-dir-2 |
 | §3.1 a routed document does not rescue siblings | Task 1 — T-dir-3 + existing fixture |
 | §3.1 `coverage` / `routedDirs` untouched | Task 1 — Step 7 |
@@ -283,8 +358,8 @@ TBD-14 does **not** close when this lands. It closes on **re-validation** agains
 | §5 `src/API.md` same commit (rule 8) | Task 1 — Step 5 |
 | §5 orphans stays out of TBD-10 weighting; no weight | Global Constraints; Task 1 — Step 7 |
 
-**2. Placeholder scan:** No TBD/TODO/"handle edge cases"/"similar to Task N". Every code step carries real code. No step references a symbol not present in the codebase or defined here (`routedDirTargets` is introduced in Step 3; `reached`, `routedDirs`, `walkRes.docs`, `recordResolvedTarget` all exist in `buildGraph`).
+**2. Placeholder scan:** No TBD/TODO/"handle edge cases"/"similar to Task N". Every code step carries real code. No step references a symbol not present in the codebase or defined here (`dirTargetsBySrc` and `docsByParentDir` are introduced in Step 3; `reached`, `routedDirs`, `walkRes.docs`, `recordResolvedTarget` all exist in `buildGraph`).
 
-**3. Type consistency:** `routedDirTargets: Set<string>` — `.add(norm)` / `.has(parent)` / `.size`, all string-keyed, matching `reached: Set<string>` and `routedDirs: Set<string>`. `doc.relPath` is `string` (`WalkedDoc`). `doc.content === null` guard matches the existing enumeration's `content === null` check.
+**3. Type consistency:** `dirTargetsBySrc: Map<string, Set<string>>` — `.get(cur)`/`.set`/`.has`, string keys and string-set values; `docsByParentDir: Map<string, string[]>`. Both align with `reached: Set<string>` and `routedDirs: Set<string>`. `doc.relPath` is `string` (`WalkedDoc`). `doc.content === null` guard matches the existing enumeration's `content === null` check.
 
 **4. Red-state note:** the T-dir-1/T-dir-2 red states are **derived from a code trace, not executed** (this was a plan-writing session; execution is deferred). Task 1 Step 2 requires confirming them on-machine before implementing — if the observed red differs, stop and reconcile before writing code.
