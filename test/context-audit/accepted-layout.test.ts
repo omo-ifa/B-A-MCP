@@ -4,6 +4,7 @@ import { parentDir, isRouteToDirNested } from "../../src/tools/context-audit/acc
 import { computeSkillDirs, isSkillDiscovered } from "../../src/tools/context-audit/accepted-layout.js";
 import { isAgentRuntimeConfig } from "../../src/tools/context-audit/accepted-layout.js";
 import { isTightDatedArchival } from "../../src/tools/context-audit/accepted-layout.js";
+import { isAcceptedLayout } from "../../src/tools/context-audit/accepted-layout.js";
 
 test("parentDir returns the directory portion, empty for root-level", () => {
   assert.equal(parentDir("a/b/c.md"), "a/b");
@@ -49,4 +50,14 @@ test("D4 tight dated-archival: dated filename, plans/, CHANGELOG/ — but NOT ba
   assert.equal(isTightDatedArchival("docs/architecture.md"), false);
   // NOT netted: a file literally named plans.md (not a plans/ directory)
   assert.equal(isTightDatedArchival("plans.md"), false);
+});
+
+test("isAcceptedLayout ORs the four detectors; a plain unreferenced doc is NOT accepted", () => {
+  const ctx = { routedDirs: new Set(["src"]), skillDirs: new Set(["skills/foo"]) };
+  assert.equal(isAcceptedLayout("src/sub/nested.md", ctx), true);        // D1
+  assert.equal(isAcceptedLayout("skills/foo/ref.md", ctx), true);        // D2
+  assert.equal(isAcceptedLayout(".claude/agents/a.md", ctx), true);      // D3
+  assert.equal(isAcceptedLayout("x/2020-01-01-note.md", ctx), true);     // D4
+  // genuine-abandoned: directly in a routed dir, no skill/agent/date signal
+  assert.equal(isAcceptedLayout("src/ORPHAN.md", ctx), false);
 });

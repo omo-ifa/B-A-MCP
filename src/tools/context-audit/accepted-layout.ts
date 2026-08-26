@@ -68,3 +68,14 @@ export function isTightDatedArchival(relPath: string): boolean {
   if (dirSegs.includes("CHANGELOG")) return true;                     // D4b
   return false;
 }
+
+export interface AcceptedLayoutCtx { routedDirs: Set<string>; skillDirs: Set<string>; }
+
+// Any tight detector firing => the doc is accepted layout, not genuine-abandoned
+// rot, so it is excluded from the orphans sub-score numerator (still a finding).
+export function isAcceptedLayout(relPath: string, ctx: AcceptedLayoutCtx): boolean {
+  return isRouteToDirNested(relPath, ctx.routedDirs)
+    || isSkillDiscovered(relPath, ctx.skillDirs)
+    || isAgentRuntimeConfig(relPath)
+    || isTightDatedArchival(relPath);
+}
