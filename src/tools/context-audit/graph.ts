@@ -1,6 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import { join, posix } from "node:path";
 import { extractLinks, classifyLink, isRoutingPathShape, isMarkdownPlaceholder, stripDestDelimiter } from "./links.js";
+import { isAcceptedLayout, computeSkillDirs } from "./accepted-layout.js";
 import type { Root, RawFinding } from "./types.js";
 import type { WalkResult, WalkedDoc } from "./walk.js";
 
@@ -9,6 +10,7 @@ export interface GraphResult {
   routedDirs: Set<string>;
   orphanCount: number;
   orphanCandidateTotal: number;   // docs eligible to be orphans (under a routed dir, non-furniture, non-root)
+  genuineAbandonedCount: number;  // orphans that are NOT accepted-layout: the sub-score numerator (spec TBD-18)
   brokenRefCount: number;
   routingDriftCount: number;
   refsFromRoots: number;          // classified edges existence-checked whose source doc is a root, excluding placeholder spans and tier-2 unanchored references, which sit outside the adjudicable population
@@ -215,13 +217,19 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
   // that is exactly the trap this guard closes.
   let orphanCount = 0;
   let orphanCandidateTotal = 0;
+  let genuineAbandonedCount = 0;
   if (resolvedRefsFromRoots > 0) {
+    const skillDirs = computeSkillDirs(walkRes.docs.filter((d) => d.content !== null).map((d) => d.relPath));
     for (const doc of walkRes.docs) {
       if (doc.isRoot || doc.content === null) continue;
       if (isFurniture(doc.relPath)) continue;
       if (!underRoutedDir(doc.relPath)) continue;
       orphanCandidateTotal++;   // eligible to be an orphan: this is the denominator population
-      if (!reached.has(doc.relPath)) { findings.push(f("orphan", doc.relPath, null, "in-scope doc unreachable from any routing root", doc.relPath, doc.relPath)); orphanCount++; }
+      if (!reached.has(doc.relPath)) {
+        findings.push(f("orphan", doc.relPath, null, "in-scope doc unreachable from any routing root", doc.relPath, doc.relPath));
+        orphanCount++;
+        if (!isAcceptedLayout(doc.relPath, { routedDirs, skillDirs })) genuineAbandonedCount++;
+      }
     }
   }
 
@@ -242,6 +250,7 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
     routedDirs,
     orphanCount,
     orphanCandidateTotal,
+    genuineAbandonedCount,
     brokenRefCount: findings.filter((x) => x.category === "broken_ref").length,
     // drift = broken router markdown links + unresolvable path-shaped router backticks
     routingDriftCount: findings.filter((x) => x.category === "routing_drift" || x.category === "routing_path_missing").length,

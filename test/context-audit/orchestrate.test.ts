@@ -271,3 +271,52 @@ test("T4b D1: an ALL-unanchored router yields routing_drift null, and that is co
     assert.equal(r.findings.some((x: any) => x.category === "routing_unresolved"), true);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("orphans re-base: score is reconstructable from stats.genuine_abandoned_count (genuine orphan present)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-rebase-"));
+  try {
+    // Same genuine-orphan shape as graph Test B: one reached candidate
+    // (keep/CONTEXT.md) and one genuine orphan (zone/GENUINE.md, in a dir routed
+    // only by the unreached island/notes.md). candidateTotal=2, genuine=1 -> score 50.
+    writeFileSync(join(dir, "CLAUDE.md"), "root [keep](keep/CONTEXT.md)\n");
+    mkdirSync(join(dir, "keep"));
+    writeFileSync(join(dir, "keep", "CONTEXT.md"), "reached leaf\n");
+    mkdirSync(join(dir, "island"));
+    writeFileSync(join(dir, "island", "notes.md"), "unreached; routes [z](../zone)\n");
+    mkdirSync(join(dir, "zone"));
+    writeFileSync(join(dir, "zone", "GENUINE.md"), "plain genuine orphan\n");
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    const r = outcome.result;
+    // the new stat is present and reflects the one genuine orphan
+    assert.equal(typeof r.stats.genuine_abandoned_count, "number");
+    assert.equal(r.stats.genuine_abandoned_count, 1);
+    // genuine_abandoned_count <= orphan_count (every genuine orphan is also a finding)
+    assert.ok(r.stats.genuine_abandoned_count <= r.stats.orphan_count);
+    // reconstruction (non-vacuous: score is a number here): orphans.score == round(100 * (1 - genuine/n))
+    const gac = r.stats.genuine_abandoned_count;
+    const os = r.subscores.orphans;
+    assert.notEqual(os.score, null, "orphans is assessed (a root edge resolves)");
+    assert.equal(os.score, Math.round(100 * (1 - gac / os.n)), "orphans.score reconstructs from genuine_abandoned_count and orphans.n");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("orphans re-base: an all-accepted-layout repo scores ~100 (was low pre-rebase)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-allaccepted-"));
+  try {
+    // root routes src/ ; the only orphan candidates are nested (D1 accepted).
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src/`\n");   // trailing slash: a bare `src` is not a backtick path candidate (links.ts)
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "reached.md"), "reached\n");
+    mkdirSync(join(dir, "src", "a")); writeFileSync(join(dir, "src", "a", "x.md"), "nested accepted\n");
+    mkdirSync(join(dir, "src", "b")); writeFileSync(join(dir, "src", "b", "y.md"), "nested accepted\n");
+    const outcome = await runContextAudit({ path: dir });
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    const os = outcome.result.subscores.orphans;
+    // every orphan candidate that is unreachable is accepted -> genuine 0 -> score 100
+    assert.equal(outcome.result.stats.genuine_abandoned_count, 0);
+    assert.equal(os.score, 100);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

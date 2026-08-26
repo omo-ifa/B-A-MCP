@@ -520,3 +520,46 @@ test("T-dir-5 ROOT-RESTRICTED is REACHED-based, not root-only: a REACHED non-roo
     assert.equal(c.orphan, undefined);   // pkg/leaf.md reachable via the reached notes.md's directory route
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+// Test A — accepted-layout orphan (nested, D1) is a FINDING but NOT counted.
+test("genuineAbandonedCount: a nested (D1-accepted) orphan is a finding but not counted", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-genuine-a-"));
+  try {
+    // root routes the `src` directory; docs DIRECTLY in src/ are reached, a doc
+    // in src/sub/ is not (directory-only depth) -> an orphan, and D1-accepted.
+    writeFileSync(join(dir, "CLAUDE.md"), "root routes `src/`\n");   // trailing slash: a bare `src` is not a backtick path candidate (links.ts)
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "reached.md"), "directly in routed src -> reached\n");
+    mkdirSync(join(dir, "src", "sub"));
+    writeFileSync(join(dir, "src", "sub", "nested.md"), "nested under routed src -> D1 accepted\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    const orphanFiles = g.findings.filter((f) => f.category === "orphan").map((f) => f.file);
+    assert.deepEqual(orphanFiles, ["src/sub/nested.md"], "the nested doc is the one orphan finding");
+    assert.equal(g.orphanCount, 1, "orphanCount counts the finding");
+    assert.equal(g.genuineAbandonedCount, 0, "but it is accepted-layout (D1) -> not scored as rot");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Test B — a GENUINE orphan (unreachable, directly in a dir routed only by an
+// UNREACHED non-root doc, no accepted signal) DOES increment the counter.
+test("genuineAbandonedCount: a plain doc in a dir routed by an unreached non-root is counted", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-genuine-b-"));
+  try {
+    // root resolves ONE edge (so orphans is assessed): keep/CONTEXT.md.
+    writeFileSync(join(dir, "CLAUDE.md"), "root [keep](keep/CONTEXT.md)\n");
+    mkdirSync(join(dir, "keep"));
+    writeFileSync(join(dir, "keep", "CONTEXT.md"), "reached leaf\n");
+    // island/notes.md is NOT linked from root (unreached) and it routes the zone/
+    // directory. zone therefore enters routedDirs (candidacy) but is never reached.
+    mkdirSync(join(dir, "island"));
+    writeFileSync(join(dir, "island", "notes.md"), "unreached; routes [z](../zone)\n");
+    mkdirSync(join(dir, "zone"));
+    writeFileSync(join(dir, "zone", "GENUINE.md"), "plain doc, directly in routed-but-unreached zone\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    const orphanFiles = g.findings.filter((f) => f.category === "orphan").map((f) => f.file);
+    assert.ok(orphanFiles.includes("zone/GENUINE.md"), "zone/GENUINE.md is an orphan finding");
+    assert.equal(g.genuineAbandonedCount, 1, "it is not nested/skill/agent/dated -> genuine-abandoned, counted");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
