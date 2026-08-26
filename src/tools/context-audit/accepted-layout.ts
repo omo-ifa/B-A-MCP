@@ -34,7 +34,10 @@ export function isRouteToDirNested(relPath: string, routedDirs: Set<string>): bo
 export function computeSkillDirs(docRelPaths: string[]): Set<string> {
   const s = new Set<string>();
   for (const p of docRelPaths) {
-    if (p.split("/").pop()!.toLowerCase() === "skill.md") s.add(parentDir(p));
+    if (p.split("/").pop()!.toLowerCase() === "skill.md") {
+      const d = parentDir(p);
+      if (d !== "") s.add(d);   // a ROOT-level SKILL.md ("" parent) would match every doc via ancestorDirs -> silent-FN; exclude it (design spine: fail visible, not silent)
+    }
   }
   return s;
 }

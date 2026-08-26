@@ -52,6 +52,21 @@ test("D4 tight dated-archival: dated filename, plans/, CHANGELOG/ — but NOT ba
   assert.equal(isTightDatedArchival("plans.md"), false);
 });
 
+test("D2 skill-discovery: a root-level SKILL.md must not register (silent-FN guard)", () => {
+  // A repo-ROOT SKILL.md has parentDir("SKILL.md") === "". Since ancestorDirs()
+  // always terminates in "", naively adding "" to skillDirs would make every
+  // doc in the repo "skill-discovered" — a silent false negative on genuine
+  // orphans. computeSkillDirs must exclude the empty-string parent.
+  const skillDirs = computeSkillDirs(["SKILL.md", "src/x.md"]);
+  assert.deepEqual([...skillDirs], []);
+  assert.equal(isSkillDiscovered("src/anything.md", skillDirs), false);
+
+  // Confirm the guard doesn't disturb the normal nested-skill case.
+  const nested = computeSkillDirs(["skills/foo/SKILL.md"]);
+  assert.deepEqual([...nested], ["skills/foo"]);
+  assert.equal(isSkillDiscovered("skills/foo/ref.md", nested), true);
+});
+
 test("isAcceptedLayout ORs the four detectors; a plain unreferenced doc is NOT accepted", () => {
   const ctx = { routedDirs: new Set(["src"]), skillDirs: new Set(["skills/foo"]) };
   assert.equal(isAcceptedLayout("src/sub/nested.md", ctx), true);        // D1
