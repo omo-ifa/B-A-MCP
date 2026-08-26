@@ -53,6 +53,7 @@ export interface AuditStats {
   routing_files: number;
   routing_tokens: number;
   orphan_count: number;
+  genuine_abandoned_count: number;
   files_skipped: number;
   token_count_method: string;
   calibrated: boolean;      // false while TBD-10/11/12 stubs are active

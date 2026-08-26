@@ -13,7 +13,7 @@ const base: Omit<AuditResult, "rendered"> = {
     coverage: { score: null, n: 0 },
   },
   findings: [{ id: "abc123abc123", category: "broken_ref", severity: "info", file: "docs/guide.md", line: 4, message: "link points at a path that does not exist", evidence: "missing.md" }],
-  stats: { docs_in_scope: 3, routing_files: 2, routing_tokens: 120, orphan_count: 0, files_skipped: 0, token_count_method: "char-approx-v1", calibrated: false },
+  stats: { docs_in_scope: 3, routing_files: 2, routing_tokens: 120, orphan_count: 0, genuine_abandoned_count: 0, files_skipped: 0, token_count_method: "char-approx-v1", calibrated: false },
 };
 
 test("renderer emits score, weaker-claim note, coverage disclaimer, and uncalibrated note", () => {

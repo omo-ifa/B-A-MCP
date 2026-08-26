@@ -74,7 +74,7 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
   const subscores: Subscores = {
     bloat: { score: bloat.subscore, n: bloat.n },
     // each sub-score's denominator is the population it is drawn from; subscoreFromCount returns null (not assessed) when that population is 0.
-    orphans: subscoreFromCount(g.orphanCount, g.orphanCandidateTotal),
+    orphans: subscoreFromCount(g.genuineAbandonedCount, g.orphanCandidateTotal),
     // routing_drift now counts BOTH broken router markdown links and unresolvable
     // path-shaped router backticks (routing_path_missing); broken_refs (non-router)
     // is no longer a scored sub-score — see planning/decisions/2026-08-20_*.
@@ -89,6 +89,7 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
     routing_files: w.docs.filter((d) => d.isRoot).length,
     routing_tokens: bloat.routingTokens,
     orphan_count: g.orphanCount,
+    genuine_abandoned_count: g.genuineAbandonedCount,
     files_skipped: w.filesSkipped,
     token_count_method: TOKEN_METHOD,
     calibrated: false,
