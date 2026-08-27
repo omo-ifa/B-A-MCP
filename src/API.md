@@ -36,7 +36,7 @@ Naming: MCP prompt names are kebab-case, matching their source filename without 
 |------------------|-------------|------------|
 | `context_audit`  | **Shipped** | `planning/designs/2026-08-18_context-audit-design.md` |
 | `override_log`   | **Shipped** | `planning/designs/2026-08-27_override-log-design.md` |
-| `doc_drift`      | **Building** | `planning/designs/2026-08-27_doc-drift-design.md` |
+| `doc_drift`      | **Shipped** | `planning/designs/2026-08-27_doc-drift-design.md` |
 
 Naming: MCP tool names are snake_case.
 
@@ -329,7 +329,7 @@ A free, keyless tool that diagnoses schema-of-record drift: it takes an array of
 - **Stateless / deterministic** — same input in, same output out; pairs render in input order, findings in per-pair walk order.
 - **Tool owns rendering** — `rendered` is built by the tool; the agent displays it verbatim.
 - **Severity by drift kind** — see the `findings.severity` description above; `override_log`'s severity-by-*field* pattern does not apply here.
-- **Opaque nodes are wildcards, by definition, not by exception.** A `{type:"object"}` node with no `properties` matches any counterpart — no drift is emitted at it or anywhere in the subtree it stands for, and its field-path is excluded from the score's denominator. **Accepted limitation:** drift *inside* an opaque node is invisible; the documented recourse is to feed a more complete canonical (e.g. a server's real `tools/list` output rather than a hand-trimmed stand-in).
+- **Opaque nodes are wildcards, by definition, not by exception.** A `{type:"object"}` node with no `properties` — including an explicitly empty `properties: {}`, since v1 reads no `additionalProperties` semantics — matches any counterpart: no drift is emitted at it or anywhere in the subtree it stands for, and its field-path is excluded from the score's denominator. **Accepted limitation:** drift *inside* an opaque node is invisible (as is a canonical that drops *all* its fields to `properties: {}`); the documented recourse is to feed a more complete canonical (e.g. a server's real `tools/list` output rather than a hand-trimmed stand-in).
 - **Stable id, not tamper-evidence; colliding explicit labels collide.** See Finding id above — two pairs sharing an explicit `label` and a drifted field path yield identical finding ids, distinguished only by position in `findings[]`, the same latent edge `override_log` accepts on its entry ids.
 - **v1 comparison surface is field presence + leaf `type` + `required`-membership.** Richer keyword comparisons (`enum`, array `items` shape, `format`, `additionalProperties` semantics, description drift) are deliberately out of scope for v1 (TBD-24 covers the broader framework-migration axis; richer keyword comparison is a later refinement, not a v1 obligation).
 
