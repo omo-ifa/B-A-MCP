@@ -6,7 +6,7 @@ You are running **session close**. SESSION_HANDOFF.md is session continuity betw
 
 ## Procedure
 
-1. **Verify schema-of-record.** Confirm `src/ERD.md` and `src/API.md` match the code as committed. Any mismatch gets fixed now, in this session, before the handoff is written.
+1. **Verify schema-of-record.** Confirm the project's schema-of-record docs — `src/API.md`, plus `src/ERD.md` **if the project has one** — match the code as committed. Any mismatch gets fixed now, in this session, before the handoff is written.
 2. **Resolve TBDs answered during this session.** Update status in the Master TBD Tracker (`src/TDD.md`); write the reasoning to `planning/decisions/YYYY-MM-DD_title.md` (Decision / TBD resolved / Context / Options considered / Rationale / Consequences).
 3. **Roadmap check.** Does this work shift any phase or priority in `planning/Roadmap.md`? If yes, update it and note the change; if no, record "no roadmap change."
 4. **Verify git state directly** — current branch, last commit hash + message, clean/dirty status. Run the commands; never write "not verified."
