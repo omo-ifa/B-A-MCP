@@ -33,7 +33,7 @@ Read this before writing any server or tool code in this workspace. It holds the
 
 | Tool | Standing tokens (measured) | Notes |
 |------|------------------------------|-------|
-| context_audit | 252 / ~4000 | char-approx-v1 over JSON.stringify(tool definition); re-measured after `score` became `["number","null"]` (sub-score confidence signal, 2026-08-20); 2026-08-21: re-verified after AGENTS.md router recognition — no description/schema change, cost unchanged. 2026-08-26: re-measured after surfacing stats.genuine_abandoned_count (TBD-18) — unchanged at 252, because outputSchema.properties.stats is the opaque {type:"object"} and the new field adds no standing tokens. |
+| context_audit | 252 / ~4000 | char-approx-v1 over JSON.stringify(tool definition); re-measured after `score` became `["number","null"]` (sub-score confidence signal, 2026-08-20); 2026-08-21: re-verified after AGENTS.md router recognition — no description/schema change, cost unchanged. 2026-08-26: re-measured after surfacing stats.genuine_abandoned_count (TBD-18) — unchanged at 252, because outputSchema.properties.stats is the opaque {type:"object"} and the new field adds no standing tokens. 2026-08-26 (TBD-19/20): re-measured after the D1 dirTargets re-base and the D4b version-shape change — unchanged at 252; both are internal to buildGraph/accepted-layout with no change to the tool definition (index.ts). |
 
 **Total: 252 / ~4000**
 
