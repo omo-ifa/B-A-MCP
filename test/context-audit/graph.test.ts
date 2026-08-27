@@ -563,3 +563,24 @@ test("genuineAbandonedCount: a plain doc in a dir routed by an unreached non-roo
     assert.equal(g.genuineAbandonedCount, 1, "it is not nested/skill/agent/dated -> genuine-abandoned, counted");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("dirTargets exposes only genuine directory-target routes, not file-parent dirs", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-graph-dt-"));
+  try {
+    // root routes to a DIRECTORY (src/lib) and to a FILE (apps/admin/README.md).
+    writeFileSync(join(dir, "CLAUDE.md"), "root [lib](src/lib) [readme](apps/admin/README.md)\n");
+    mkdirSync(join(dir, "src", "lib"), { recursive: true });
+    writeFileSync(join(dir, "src", "lib", "CONTEXT.md"), "lib ctx\n");
+    mkdirSync(join(dir, "apps", "admin"), { recursive: true });
+    writeFileSync(join(dir, "apps", "admin", "README.md"), "admin readme\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    // the DIRECTORY target is present:
+    assert.ok(g.dirTargets.has("src/lib"), "src/lib was routed as a directory target");
+    // the FILE-parent dir is in routedDirs but NOT a directory target:
+    assert.ok(g.routedDirs.has("apps/admin"), "apps/admin is in routedDirs via the README file link");
+    assert.ok(!g.dirTargets.has("apps/admin"), "apps/admin was never routed as a directory target");
+    // root "" is never a directory target:
+    assert.ok(!g.dirTargets.has(""), "root is not a directory target");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

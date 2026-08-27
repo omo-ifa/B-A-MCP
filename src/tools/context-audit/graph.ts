@@ -8,6 +8,7 @@ import type { WalkResult, WalkedDoc } from "./walk.js";
 export interface GraphResult {
   findings: RawFinding[];
   routedDirs: Set<string>;
+  dirTargets: Set<string>;        // flattened union of dirTargetsBySrc values: directories routed AS a directory target (D1's basis, TBD-19). Excludes file-parent and root "" entries that pollute routedDirs.
   orphanCount: number;
   orphanCandidateTotal: number;   // docs eligible to be orphans (under a routed dir, non-furniture, non-root)
   genuineAbandonedCount: number;  // orphans that are NOT accepted-layout: the sub-score numerator (spec TBD-18)
@@ -245,9 +246,17 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
     }
   }
 
+  // Flatten the per-source directory-target map into one set — D1's structural
+  // basis (TBD-19). Strictly the directories some router routed AS a directory,
+  // never a file-parent or root "" entry (the routedDirs pollution that silently
+  // netted the Ghost MSW_USAGE_GUIDE.md).
+  const dirTargets = new Set<string>();
+  for (const set of dirTargetsBySrc.values()) for (const d of set) dirTargets.add(d);
+
   return {
     findings,
     routedDirs,
+    dirTargets,
     orphanCount,
     orphanCandidateTotal,
     genuineAbandonedCount,
