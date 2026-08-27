@@ -153,7 +153,7 @@ Full list and status live in `src/TDD.md`.
 - [ ] Build step generates `.claude/commands/` from `prompts/`
 - [ ] `context_audit` tool
 - [ ] `doc_drift` tool (or deferred to Phase 2 per TBD-9)
-- [ ] `override_log` tool
+- [x] `override_log` tool (2026-08-27, PR #59 — free/keyless generator/validator; API.md §override_log; ledger 633/~4000; TBD-21 stubbed)
 - [ ] Context-budget ledger populated and under ~4k tokens
 - [ ] `src/API.md` covers every prompt and tool schema
 - [ ] `npm publish` dry-run clean from a fresh checkout
