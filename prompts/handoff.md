@@ -16,7 +16,7 @@ You are running **session close**. SESSION_HANDOFF.md is session continuity betw
    - **Decisions + TBDs** — resolved this session, and open TBDs with their stub notes.
    - **Remaining work** — docs still to update, tasks not yet executed from the current plan.
    - **Context not in the docs** — anything subtle from this session worth preserving.
-   - **Next-session starter** — one paste-ready prompt that **names** the skills to invoke (`writing-plans`, `executing-plans`, `test-driven-development`, the reviewers, `finishing-a-development-branch`) and **never restates their process**. Name the skill; let the next session read its body.
+   - **Next-session starter** — one paste-ready prompt that **names** the skills to invoke (`writing-plans`, `executing-plans`, `test-driven-development`, the reviewers, `finishing-a-development-branch`) and **never restates their process**. Name the skill; let the next session read its body. When the starter points the next session at an existing component to follow ("mirror `X`", "model it on `X`"), **name which axes** are mirrored — its *conventions* (error envelope, result shape, invariants) versus its *shape/behavior* (inputs, core action) — and which are not; a bare "mirror `X`" is ambiguous and costs the next session a clarifying round at its first design decision.
 
 ## Hard boundaries
 
