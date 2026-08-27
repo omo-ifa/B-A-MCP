@@ -603,3 +603,39 @@ test("MSW shape: a doc nested below a FILE-parent-routed dir is genuine-abandone
     assert.equal(g.genuineAbandonedCount, 1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("PRD shape: a doc whose parent is a file-parent-routed dir but a DISTANT ancestor is a dir-target is genuine-abandoned (TBD-19 refinement)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-graph-prd-"));
+  try {
+    // root routes to the DIRECTORY products (dir-target) AND to a FILE deep under it,
+    // making products/desktop/docs/plans a file-parent in routedDirs.
+    writeFileSync(join(dir, "CLAUDE.md"), "root [prods](products) [idx](products/desktop/docs/plans/index.md)\n");
+    mkdirSync(join(dir, "products", "desktop", "docs", "plans"), { recursive: true });
+    writeFileSync(join(dir, "products", "desktop", "docs", "plans", "index.md"), "indexed by root\n");
+    // the live PRD: parent products/desktop/docs/plans is a file-parent; products is a dir-target 3 levels up.
+    writeFileSync(join(dir, "products", "desktop", "docs", "plans", "browser-tabs.md"), "# PRD: Browser Tabs\nStatus: ready-for-agent\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    assert.ok(g.dirTargets.has("products"), "products is a directory-target");
+    assert.ok(g.routedDirs.has("products/desktop/docs/plans") && !g.dirTargets.has("products/desktop/docs/plans"), "the plans dir is a file-parent, not a dir-target");
+    // the PRD is an orphan finding AND counts as genuine-abandoned (nearest routing-known
+    // ancestor is the file-parent parent, so D1 does NOT net it):
+    const orphanFiles = g.findings.filter((f) => f.category === "orphan").map((f) => f.file);
+    assert.ok(orphanFiles.includes("products/desktop/docs/plans/browser-tabs.md"), "the PRD is an orphan finding");
+    assert.equal(g.genuineAbandonedCount, 1, "the PRD counts as genuine-abandoned, not netted");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("dirTargets excludes root '' even when a router routes to '.' (D1 cannot net the whole repo)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-graph-dot-"));
+  try {
+    // a router routes to the repo root as a directory ('.') AND to a real subdir.
+    writeFileSync(join(dir, "CLAUDE.md"), "root [self](.) [lib](src/lib)\n");
+    mkdirSync(join(dir, "src", "lib"), { recursive: true });
+    writeFileSync(join(dir, "src", "lib", "CONTEXT.md"), "lib ctx\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    assert.ok(!g.dirTargets.has(""), "root '' must be filtered out of dirTargets");
+    assert.ok(g.dirTargets.has("src/lib"), "a genuine subdir target is still present");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

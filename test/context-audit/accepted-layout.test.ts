@@ -11,19 +11,32 @@ test("parentDir returns the directory portion, empty for root-level", () => {
   assert.equal(parentDir("c.md"), "");
 });
 
-test("D1 route-to-dir-nested: keys on dirTargets, not the broader routedDirs (TBD-19)", () => {
-  // dirTargets = directories routed AS a directory. "src" is one; "apps/admin" is NOT
-  // (in the real graph it lands in routedDirs only via a file-parent link).
-  const dirTargets = new Set(["src"]);
-  // nested below a directory-target -> accepted layout
-  assert.equal(isRouteToDirNested("src/sub/deep.md", dirTargets), true);
-  // directly inside a directory-target -> not nested
-  assert.equal(isRouteToDirNested("src/direct.md", dirTargets), false);
-  // outside any directory-target -> not nested
-  assert.equal(isRouteToDirNested("other/x.md", dirTargets), false);
-  // MSW REGRESSION: nested below a dir that is NOT a directory-target must NOT net,
-  // even several levels deep (the Ghost apps/admin/.../MSW_USAGE_GUIDE.md shape).
-  assert.equal(isRouteToDirNested("apps/admin/test-utils/x/MSW_USAGE_GUIDE.md", dirTargets), false);
+test("D1 route-to-dir-nested: nets only when the NEAREST routing-known ancestor is a strict dir-target (TBD-19)", () => {
+  // src is a genuine directory-target (and therefore also in routedDirs).
+  const dt = new Set(["src"]);
+  const rd = new Set(["src"]);
+  assert.equal(isRouteToDirNested("src/sub/deep.md", rd, dt), true);    // nested below dir-target src
+  assert.equal(isRouteToDirNested("src/direct.md", rd, dt), false);     // directly in dir-target
+  assert.equal(isRouteToDirNested("other/x.md", rd, dt), false);        // no routing-known ancestor
+
+  // MSW REGRESSION: nearest routing-known ancestor is a strict-ancestor FILE-PARENT
+  // (apps/admin in routedDirs via a file link, not a dir-target) -> NOT netted.
+  const rdMsw = new Set(["apps/admin", "products"]);
+  const dtMsw = new Set(["products"]);
+  assert.equal(isRouteToDirNested("apps/admin/test-utils/x/MSW_USAGE_GUIDE.md", rdMsw, dtMsw), false);
+
+  // PRD REGRESSION: parent is a file-parent, and a DISTANT ancestor (products) is a
+  // dir-target. The nearest routing-known ancestor is the file-parent parent, so the
+  // doc must NOT net (a pure-dirTargets scan would wrongly net it via products).
+  const rdPrd = new Set(["products", "products/desktop", "products/desktop/docs", "products/desktop/docs/plans"]);
+  const dtPrd = new Set(["products"]);
+  assert.equal(isRouteToDirNested("products/desktop/docs/plans/browser-tabs.md", rdPrd, dtPrd), false);
+
+  // DISCRIMINATOR: the SAME deep path DOES net when NO intervening dir is routing-known,
+  // so the nearest routing-known ancestor is the dir-target products itself.
+  const rdClean = new Set(["products"]);
+  const dtClean = new Set(["products"]);
+  assert.equal(isRouteToDirNested("products/desktop/docs/plans/browser-tabs.md", rdClean, dtClean), true);
 });
 
 test("D2 skill-discovery: a doc under a SKILL.md directory is accepted", () => {
@@ -79,7 +92,7 @@ test("D2 skill-discovery: a root-level SKILL.md must not register (silent-FN gua
 });
 
 test("isAcceptedLayout ORs the four detectors; a plain unreferenced doc is NOT accepted", () => {
-  const ctx = { dirTargets: new Set(["src"]), skillDirs: new Set(["skills/foo"]) };
+  const ctx = { routedDirs: new Set(["src"]), dirTargets: new Set(["src"]), skillDirs: new Set(["skills/foo"]) };
   assert.equal(isAcceptedLayout("src/sub/nested.md", ctx), true);        // D1
   assert.equal(isAcceptedLayout("skills/foo/ref.md", ctx), true);        // D2
   assert.equal(isAcceptedLayout(".claude/agents/a.md", ctx), true);      // D3

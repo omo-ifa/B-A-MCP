@@ -186,13 +186,16 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
     arr.push(d.relPath);
   }
 
-  // Flatten the per-source directory-target map into one set — D1's structural
+  // Flatten the per-source directory-target map into one set — D1's dir-target
   // basis (TBD-19). Strictly the directories some router routed AS a directory,
-  // never a file-parent or root "" entry (the routedDirs pollution that silently
-  // netted the Ghost MSW_USAGE_GUIDE.md). Computed unconditionally so it is
+  // never a file-parent entry. Root "" (from a rare literal `.`/`./` directory
+  // route) is filtered OUT here so D1 can never treat the whole repo as one routed
+  // directory and net every doc — the "excludes root" invariant holds by
+  // construction, not by the rarity of `.` routes. dirTargetsBySrc itself keeps ""
+  // (its reachability use is unaffected). Computed unconditionally so it is
   // returned even when the orphan guard skips scoring.
   const dirTargets = new Set<string>();
-  for (const set of dirTargetsBySrc.values()) for (const d of set) dirTargets.add(d);
+  for (const set of dirTargetsBySrc.values()) for (const d of set) if (d !== "") dirTargets.add(d);
 
   // reachability DFS from every root doc
   const roots = walkRes.docs.filter((d) => d.isRoot).map((d) => d.relPath);
@@ -237,7 +240,7 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
       if (!reached.has(doc.relPath)) {
         findings.push(f("orphan", doc.relPath, null, "in-scope doc unreachable from any routing root", doc.relPath, doc.relPath));
         orphanCount++;
-        if (!isAcceptedLayout(doc.relPath, { dirTargets, skillDirs })) genuineAbandonedCount++;
+        if (!isAcceptedLayout(doc.relPath, { routedDirs, dirTargets, skillDirs })) genuineAbandonedCount++;
       }
     }
   }

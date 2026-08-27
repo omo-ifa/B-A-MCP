@@ -19,17 +19,27 @@ function ancestorDirs(relPath: string): string[] {
   return out;
 }
 
-// D1 — route-to-directory, nested. The doc is under a routed DIRECTORY-TARGET but
-// not DIRECTLY in one (an intervening subdirectory). Keys on dirTargets — the
-// directories routed AS a directory — NOT the broader routedDirs, which also holds
-// file-parent and root "" entries and would silently net genuine rot (TBD-19: the
-// Ghost apps/admin/.../MSW_USAGE_GUIDE.md was netted because apps/admin sat in
-// routedDirs via a file link). Structural fact over the correct set; no silent-FN.
-export function isRouteToDirNested(relPath: string, dirTargets: Set<string>): boolean {
+// D1 — route-to-directory, nested. Nets a doc iff its NEAREST routing-known
+// ancestor — the first ancestor directory in routedDirs, scanning up from the
+// immediate parent — is a STRICT ancestor (an intervening subdirectory sits
+// between it and the doc) AND a genuine directory-TARGET (in dirTargets).
+// Uses BOTH sets on purpose (TBD-19):
+//   - routedDirs-only over-nets: a doc nested below a dir that is in routedDirs
+//     merely via a file link (Ghost apps/admin, reached via a linked README) was
+//     silently netted (the MSW casualty).
+//   - dirTargets-only over-nets the OTHER way: dropping the routedDirs guard lets
+//     a doc whose nearest routing-known ancestor is a file-parent still match a
+//     DISTANT dir-target through intervening file-parent dirs (posthog live PRDs
+//     under products/desktop/docs/plans, with products a dir-target 3 levels up).
+// routedDirs locates the nearest directory the routing layer touches at all (the
+// shield); dirTargets decides whether that nearest ancestor is a real directory
+// route. Structural; both failure directions are visible FPs, never silent FNs.
+export function isRouteToDirNested(relPath: string, routedDirs: Set<string>, dirTargets: Set<string>): boolean {
   const parent = parentDir(relPath);
-  if (dirTargets.has(parent)) return false;               // directly in a directory-target -> not nested
-  for (const a of ancestorDirs(relPath)) if (a !== parent && dirTargets.has(a)) return true;
-  return false;
+  for (const a of ancestorDirs(relPath)) {
+    if (routedDirs.has(a)) return a !== parent && dirTargets.has(a);   // nearest routing-known ancestor decides
+  }
+  return false;   // no routing-known ancestor
 }
 
 // D2 — skill-discovery. Build the set of directories that directly contain a
@@ -81,14 +91,14 @@ export function isTightDatedArchival(relPath: string): boolean {
   return false;
 }
 
-// D1 is the only consumer of the directory-route field, so the context carries
-// dirTargets (TBD-19), not the broader routedDirs.
-export interface AcceptedLayoutCtx { dirTargets: Set<string>; skillDirs: Set<string>; }
+// D1 needs BOTH the broad routedDirs (to find the nearest routing-known ancestor)
+// and dirTargets (to test whether it is a real directory route) — TBD-19.
+export interface AcceptedLayoutCtx { routedDirs: Set<string>; dirTargets: Set<string>; skillDirs: Set<string>; }
 
 // Any tight detector firing => the doc is accepted layout, not genuine-abandoned
 // rot, so it is excluded from the orphans sub-score numerator (still a finding).
 export function isAcceptedLayout(relPath: string, ctx: AcceptedLayoutCtx): boolean {
-  return isRouteToDirNested(relPath, ctx.dirTargets)
+  return isRouteToDirNested(relPath, ctx.routedDirs, ctx.dirTargets)
     || isSkillDiscovered(relPath, ctx.skillDirs)
     || isAgentRuntimeConfig(relPath)
     || isTightDatedArchival(relPath);
