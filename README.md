@@ -14,7 +14,7 @@ Two kinds of surface:
 
 - **The build-loop gates** — five prompts, one per stage of the loop. Each does one job and hands a clean artifact to the next: is AI even the right tool here, understand the problem, resolve every open decision (or defer it as a tracked TBD), write the design doc (WHAT and WHY, never the step-by-step), then verify the record still matches the code at close. The gates guide with an override: none silently blocks you — each states the risk, names the cheaper path, and logs the override if you proceed anyway.
 
-- **The repo-audit tools** — read-only checks that run against your working tree. The one shipping today is **`context_audit`**: it walks your routing layer and returns a scored, hard-to-fake diagnosis of routing bloat, orphaned docs, broken references, routing drift, and coverage gaps. Two more — `doc_drift` and `override_log` — are on the roadmap.
+- **The repo-audit tools** — three read-only checks that run against your working tree, all shipping today. **`context_audit`** walks your routing layer and returns a scored, hard-to-fake diagnosis of routing bloat, orphaned docs, routing drift, and coverage gaps. **`override_log`** turns a set of guidance-with-override events into a canonical, scored override log. **`doc_drift`** diffs a documented schema against the canonical one and reports where they have drifted apart.
 
 Everything above is **free and keyless.** Nothing here makes a network call or asks for a token.
 
@@ -41,13 +41,13 @@ Register it with Claude Code as a local MCP server (stdio):
 }
 ```
 
-The server exposes `context_audit` on `tools/list`. Point it at a directory (or let it default to the working directory); it resolves upward to the nearest `CLAUDE.md` / `AGENTS.md` and audits from there.
+The server exposes all three tools — `context_audit`, `override_log`, and `doc_drift` — on `tools/list`. For `context_audit`, point it at a directory (or let it default to the working directory); it resolves upward to the nearest `CLAUDE.md` / `AGENTS.md` and audits from there. `override_log` and `doc_drift` take their input inline and read no files.
 
 ---
 
 ## See it run
 
-`context_audit` builds its own report and hands it back verbatim — one screen, no narration. Here is the tool run against **this repository** (excerpted, as of 2026-08-27; the local root path is shown generically, and your own numbers will differ):
+`context_audit` builds its own report and hands it back verbatim — one screen, no narration. Below is an **illustrative** report showing the shape of that output (the root path is shown generically, and your own numbers will differ); a real run on this repository will replace it before release:
 
 ```text
 # context_audit — routing health
@@ -98,7 +98,7 @@ Two things that report is doing on purpose:
 
 This is fixed and simple:
 
-- **Free = the reasoning.** All five gate prompts and all repo-audit tools (`context_audit`, and the forthcoming `doc_drift` and `override_log`) are free, keyless, and local. They never touch B&A infrastructure.
+- **Free = the reasoning.** All five gate prompts and all three repo-audit tools (`context_audit`, `override_log`, `doc_drift`) are free, keyless, and local. They never touch B&A infrastructure.
 - **Paid = the record.** One tool, `export_record` (Phase 2), persists a gate or audit output as a versioned, timestamped artifact. It is the only call that requires a key and the only one that leaves your machine.
 
 The free tier stands on its own. The paid tier just keeps the receipt.
@@ -107,7 +107,7 @@ The free tier stands on its own. The paid tier just keeps the receipt.
 
 ## Status
 
-Phase 1 (free tier). `context_audit` is shipped and registered; `doc_drift` and `override_log` are forthcoming. The scoring thresholds and the headline weighting are being calibrated against a pinned corpus of real repositories — until that closes, `context_audit` marks its own score uncalibrated (see above).
+Phase 1 (free tier). All three repo-audit tools — `context_audit`, `override_log`, `doc_drift` — are shipped and registered, and the free tier is feature-complete. `context_audit` still marks its own score uncalibrated (see above) while the headline weighting is finalised against a pinned corpus of real repositories.
 
 ---
 
