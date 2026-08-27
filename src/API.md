@@ -30,7 +30,7 @@ Naming: MCP prompt names are kebab-case, matching their source filename without 
 
 ## Tools (free, unauthenticated)
 
-`tools/list` returns two tools — `context_audit` and `override_log` — with `doc_drift` building on `feat/doc-drift`:
+`tools/list` returns three tools — `context_audit`, `override_log`, and `doc_drift`.
 
 | Tool name       | Status      | Design doc |
 |------------------|-------------|------------|
