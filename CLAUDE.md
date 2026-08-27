@@ -134,9 +134,9 @@ When a TBD is **resolved**, record the reasoning in `planning/decisions/YYYY-MM-
 
 | TBD ID  | Blocks                                                                            |
 |---------|----------------------------------------------------------------------------------|
-| TBD-2   | Confirm each bundled component's license from its own `LICENSE`/`plugin.json` — all packaging (**rescoped 2026-08-20:** four confirmed; caveman needs `skills/caveman/` path-scoping + commit pin) |
-| TBD-4   | ICM reproduce-vs-paraphrase — blocks the notices file (**narrowed 2026-08-20:** code copyright is Van Clief; paraphrase call still owner's) |
 | TBD-5   | Paid-tier price and structure (one-time vs. subscription) — `export_record` checkout |
+
+*(TBD-2 bundled-component licenses and TBD-4 ICM reproduce-vs-paraphrase both resolved 2026-08-27 — see `planning/decisions/2026-08-27_tbd-2-4-resolved.md`. Notices file finalized.)*
 
 Full list and status live in `src/TDD.md`.
 
@@ -147,7 +147,7 @@ Full list and status live in `src/TDD.md`.
 **Phase 1 — Free tier (local stdio server)** · Target: [DATE]
 
 - [ ] Repo created (`B-A-MCP`), structure scaffolded per the design doc
-- [ ] `LICENSE` + `THIRD_PARTY_NOTICES.md` at root (TBD-1/TBD-7 resolved 2026-08-20; TBD-2 + TBD-4 still gate the notices file)
+- [x] `LICENSE` + `THIRD_PARTY_NOTICES.md` at root (2026-08-27 — TBD-1/TBD-7 resolved 2026-08-20; **TBD-2 + TBD-4 resolved 2026-08-27**, notices file finalized: all five bundled blocks + both runtime deps filled from source, STUB banner removed)
 - [ ] Five prompts authored in `prompts/`
 - [ ] Build step generates `.claude/commands/` from `prompts/`
 - [ ] `context_audit` tool

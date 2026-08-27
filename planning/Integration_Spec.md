@@ -42,11 +42,11 @@ The third-party **skills** shipped in the paid bundle alongside B&A's original w
 
 | Component    | License      | Pinned version        | Notes                                                        |
 |--------------|--------------|-----------------------|-------------------------------------------------------------|
-| Superpowers  | MIT          | `TODO: TBD-7`         | Actively moving (6.x). Pin a major and state it.            |
-| caveman      | MIT          | `TODO: TBD-2 confirm` | License confirmed MIT by user; verify version from repo.    |
-| claude-mem   | Apache 2.0   | `TODO: TBD-2 confirm` | `TODO: TBD-1` — reproduce NOTICE contents if the repo ships one. |
-| task-observer| CC-BY-4.0    | `TODO: TBD-2 confirm` | CC-BY carve-out required in EULA; no DRM on delivered files. |
-| icm-architect| MIT          | `TODO: TBD-2 confirm` | Workspace scaffolder (Decision 11). B&A tools govern the structure it generates; they never generate. |
+| Superpowers  | MIT          | `v6.3.0` (commit `b36e082`) | Jesse Vincent (obra). License read from repo `LICENSE`.     |
+| caveman      | MIT (scoped to `skills/caveman/`) | commit `a42ef76` | Julius Brussee. Split-licensed repo; only `skills/caveman/` is bundled (MIT per `LICENSING.md`); engine dirs are BSL-1.1 and excluded. Pin is the commit — `package.json` `2.2.0` ≠ tag `pi-v0.1.0`. |
+| claude-mem   | Apache 2.0   | `v13.15.3` (commit `e2d1df5`) | Alex Newman. Repo ships a `NOTICE` (TBD-1) — reproduced in the notices file. |
+| task-observer| CC-BY-4.0    | `v2.0.0` (commit `281f134`) | Eoghan Henn / rebelytics.com (holder from README; `LICENSE.txt` is bare CC legalcode). CC-BY carve-out required in EULA; no DRM on delivered files. |
+| icm-architect| MIT          | commit `b20fb45` (no tags) | Jake Van Clief (RinDig org). Workspace scaffolder (Decision 11). B&A tools govern the structure it generates; they never generate. |
 
 **Excluded:** `impeccable` — not in the bundle (no UI in this repo).
 
@@ -65,10 +65,10 @@ Packages declared in `package.json` and redistributed by the published `b-a-mcp`
 
 ---
 
-## Verification checklist (run at TBD-2 resolution)
+## Verification checklist (completed at TBD-2 resolution, 2026-08-27)
 
-- [ ] Read `LICENSE` / `plugin.json` in each of the five repos; confirm the license matches the table.
-- [ ] Record exact pinned versions.
-- [ ] Confirm claude-mem NOTICE file existence (TBD-1); reproduce if present.
-- [ ] Mirror every row into `THIRD_PARTY_NOTICES.md`.
-- [ ] Confirm `package.json` versions match this table.
+- [x] Read `LICENSE` / `plugin.json` in each of the five repos; confirm the license matches the table. (All five re-read from their own files at the pinned commits; see `planning/decisions/2026-08-27_tbd-2-4-resolved.md`.)
+- [x] Record exact pinned versions. (Commits pinned per the §2 table.)
+- [x] Confirm claude-mem NOTICE file existence (TBD-1); reproduce if present. (NOTICE exists — reproduced verbatim in `THIRD_PARTY_NOTICES.md`.)
+- [x] Mirror every row into `THIRD_PARTY_NOTICES.md`. (Same-commit, rule 4.)
+- [x] Confirm `package.json` versions match this table. (superpowers 6.3.0, claude-mem 13.15.3 match; caveman `package.json` 2.2.0 ≠ tag — commit pinned instead; task-observer / icm-architect ship no `package.json` — commit pinned.)
