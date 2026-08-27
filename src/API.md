@@ -30,12 +30,12 @@ Naming: MCP prompt names are kebab-case, matching their source filename without 
 
 ## Tools (free, unauthenticated)
 
-`tools/list` returns `context_audit` and `override_log` (the latter **Building** on `feat/override-log` — the status flips to Shipped when the branch merges to trunk). One more is planned:
+`tools/list` returns two tools — `context_audit` and `override_log`. One more is planned:
 
 | Tool name       | Status      | Design doc |
 |------------------|-------------|------------|
 | `context_audit`  | **Shipped** | `planning/designs/2026-08-18_context-audit-design.md` |
-| `override_log`   | **Building** | `planning/designs/2026-08-27_override-log-design.md` |
+| `override_log`   | **Shipped** | `planning/designs/2026-08-27_override-log-design.md` |
 | `doc_drift`      | Forthcoming | none yet (scope pending TBD-9) |
 
 Naming: MCP tool names are snake_case.
