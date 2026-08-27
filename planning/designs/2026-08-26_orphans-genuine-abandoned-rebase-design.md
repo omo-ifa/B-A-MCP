@@ -2,6 +2,7 @@
 
 **Date:** 2026-08-26
 **Status:** DESIGN (WHAT & WHY only). No scorer code changes with this document. Build is a later loop (`superpowers:writing-plans` → TDD → review → re-validate).
+**Amended 2026-08-26** (`planning/decisions/2026-08-26_tbd-19-tbd-20-d1-basis-d4b-disposition.md`): the first build landed but the §6 re-validation found two silent-FN vectors in the detector basis (`planning/calibration/2026-08-26_context-audit-tbd-18-revalidation.md`) → **TBD-19** (D1 keyed on the over-broad `routedDirs`) and **TBD-20** (D4b's `plans/`/`CHANGELOG/` convention guess). §D1, §D4, and the §5 table below are amended to their resolved forms; the numerator-only shape, surfacing, findings enumeration, and close condition are unchanged. The amended text is marked inline.
 **TBD:** TBD-18 (direction resolved 2026-08-26 — `planning/decisions/2026-08-26_tbd-10-weights-partial-and-tbd-18-orphans-rebase.md`).
 **Depends on:** TBD-14 (closed 2026-08-26; directory-granularity reachability in `src/tools/context-audit/graph.ts`) and its accepted-class taxonomy (`planning/decisions/2026-08-26_tbd-14-convention-runtime-class.md`, `planning/calibration/2026-08-26_context-audit-tbd-14-revalidation-run2.md`).
 **Standing tie-breaker (the spine of this design):** a **visible false positive beats a silent false negative**. Here a **silent FN = scoring real rot as accepted** (worse — the sub-score exists to catch rot); a **visible FP = flagging an accepted-layout doc as rot** (acceptable — it is still enumerated as a finding). Every rule below is chosen so its failure direction is the visible one.
@@ -48,13 +49,19 @@ And one output field **is added** (so the re-based score is reconstructable from
 
 ### D1 — route-to-directory, nested
 
-**Signal:** the doc's nearest routed-ancestor directory exists in `routedDirs`, but the doc is **not directly contained** in a routed directory (an intervening subdirectory sits between the nearest routed ancestor and the doc).
+**(Amended 2026-08-26 — TBD-19.)** The original spec keyed D1 on `routedDirs`, which the re-validation proved over-broad: `graph.ts` populates `routedDirs` from *file-parent* additions (a router linking the file `dir/file.md` adds `dir`) and root `""` as well as genuine directory-target routes, so D1 accepted any doc nested below a directory that merely *contained a linked file* — silently netting the genuine-abandoned Ghost `apps/admin/test-utils/posts-analytics/MSW_USAGE_GUIDE.md`. D1 is re-based onto the **directory-target set** below.
 
-**Input-set note (per review):** D1 operates on the **post-TBD-14** candidate set. TBD-14's directory-only propagation already **reaches** documents directly inside a routed directory (from a reached source, via `dirTargetsBySrc` → `docsByParentDir`), so those are not orphans and never reach D1. D1 therefore only needs to catch what directory-only propagation deliberately **left unreached**: the nested docs one level or more below a routed directory. A reader implementing D1 must feed it the residual orphan set and the existing `routedDirs`, **not** re-derive reachability — the two must not disagree on the intervening-subdir case (that case is, by construction, exactly D1's target and exactly what TBD-14 does not reach).
+**Signal:** the doc's nearest routed-ancestor directory exists in **`dirTargets`** (the flattened union of the `dirTargetsBySrc` values `graph.ts` records when a router routes to a *directory* target), but the doc is **not directly contained** in such a directory (an intervening subdirectory sits between the nearest directory-target ancestor and the doc).
 
-**Tightness:** structural — it is a fact about the routing graph and the directory tree, not a guess. No silent-FN vector.
+**`dirTargets` — the input set:** the union, over all source docs, of the directories each routed *as a directory target*. It is **exposed from `buildGraph` as `GraphResult.dirTargets`** and threaded into `AcceptedLayoutCtx`; `routedDirs` stays in the context for other consumers (`underRoutedDir`) but D1 no longer reads it. The union is **all-source, not reached-restricted** — D1 evaluates only the residual (nested) orphan set, so membership is a structural "does this repo route to this directory" fact independent of that route's own reachability.
 
-**Edge case (documented, left counted):** a doc directly inside a directory that is in `routedDirs` only because an **unreached** non-root doc routed it. Its immediate parent *is* a routed dir, so D1 does **not** fire; it stays counted (genuine-abandoned). This is the safe direction — such a doc's only route is itself unreachable, which is plausibly real rot, and mis-counting it is a visible FP, not a silent FN.
+**Input-set note (per review):** D1 operates on the **post-TBD-14** candidate set. TBD-14's directory-only propagation already **reaches** documents directly inside a routed directory-target (from a reached source, via `dirTargetsBySrc` → `docsByParentDir`), so those are not orphans and never reach D1. D1 therefore only needs to catch what directory-only propagation deliberately **left unreached**: the nested docs one level or more below a directory-target. A reader implementing D1 must feed it the residual orphan set and the existing `dirTargets`, **not** re-derive reachability — the two must not disagree on the intervening-subdir case (that case is, by construction, exactly D1's target and exactly what TBD-14 does not reach).
+
+**Tightness:** structural — it is a fact about the routing graph and the directory tree, not a guess. Keying on `dirTargets` (directories explicitly routed *as directories*) restores the structural, no-silent-FN property the original spec asserted but the `routedDirs` implementation lacked.
+
+**Secondary (designed) effect:** re-basing narrower stops D1 *accidentally* netting §4 named-gap docs (component-manifests, test-harness fixtures, bare `docs/**`) that happened to sit below a file-parent-routed ancestor; those flip to **counted**, which is exactly what §4 says should happen in v1 (visible FP by construction). The re-validation measures the new `genuine_abandoned_count` per repo; `orphans` carries no headline weight, so there is zero score impact today.
+
+**Edge case (documented, left counted):** a doc directly inside a directory that is in `dirTargets` only because an **unreached** non-root doc routed it. Its immediate parent *is* a directory-target, so D1 does **not** fire; it stays counted (genuine-abandoned). This is the safe direction — such a doc's only route is itself unreachable, which is plausibly real rot, and mis-counting it is a visible FP, not a silent FN.
 
 ### D2 — skill-discovery
 
@@ -68,15 +75,17 @@ And one output field **is added** (so the re-based score is reconstructable from
 
 **Tightness:** these are agent/tool **runtime** directories by definition; the TBD-14 ruling enumerated them **by path** for exactly this class (unlike test fixtures, §4). Corpus: posthog `.claude/agents|rules/**`, superset `.claude/projects/**`, Ghost `.claude/commands/**`, claude-mem `WARP.md` + `cursor-hooks/**`.
 
-### D4 — tight dated-archival (with an explicit structural-vs-convention split)
+### D4 — tight dated/versioned-archival (structural only)
 
-**Signal — three sub-rules, netted only where tight:**
-- **dated-filename** — the doc's basename (or any path segment) contains a `\d{4}-\d{2}-\d{2}` date. **Structurally tight** — a date embedded in the name is self-evidence of an archival/dated document; there is no realistic way a live, must-be-routed doc carries a full date in its filename. Corpus: Ghost `deleted-/draft-/published-2014-12-19-*.md`, dated plan docs.
-- **`plans/` segment** and **`CHANGELOG/` segment** — a path segment named `plans` or `CHANGELOG`. **Convention tight, not structural** — this is a *guess* that those segments mean "archival by convention." It held on the pinned corpus (the TBD-14 re-val accepted them), but a repo that keeps *live, must-be-routed* docs under a `plans/` directory would make this a **silent-FN vector**.
+**(Amended 2026-08-26 — TBD-20.)** The original spec's D4b netted any doc under a `plans/` or `CHANGELOG/` directory **segment** — a *convention* guess flagged (here and in §5) as the sole silent-FN vector. §6.2's individual check confirmed the vector: two live, ready-to-build posthog PRDs under `products/desktop/docs/plans/` (`Status: ready-for-agent` / `Ready to build`) were silently netted. Both segment rules are **dropped** and replaced by a second **structural** sub-rule (version-shaped basename), so D4 nets only on self-evident filename structure, never on a directory name.
 
-**Explicitly NOT netted:** a bare `docs/**` path. `docs/` routinely holds live documentation, so excluding it wholesale is loose → silent-FN risk. It is a named gap (§4).
+**Signal — two structural sub-rules, netted only where tight:**
+- **D4a dated-filename** — the doc's basename (or any path segment) contains a `\d{4}-\d{2}-\d{2}` date. **Structurally tight** — a date embedded in the name is self-evidence of an archival/dated document; there is no realistic way a live, must-be-routed doc carries a full date in its filename. Corpus: Ghost `deleted-/draft-/published-2014-12-19-*.md`, dated plan docs (including live-directory plans that *are* dated).
+- **D4b version-shaped basename** — the doc's basename (minus extension) is essentially a full semantic version: `^v?\d+\.\d+(\.\d+)+$` (optional leading `v`, **≥2 dots**). **Structurally tight, same class as D4a** — a file literally named `1.4.1.md` / `6.1.0.md` is a released-version artifact by self-evidence, independent of its directory. Corpus: superset `CHANGELOG/1.4.1.md … 6.1.0.md` (32 archives, all 3-component semver → all netted). Ambiguous two-part forms (`v2`, `2.0`) do **not** net — they stay counted, the safe direction.
 
-**Consequence:** D4 nets out a **subset** of the corpus's 189 dated-archival residuals — the dated-filename / `plans/` / `CHANGELOG/` ones. Residuals that are archival *only* by sitting under `docs/` (no date, not `plans/`, not `CHANGELOG/`) stay **counted** (visible FP). That is the intended boundary.
+**Explicitly NOT netted:** a bare `docs/**` path (unchanged — `docs/` routinely holds live docs, a named §4 gap); a **`plans/`** or **`CHANGELOG/`** directory that is *not* backed by a dated or version-shaped filename (a live PRD under `plans/` now stays counted, not silently netted).
+
+**Consequence:** D4 nets out the dated-filename and version-shaped-basename residuals only. On the pinned corpus the change is exact: all 32 superset CHANGELOG version archives stay netted (now via D4b's structural version shape), and the 2 live posthog PRDs flip from netted to **counted**. Residuals that are archival *only* by directory convention (an undated, non-versioned doc under `plans/`/`CHANGELOG/`/`docs/`) stay **counted** (visible FP). That is the intended boundary.
 
 ## 4. Named visible-FP gaps — counted in v1, mechanization → `/decisions`
 
@@ -90,28 +99,30 @@ These accepted classes **resist deterministic, tight detection**. Per the tie-br
 
 | detector | fires on | failure direction if wrong |
 |---|---|---|
-| D1 route-to-dir-nested | structural graph fact | none (structural); mis-miss = visible FP |
+| D1 route-to-dir-nested | nested below a `dirTargets` directory (structural graph fact) | none (structural); mis-miss = visible FP. **(Amended TBD-19 — was keyed on `routedDirs`, which mixed in file-parent/root entries and carried a silent-FN vector; the `dirTargets` basis removes it.)** |
 | D2 skill-discovery | ancestor has `SKILL.md` | over-broad only if a `SKILL.md` sits above genuinely-abandoned docs — unattested; visible FP if under-fires |
 | D3 agent-runtime | `.claude/**`, `WARP.md`, `cursor-hooks/**` | path set is definitional; visible FP if under-fires |
 | D4a dated-filename | date in name | structural self-evidence; visible FP if under-fires |
-| D4b plans/CHANGELOG segment | convention guess | **silent-FN vector if a repo keeps live docs there** — re-validation must target these (§6) |
+| D4b version-shaped basename | full-semver basename `^v?\d+\.\d+(\.\d+)+$` | structural self-evidence, same class as D4a; visible FP if under-fires. **(Amended TBD-20 — replaced the `plans/`/`CHANGELOG/` segment convention, which was a silent-FN vector.)** |
 | gaps (§4) | not netted | counted = visible FP by construction |
 
-Only **D4b** carries a genuine silent-FN vector; §6 makes it a specific re-validation target rather than trusting the aggregate.
+**(Amended 2026-08-26.)** After TBD-19 + TBD-20 **no detector keys on a directory-name convention** — every net is a structural fact (routing-graph membership, a `SKILL.md` ancestor, a definitional path set, a dated/versioned basename). The §6 re-validation still checks the D4b version-shape nets **individually** (the successor to the old D4b-segment check) and confirms MSW is now among the counted, but no detector is trusted on convention alone.
 
 ## 6. Close condition (future build's exit criterion — not now)
 
 TBD-18 closes when, after the build (TDD detectors + sub-score tests), a **categorical re-validation on the pinned nine-repo corpus** confirms:
 
 1. **No genuine rot silently netted.** Every orphan the re-base moves out of `genuineAbandonedCount` is a true accepted-layout doc. The **20 genuine-abandoned** residuals from the TBD-14 re-val #2 must all still be counted (plus the still-counted §4 resisters).
-2. **Segment-specific silent-FN check (per review).** The docs netted by **D4b** (`plans/` / `CHANGELOG/` segments) are checked **individually**, separately from D4a's dated-filename nets — because D4b is convention-tight, not structural. If any `plans/`/`CHANGELOG/`-netted doc is genuine rot, D4b is a silent-FN vector and returns to `/decisions`. Aggregate "the 20 survive" is **not** sufficient evidence for D4b.
+2. **Version-shape silent-FN check (per review; amended TBD-20).** The docs netted by **D4b** (version-shaped basename `^v?\d+\.\d+(\.\d+)+$`) are checked **individually**, separately from D4a's dated-filename nets — a version-shaped basename is structurally self-evident but the check confirms it on-corpus. If any version-shape-netted doc is genuine rot, D4b returns to `/decisions`. The dropped `plans/`/`CHANGELOG/` segment cases are re-checked too: the 2 live posthog PRDs (`plans/`, non-versioned) must now be **counted**, not netted. Aggregate "the 20 survive" is **not** sufficient evidence for D4b.
 3. Only then does `orphans` become eligible to carry weight; setting the weight is a **separate** `/decisions` (TBD-10), and the README true-sample follows that.
 
 ## 7. Testing approach (for the build loop, not this document)
 
-Unit tests (TDD, `node:test`): one per detector (D1 nested vs. direct-in-routed-dir; D2 SKILL.md ancestor vs. none; D3 each path form; D4a dated-filename, D4b plans/CHANGELOG, and a bare `docs/` doc that must **stay counted**); sub-score tests (an accepted-layout orphan does not move the score; a genuine-abandoned orphan does; `orphanCandidateTotal` and the findings array are unchanged; an all-accepted repo scores ~100). **Reconstruction test:** `stats.genuine_abandoned_count` is present in the output and satisfies `orphans.score == 1 − stats.genuine_abandoned_count / orphanCandidateTotal` (the score is reconstructable from output).
+Unit tests (TDD, `node:test`): one per detector (D1 nested-below-a-`dirTargets`-dir vs. direct-in-directory-target — **including the TBD-19 regression: a doc nested below a directory that is in `routedDirs` only via a file-parent link must NOT be netted**, e.g. the MSW shape; D2 SKILL.md ancestor vs. none; D3 each path form; D4a dated-filename; **D4b version-shaped basename `1.4.1.md` nets, ambiguous `v2`/`2.0` does not, a live non-versioned doc under `plans/` stays counted — the TBD-20 regression**; and a bare `docs/` doc that must **stay counted**); sub-score tests (an accepted-layout orphan does not move the score; a genuine-abandoned orphan does; `orphanCandidateTotal` and the findings array are unchanged; an all-accepted repo scores ~100). **Reconstruction test:** `stats.genuine_abandoned_count` is present in the output and satisfies `orphans.score == 1 − stats.genuine_abandoned_count / orphanCandidateTotal` (the score is reconstructable from output).
 
-`src/API.md` updates in the same build commit (rule 8 — the `orphans` semantics description changes **and** the new `stats.genuine_abandoned_count` field is documented). **Rule 2: the context-budget ledger is RE-MEASURED this build** — adding `stats.genuine_abandoned_count` is a **schema addition** (it widens the `tools/list` output schema / `stats` object), so the standing tool-definition cost must be re-measured and the ledger updated in the same commit, not assumed unchanged. (The earlier "ledger unaffected" reading was for a numerator-only change with no new field; surfacing the count changes that.)
+**(Amended 2026-08-26.)** The rule-8 / rule-2 note below was written for the **original** build, which added `stats.genuine_abandoned_count`. That build landed; the field already ships. The **TBD-19/20 amendment build changes only detector internals** (`accepted-layout.ts` D1 basis + D4 rule; a one-line `dirTargets` exposure in `graph.ts`): no output field is added, no `outputSchema` widened. Rule 8 is triggered **minimally** — D4's class semantics expand to net version-shaped basenames, so the documented class name **"tight dated-archival" → "tight dated/versioned-archival"** in `src/API.md` (the two `stats`/`subscores` prose mentions) updates in the same build commit; no schema/field change. Otherwise the class names and reconstruction identity are unchanged (re-read against the final code to confirm). Expect **no ledger cost change** (re-measure to confirm, per rule-2 discipline). The original note is retained for provenance:
+
+> `src/API.md` updates in the same build commit (rule 8 — the `orphans` semantics description changes **and** the new `stats.genuine_abandoned_count` field is documented). **Rule 2: the context-budget ledger is RE-MEASURED this build** — adding `stats.genuine_abandoned_count` is a **schema addition** (it widens the `tools/list` output schema / `stats` object), so the standing tool-definition cost must be re-measured and the ledger updated in the same commit, not assumed unchanged. (The earlier "ledger unaffected" reading was for a numerator-only change with no new field; surfacing the count changes that.)
 
 ## 8. Out of scope
 
@@ -125,5 +136,5 @@ Unit tests (TDD, `node:test`): one per detector (D1 nested vs. direct-in-routed-
 1. component-manifest detection.
 2. test-harness-fixture detection.
 3. bare-`docs/**` disposition.
-4. If re-validation (§6.2) shows `plans/` or `CHANGELOG/` is loose on-corpus, that segment's disposition.
+4. ~~If re-validation (§6.2) shows `plans/` or `CHANGELOG/` is loose on-corpus, that segment's disposition.~~ **RESOLVED 2026-08-26 (TBD-20)** — re-validation confirmed `plans/` loose (2 live PRDs); both segment rules dropped, replaced by the structural version-shaped-basename net (§D4b). See the decision record.
 5. **Per-doc attribution (v1.1)** — surfacing *which* detector netted each accepted-layout orphan (a per-finding tag), beyond the reconcilable `stats.genuine_abandoned_count`. Deferred as a machine-readable convenience, not a correctness need; it widens the findings schema, so it is its own decision.
