@@ -6,7 +6,7 @@
 
 ## Repo state — verified 2026-08-27
 
-- **`main` HEAD:** `26c30cf` (`feat(override_log): the guidance-with-override record generator (Roadmap tool #2) (#59)`). **`override_log` is built, merged, and verified on trunk.** This `/handoff` runs on branch `docs/handoff-2026-08-27-override-log` (docs-only: API.md status flip, Roadmap, CLAUDE.md checklist, this file) — its PR is the new HEAD once merged.
+- **`main` HEAD:** `a400356` (`docs: task-observer backlog review — distill Obs 22-28 into WORKFLOW.md (#61)`). Working tree **clean**. **`override_log` is built, merged, and verified on trunk** (PR #59, landed at `26c30cf`); the session's doc closeout then landed on top: **`/handoff`** (PR #60 — API.md status → Shipped, Roadmap, CLAUDE.md checklist, this file) and the **task-observer backlog review** (PR #61 — Obs 22–28 distilled into WORKFLOW.md).
 - **Tests:** **158 / 158 pass**, `tsc --noEmit` clean, **Node v20+** (engines floor; developed on v25). The count rose 131 → 158 this session (+27: 24 in `test/override-log/` + 3 changed/added server & packaging assertions).
 - **Merge verification (Obs 20):** PR #59 landed by **squash**; verified by **content on trunk** — all five `src/tools/override-log/*.ts` and five `test/override-log/*.test.ts` present, `overrideLogTool` wired in `src/server.ts` (import + list + handler), `### override_log` section in `src/API.md`, ledger `Total: 633` in `src/CONTEXT.md`, `TBD-21` in `src/TDD.md`; suite re-run on `main` = 158. Never by branch-SHA ancestry (`--is-ancestor` fails by design on a squash).
 - **Open PRs:** the `docs/handoff-2026-08-27-override-log` PR (this handoff). `feat/override-log` merged and deleted.
@@ -61,7 +61,7 @@ All in `planning/decisions/2026-08-27_override-log-v1-scope-and-validation.md`. 
 - **Borrowed-primitive-inverted-invariant (Obs 27).** The design first reused `context_audit`'s id hash but fed it the *field values* (the moving evidence) — inverting `findingId`'s documented contract ("stable discriminator, never the measured evidence"). An owner review caught it pre-plan; the fix hashes the identity fields. `stableId` is a deliberate *duplication* of the formula (not an import) with a boundary test locking equivalence — the WORKFLOW Obs 5 "if duplication is deliberate, cross-reference both sides + boundary test" escape hatch. This is why touching no `context_audit` source was possible.
 - **Verification commands must run on the declared runtime floor (Obs 28).** The plan's ledger-measurement one-liner used `require()` of ESM — fine on the dev machine's Node 25, throws `ERR_REQUIRE_ESM` on the stated Node-20 floor. The plan review caught it; the shipped command uses `node --input-type=module` dynamic `import()`.
 - **Measured ledger cost:** `override_log` = **381** char-approx-v1 tokens, combined **633 / ~4000**. Ample headroom for `doc_drift`.
-- **task-observer backlog:** now **7 OPEN** (22–28). Obs 26/27/28 were logged this session (see above).
+- **task-observer backlog: reviewed and cleared 2026-08-27.** All of Obs 22–28 (26/27/28 logged this session) were distilled into WORKFLOW.md's "Review-derived checklists" and marked ACTIONED (PR #61); backlog now **0 OPEN**. Obs 26's deeper fix — encoding "name which axes" into the `/handoff` next-session-starter guidance in `prompts/handoff.md` — was **declined by the owner for now** and kept as the WORKFLOW.md rule (a shipped-prompt change if ever revisited, triggering rule 1 regeneration).
 
 ---
 
