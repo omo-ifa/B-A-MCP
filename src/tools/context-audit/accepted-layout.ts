@@ -19,12 +19,16 @@ function ancestorDirs(relPath: string): string[] {
   return out;
 }
 
-// D1 — route-to-directory, nested. The doc is under a routed directory but not
-// DIRECTLY in one (an intervening subdirectory). Structural fact; no silent-FN.
-export function isRouteToDirNested(relPath: string, routedDirs: Set<string>): boolean {
+// D1 — route-to-directory, nested. The doc is under a routed DIRECTORY-TARGET but
+// not DIRECTLY in one (an intervening subdirectory). Keys on dirTargets — the
+// directories routed AS a directory — NOT the broader routedDirs, which also holds
+// file-parent and root "" entries and would silently net genuine rot (TBD-19: the
+// Ghost apps/admin/.../MSW_USAGE_GUIDE.md was netted because apps/admin sat in
+// routedDirs via a file link). Structural fact over the correct set; no silent-FN.
+export function isRouteToDirNested(relPath: string, dirTargets: Set<string>): boolean {
   const parent = parentDir(relPath);
-  if (routedDirs.has(parent)) return false;               // directly in a routed dir -> not nested
-  for (const a of ancestorDirs(relPath)) if (a !== parent && routedDirs.has(a)) return true;
+  if (dirTargets.has(parent)) return false;               // directly in a directory-target -> not nested
+  for (const a of ancestorDirs(relPath)) if (a !== parent && dirTargets.has(a)) return true;
   return false;
 }
 
@@ -72,12 +76,14 @@ export function isTightDatedArchival(relPath: string): boolean {
   return false;
 }
 
-export interface AcceptedLayoutCtx { routedDirs: Set<string>; skillDirs: Set<string>; }
+// D1 is the only consumer of the directory-route field, so the context carries
+// dirTargets (TBD-19), not the broader routedDirs.
+export interface AcceptedLayoutCtx { dirTargets: Set<string>; skillDirs: Set<string>; }
 
 // Any tight detector firing => the doc is accepted layout, not genuine-abandoned
 // rot, so it is excluded from the orphans sub-score numerator (still a finding).
 export function isAcceptedLayout(relPath: string, ctx: AcceptedLayoutCtx): boolean {
-  return isRouteToDirNested(relPath, ctx.routedDirs)
+  return isRouteToDirNested(relPath, ctx.dirTargets)
     || isSkillDiscovered(relPath, ctx.skillDirs)
     || isAgentRuntimeConfig(relPath)
     || isTightDatedArchival(relPath);

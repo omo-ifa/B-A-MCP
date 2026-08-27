@@ -11,14 +11,19 @@ test("parentDir returns the directory portion, empty for root-level", () => {
   assert.equal(parentDir("c.md"), "");
 });
 
-test("D1 route-to-dir-nested: nested under a routed dir is accepted; direct child is not", () => {
-  const routedDirs = new Set(["src"]);
-  // src/sub/deep.md — parent "src/sub" not routed, ancestor "src" routed -> nested (accepted)
-  assert.equal(isRouteToDirNested("src/sub/deep.md", routedDirs), true);
-  // src/direct.md — parent "src" IS routed -> directly in routed dir -> NOT nested
-  assert.equal(isRouteToDirNested("src/direct.md", routedDirs), false);
-  // outside any routed dir -> not nested
-  assert.equal(isRouteToDirNested("other/x.md", routedDirs), false);
+test("D1 route-to-dir-nested: keys on dirTargets, not the broader routedDirs (TBD-19)", () => {
+  // dirTargets = directories routed AS a directory. "src" is one; "apps/admin" is NOT
+  // (in the real graph it lands in routedDirs only via a file-parent link).
+  const dirTargets = new Set(["src"]);
+  // nested below a directory-target -> accepted layout
+  assert.equal(isRouteToDirNested("src/sub/deep.md", dirTargets), true);
+  // directly inside a directory-target -> not nested
+  assert.equal(isRouteToDirNested("src/direct.md", dirTargets), false);
+  // outside any directory-target -> not nested
+  assert.equal(isRouteToDirNested("other/x.md", dirTargets), false);
+  // MSW REGRESSION: nested below a dir that is NOT a directory-target must NOT net,
+  // even several levels deep (the Ghost apps/admin/.../MSW_USAGE_GUIDE.md shape).
+  assert.equal(isRouteToDirNested("apps/admin/test-utils/x/MSW_USAGE_GUIDE.md", dirTargets), false);
 });
 
 test("D2 skill-discovery: a doc under a SKILL.md directory is accepted", () => {
@@ -68,11 +73,11 @@ test("D2 skill-discovery: a root-level SKILL.md must not register (silent-FN gua
 });
 
 test("isAcceptedLayout ORs the four detectors; a plain unreferenced doc is NOT accepted", () => {
-  const ctx = { routedDirs: new Set(["src"]), skillDirs: new Set(["skills/foo"]) };
+  const ctx = { dirTargets: new Set(["src"]), skillDirs: new Set(["skills/foo"]) };
   assert.equal(isAcceptedLayout("src/sub/nested.md", ctx), true);        // D1
   assert.equal(isAcceptedLayout("skills/foo/ref.md", ctx), true);        // D2
   assert.equal(isAcceptedLayout(".claude/agents/a.md", ctx), true);      // D3
   assert.equal(isAcceptedLayout("x/2020-01-01-note.md", ctx), true);     // D4
-  // genuine-abandoned: directly in a routed dir, no skill/agent/date signal
+  // genuine-abandoned: directly in a directory-target, no skill/agent/date signal
   assert.equal(isAcceptedLayout("src/ORPHAN.md", ctx), false);
 });

@@ -186,6 +186,14 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
     arr.push(d.relPath);
   }
 
+  // Flatten the per-source directory-target map into one set — D1's structural
+  // basis (TBD-19). Strictly the directories some router routed AS a directory,
+  // never a file-parent or root "" entry (the routedDirs pollution that silently
+  // netted the Ghost MSW_USAGE_GUIDE.md). Computed unconditionally so it is
+  // returned even when the orphan guard skips scoring.
+  const dirTargets = new Set<string>();
+  for (const set of dirTargetsBySrc.values()) for (const d of set) dirTargets.add(d);
+
   // reachability DFS from every root doc
   const roots = walkRes.docs.filter((d) => d.isRoot).map((d) => d.relPath);
   const reached = new Set<string>(roots);
@@ -229,7 +237,7 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
       if (!reached.has(doc.relPath)) {
         findings.push(f("orphan", doc.relPath, null, "in-scope doc unreachable from any routing root", doc.relPath, doc.relPath));
         orphanCount++;
-        if (!isAcceptedLayout(doc.relPath, { routedDirs, skillDirs })) genuineAbandonedCount++;
+        if (!isAcceptedLayout(doc.relPath, { dirTargets, skillDirs })) genuineAbandonedCount++;
       }
     }
   }
@@ -245,13 +253,6 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
       routerEdges.get(src)!.add(t);
     }
   }
-
-  // Flatten the per-source directory-target map into one set — D1's structural
-  // basis (TBD-19). Strictly the directories some router routed AS a directory,
-  // never a file-parent or root "" entry (the routedDirs pollution that silently
-  // netted the Ghost MSW_USAGE_GUIDE.md).
-  const dirTargets = new Set<string>();
-  for (const set of dirTargetsBySrc.values()) for (const d of set) dirTargets.add(d);
 
   return {
     findings,

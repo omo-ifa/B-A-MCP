@@ -584,3 +584,22 @@ test("dirTargets exposes only genuine directory-target routes, not file-parent d
     assert.ok(!g.dirTargets.has(""), "root is not a directory target");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("MSW shape: a doc nested below a FILE-parent-routed dir is genuine-abandoned, not netted (TBD-19)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-graph-msw-"));
+  try {
+    // root routes to the FILE apps/admin/README.md (furniture) -> apps/admin lands in
+    // routedDirs but is NOT a directory-target. A doc nested below it is an orphan.
+    writeFileSync(join(dir, "CLAUDE.md"), "root [readme](apps/admin/README.md)\n");
+    mkdirSync(join(dir, "apps", "admin", "test-utils", "x"), { recursive: true });
+    writeFileSync(join(dir, "apps", "admin", "README.md"), "admin readme\n");
+    writeFileSync(join(dir, "apps", "admin", "test-utils", "x", "MSW_USAGE_GUIDE.md"), "a genuine human doc, unreferenced\n");
+    const root = resolveRoot(dir);
+    const g = buildGraph(root, walk(root));
+    assert.ok(g.routedDirs.has("apps/admin"), "apps/admin routed via the README file link");
+    assert.ok(!g.dirTargets.has("apps/admin"), "apps/admin is not a directory-target");
+    // it IS an orphan finding AND it counts as genuine-abandoned (D1 no longer nets it):
+    assert.equal(g.orphanCount, 1);
+    assert.equal(g.genuineAbandonedCount, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
