@@ -117,3 +117,30 @@ None blocks v1 — the provided/inline differ ships without any of them.
 If Gate 3 (`/design-doc`) or a later gate surfaces a decision this ledger missed, return to
 `/decisions` and log it here before continuing. The gate is one-way: an unresolved decision
 must not slip into `writing-plans` as a silent assumption.
+
+---
+
+## Gate 3 review addenda (2026-08-27)
+
+Owner review of the design doc pinned the details D8 delegated to Gate 3. Recorded here so the
+ledger stays complete; the substance lives in `planning/designs/2026-08-27_doc-drift-design.md`.
+
+- **Score, opaque paths (correction).** Opaque-wildcarded field paths are **excluded from the score
+  denominator entirely** — neutral, never counted as in-sync. The earlier "count as in sync" wording
+  was contradictory (an all-opaque schema would read 100%, not null) and gameable (minimizing a
+  schema would *raise* its score, rewarding the Finding-2 minimization the wildcard exists to stay
+  neutral about). Null-on-empty stands as the coherent floor.
+- **Comparison surface (scope add).** v1 compares **field presence (both directions) + leaf `type` +
+  `required`-membership at each object node**. `required`-drift was moved out of "deliberately
+  skipped" — it is a top-level set diff at each object node (same fixed-keyword class as `type`, not
+  the framework rabbit hole), core to the retention hook's "is my documented schema still true"
+  pitch, and it composes with the wildcard rule (opaque nodes have no `required`, skipped
+  identically). `enum` / `items` / `format` / `additionalProperties` / description-drift stay
+  skipped for v1.
+- **Severity.** field-only-in-doc = **high**, type/shape mismatch = **high**, field-only-in-canonical
+  = **medium** (doc-consumer blast radius: over-promise breaks, under-record is merely stale).
+  `required`-drift = **high in both directions** (required-ness breaks either way).
+- **Pinned edges.** `pairs: []` (valid empty array) → `score: null` (null denominator), not
+  `INVALID_*`. Colliding pair `label`s yield colliding finding ids (id keys on category + label +
+  field path) — the same latent edge `override_log` accepts; recorded as an accepted v1 limitation,
+  a downstream deduper must not key on id alone.
