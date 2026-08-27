@@ -109,6 +109,8 @@ EOF
 
 ## Task 2: Re-base D1 onto `dirTargets` (TBD-19)
 
+> **SUPERSEDED AT RE-VALIDATION — as-built differs from this task's original text.** The straight swap below (key D1 on `dirTargets` alone, drop `routedDirs` from the ctx) was built and re-validated, and the categorical re-validation showed it **reintroduces a silent FN**: docs whose immediate parent is a file-parent-routed dir but which have a *distant* `dirTargets` ancestor (the live posthog PRDs under `products/desktop/docs/plans/`, `products` a dir-target 3 levels up) get netted through the intervening file-parents. The as-built D1 therefore uses the **nearest-routing-known-ancestor rule** with **both** sets — `isRouteToDirNested(relPath, routedDirs, dirTargets)`, and `AcceptedLayoutCtx = {routedDirs, dirTargets, skillDirs}` (routedDirs is kept, not dropped). See `planning/decisions/2026-08-26_tbd-19-tbd-20-d1-basis-d4b-disposition.md` (§19.1–19.3, "Re-validation finding") and the amended design §D1 for the authoritative rule. The steps below are retained for provenance; read the decision/design for the shipped behavior.
+
 Switch `isRouteToDirNested` off `routedDirs` and onto `dirTargets`; replace `AcceptedLayoutCtx`'s `routedDirs` field with `dirTargets` (D1 is its only consumer); update the `isAcceptedLayout` call site in `graph.ts` to pass the exposed `dirTargets`. This is the behavior change: a doc nested below a file-parent-routed directory (the MSW shape) stops being netted and is correctly counted as genuine-abandoned.
 
 **Files:**
