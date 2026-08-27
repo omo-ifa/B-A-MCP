@@ -151,7 +151,7 @@ Full list and status live in `src/TDD.md`.
 - [ ] Five prompts authored in `prompts/`
 - [ ] Build step generates `.claude/commands/` from `prompts/`
 - [ ] `context_audit` tool
-- [ ] `doc_drift` tool (TBD-9 resolved 2026-08-27 — v1 = provided/inline schema-drift differ; orientation walk-test / framework parsing / canonical self-discovery deferred to TBD-22/23/24)
+- [x] `doc_drift` tool (2026-08-27, PR #65 — free/keyless provided/inline schema-drift differ; TBD-9 resolved; API.md §doc_drift Shipped; ledger 1023/~4000; orientation walk-test / framework parsing / canonical self-discovery deferred to TBD-22/23/24)
 - [x] `override_log` tool (2026-08-27, PR #59 — free/keyless generator/validator; API.md §override_log; ledger 633/~4000; TBD-21 stubbed)
 - [ ] Context-budget ledger populated and under ~4k tokens
 - [ ] `src/API.md` covers every prompt and tool schema
