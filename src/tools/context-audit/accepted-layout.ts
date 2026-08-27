@@ -62,17 +62,22 @@ export function isAgentRuntimeConfig(relPath: string): boolean {
   return false;
 }
 
-const DATED_FILENAME = /\d{4}-\d{2}-\d{2}/;   // D4a: a full ISO-ish date anywhere in the path
+const DATED_FILENAME = /\d{4}-\d{2}-\d{2}/;        // D4a: a full ISO-ish date anywhere in the path
+const VERSION_BASENAME = /^v?\d+\.\d+(\.\d+)+$/;   // D4b: a full-semver basename (>=2 dots), e.g. 1.4.1, 6.1.0, v2.0.0
 
-// D4 — tight dated-archival. D4a (dated filename) is structurally tight. D4b
-// (plans/ or CHANGELOG/ DIRECTORY segment) is convention tight — the close-
-// condition re-validation checks D4b nets individually (spec §6.2). Bare docs/**
-// is deliberately NOT netted (spec §4 gap).
+// D4 — tight dated/versioned archival. BOTH sub-rules are STRUCTURAL (self-evident
+// from the filename), never a directory-name convention. D4a: a dated filename.
+// D4b: a version-shaped basename (a released-version artifact by self-evidence,
+// e.g. CHANGELOG/1.4.1.md) — the successor to the dropped plans/ and CHANGELOG/
+// DIRECTORY-segment rules, which were a convention guess and a confirmed silent-FN
+// vector (live PRDs under plans/, TBD-20). Ambiguous two-part forms (v2, 2.0) do
+// NOT net -> counted, the safe direction. Bare docs/** is still NOT netted (spec §4
+// gap). The close-condition re-validation checks the D4b version-shape nets
+// individually (spec §6.2).
 export function isTightDatedArchival(relPath: string): boolean {
   if (DATED_FILENAME.test(relPath)) return true;                       // D4a
-  const dirSegs = relPath.split("/").slice(0, -1);                     // directory segments only (exclude the filename)
-  if (dirSegs.includes("plans")) return true;                         // D4b
-  if (dirSegs.includes("CHANGELOG")) return true;                     // D4b
+  const base = relPath.split("/").pop()!.replace(/\.md$/i, "");        // basename without the .md extension
+  if (VERSION_BASENAME.test(base)) return true;                       // D4b
   return false;
 }
 

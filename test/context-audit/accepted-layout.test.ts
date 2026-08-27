@@ -44,17 +44,23 @@ test("D3 agent-runtime config: .claude/**, root WARP.md, cursor-hooks/**", () =>
   assert.equal(isAgentRuntimeConfig("docs/guide.md"), false);
 });
 
-test("D4 tight dated-archival: dated filename, plans/, CHANGELOG/ — but NOT bare docs/", () => {
-  // D4a — dated filename (structural)
+test("D4 tight dated/versioned-archival: dated filename OR version-shaped basename; segment conventions dropped (TBD-20)", () => {
+  // D4a — dated filename (structural), unchanged
   assert.equal(isTightDatedArchival("posts/published-2014-12-19-hello.md"), true);
-  assert.equal(isTightDatedArchival("x/plans/2026-08-25-thing.md"), true);
-  // D4b — plans/ and CHANGELOG/ directory segments (convention)
-  assert.equal(isTightDatedArchival("skills/foo/plans/old.md"), true);
-  assert.equal(isTightDatedArchival("CHANGELOG/2020.md"), true);
-  // NOT netted: bare docs/ (spec gap — stays counted)
+  assert.equal(isTightDatedArchival("x/plans/2026-08-25-thing.md"), true);   // dated plan still nets, via D4a
+  // D4b — version-shaped basename (structural), full semver only
+  assert.equal(isTightDatedArchival("CHANGELOG/1.4.1.md"), true);
+  assert.equal(isTightDatedArchival("CHANGELOG/6.1.0.md"), true);
+  assert.equal(isTightDatedArchival("archive/v2.0.0.md"), true);
+  // ambiguous two-part forms do NOT net (counted = safe direction)
+  assert.equal(isTightDatedArchival("docs/v2.md"), false);
+  assert.equal(isTightDatedArchival("docs/2.0.md"), false);
+  // DROPPED conventions: a live, non-dated, non-versioned doc under plans/ or CHANGELOG/
+  // is NO LONGER netted (the posthog live-PRD silent-FN vector).
+  assert.equal(isTightDatedArchival("products/desktop/docs/plans/browser-tabs.md"), false);
+  assert.equal(isTightDatedArchival("CHANGELOG/upcoming.md"), false);
+  // NOT netted: bare docs/ (spec gap — stays counted), unchanged
   assert.equal(isTightDatedArchival("docs/architecture.md"), false);
-  // NOT netted: a file literally named plans.md (not a plans/ directory)
-  assert.equal(isTightDatedArchival("plans.md"), false);
 });
 
 test("D2 skill-discovery: a root-level SKILL.md must not register (silent-FN guard)", () => {
