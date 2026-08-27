@@ -80,6 +80,20 @@ test("findings are ordered by entry then required-field order", () => {
   assert.equal(r.findings[0].evidence, "gate");
 });
 
+test("fields_missing_total equals the number of findings", () => {
+  const r = validateOverrides([{}, { gate: "x", risk: "y" }]);
+  assert.equal(r.stats.fields_missing_total, r.findings.length);
+});
+
+test("finding ids are stable across edits to non-identity fields", () => {
+  // gate/date/decision present (identity fixed); risk/alternative/acknowledged_by missing -> 3 findings each.
+  const ids = (o: any) => validateOverrides([o]).findings.map((f) => f.id).sort();
+  const a = ids({ gate: "g", date: "d", decision: "x" });
+  const b = ids({ gate: "g", date: "d", decision: "x", rationale: "added later" });
+  assert.equal(a.length, 3);
+  assert.deepEqual(a, b); // identity unchanged -> finding ids unchanged
+});
+
 test("a non-object array item is treated as an all-missing entry, never throws", () => {
   const r = validateOverrides([null as any, "x" as any]);
   assert.equal(r.stats.overrides_total, 2);
