@@ -30,13 +30,13 @@ Naming: MCP prompt names are kebab-case, matching their source filename without 
 
 ## Tools (free, unauthenticated)
 
-`tools/list` returns two tools — `context_audit` and `override_log`. One more is planned:
+`tools/list` returns two tools — `context_audit` and `override_log` — with `doc_drift` building on `feat/doc-drift`:
 
 | Tool name       | Status      | Design doc |
 |------------------|-------------|------------|
 | `context_audit`  | **Shipped** | `planning/designs/2026-08-18_context-audit-design.md` |
 | `override_log`   | **Shipped** | `planning/designs/2026-08-27_override-log-design.md` |
-| `doc_drift`      | Forthcoming | none yet (scope pending TBD-9) |
+| `doc_drift`      | **Building** | `planning/designs/2026-08-27_doc-drift-design.md` |
 
 Naming: MCP tool names are snake_case.
 
@@ -237,6 +237,101 @@ Absence of *fields* is never an error — it is scored and flagged as findings (
 - **Severity by field, not category** — keyed by the missing field; `context_audit`'s category-keyed `SEVERITY_BY_CATEGORY` pattern does not apply here (all findings share one category).
 - **Stable id, not tamper-evidence** — see Entry id above.
 - **v1 `date` validation is presence-only** — a malformed date renders verbatim; ISO-format validation + canonical rendering is deferred (TBD-21).
+
+### `doc_drift`
+
+A free, keyless tool that diagnoses schema-of-record drift: it takes an array of caller-supplied `{declared, canonical}` JSON-Schema pairs and returns a structural diagnosis of where they disagree — a completeness score, one finding per drifted field, and a rendered report. It is a **pure structural differ** — it reads no repository files, makes no network call, executes nothing, and persists nothing. Obtaining the canonical truth (a `tools/list` payload, an `openapi.json`, a GraphQL introspection result, etc.) is the calling agent's job; `doc_drift` only diffs the pair it is handed. Generating and rendering the record is the free tier's *reasoning* act; persisting it is `export_record`'s (paid). See `planning/designs/2026-08-27_doc-drift-design.md`.
+
+**Input schema:**
+
+```json
+{
+  "type": "object",
+  "required": ["pairs"],
+  "properties": {
+    "pairs": {
+      "type": "array",
+      "description": "Schema pairs to compare. Each has an optional label and two JSON-Schema-shaped objects: declared (the doc's claim) and canonical (the ground truth the caller obtained).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string", "description": "Identifies this pair in findings and the report." },
+          "declared": { "type": "object", "description": "The schema as documented (e.g. a JSON block from API.md)." },
+          "canonical": { "type": "object", "description": "The ground-truth schema the caller obtained (e.g. a tools/list payload)." }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+`pairs` (the array) is the only schema-required key. Within a pair, `label`, `declared`, and `canonical` are all optional at the schema level — an absent `declared`/`canonical` coerces to `{}` (a vacuous schema with no properties, so it contributes no fields to compare) rather than being rejected. An absent `label` gets a synthetic one (`pair N`) so unlabeled pairs don't collide in the rendered report. What is *not* tolerated is a **present-but-wrong-shaped** value — see the `INVALID_PAIRS` error surface below.
+
+**Output schema** (returned as `structuredContent`, matching the declared `outputSchema`). As with `context_audit` and `override_log`, the declared `outputSchema` keeps `findings.items` and `stats` as bare `{ type: "object" }` to hold the standing tool-definition cost within the rule-2 budget; the detailed shape below documents the payload the tool actually returns:
+
+```json
+{
+  "type": "object",
+  "required": ["score", "findings", "stats", "rendered"],
+  "properties": {
+    "score": { "type": ["number", "null"], "description": "100 * in_sync / fields_compared, rounded; null when fields_compared is 0 (no non-opaque field-path across any pair, including an empty `pairs` array) — never a fabricated 100 over an empty denominator. Opaque `{type:object}`-no-properties nodes are wildcards and their field-paths are excluded from BOTH in_sync and fields_compared entirely — they are neutral and never scored as in-sync." },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "severity", "label", "path", "message", "evidence"],
+        "properties": {
+          "id": { "type": "string", "description": "stableId(category, label, path) — a stable sha256(...).slice(0,12) over the finding's identity discriminator, never the moving evidence (the declared/canonical type or required-state). stableId is formula-identical to context_audit's findingId and override_log's stableId (locked by a boundary test) but is not the same function — doc_drift does not import either." },
+          "category": { "enum": ["field_only_in_doc", "field_only_in_canonical", "type_mismatch", "required_drift"], "description": "the drift kind IS the category. field_only_in_doc: declared has a field canonical lacks (the doc over-promises). field_only_in_canonical: canonical has a field the doc omits (the doc is merely stale). type_mismatch: both sides have the field but its leaf `type` (or object-vs-leaf shape) disagrees. required_drift: the field's `required`-membership disagrees between declared and canonical, in either direction." },
+          "severity": { "enum": ["info", "low", "medium", "high", "critical"], "description": "keyed by drift KIND, not by direction of harm within a kind: field_only_in_doc high, field_only_in_canonical medium, type_mismatch high, required_drift high in BOTH directions (doc-required/code-optional misleads a consumer; doc-optional/code-required breaks one) — required-drift is not merely stale the way field_only_in_canonical is." },
+          "label": { "type": "string", "description": "the pair's label (explicit or synthetic)." },
+          "path": { "type": "string", "description": "dotted field path from the pair's schema root, e.g. \"findings\" or \"stats.total\"." },
+          "message": { "type": "string" },
+          "evidence": { "type": "string", "description": "the concrete divergence (e.g. \"declared: string; canonical: number\"), never used in the id." }
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "required": ["pairs_total", "fields_compared", "in_sync", "drifted", "by_kind"],
+      "properties": {
+        "pairs_total": { "type": "number" },
+        "fields_compared": { "type": "number", "description": "non-opaque comparable field-paths across all pairs — the score's denominator." },
+        "in_sync": { "type": "number" },
+        "drifted": { "type": "number", "description": "drifted field-PATHS, not findings — a path with two drift kinds (e.g. a required_drift AND a type_mismatch on the same field) is counted once here." },
+        "by_kind": { "type": "object", "description": "count per DriftKind (the four categories above). by_kind's total may EXCEED drifted: one field-path can carry two drift kinds at once (required_drift + type_mismatch is the one collision the differ can emit on a single path), so summing by_kind does not reconcile against drifted — the two are deliberately different denominators, not a bug." }
+      }
+    },
+    "rendered": { "type": "string", "description": "tool-built markdown drift report; the agent displays it verbatim." }
+  },
+  "additionalProperties": false
+}
+```
+
+**Result shape.** Both halves ride in one `CallToolResult`: the full JSON object above as `structuredContent`, and `rendered` also as a `text` content block (`content[0].text === structuredContent.rendered`). The `rendered` report has a summary header (pair count + in-sync fraction/percent + drift count), one block per pair (its label, its drift findings or a no-drift line), and the opaque-wildcard accepted-limitation note.
+
+**Finding id.** Each finding carries `stableId(category, label, path)` — a discriminator over the finding's *identity* (the drift kind, the pair label, and the field path), never the moving evidence (the declared/canonical values that differ), so the id is stable across a value changing while the drift itself persists. It is a reference/dedup key, **not a tamper-evidence guarantee** — the id travels with the record and anyone holding it can recompute it; unfakeability is the paid tier's property. The formula is identical to `context_audit`'s `findingId` and `override_log`'s `stableId` (locked by a boundary test) so ids are comparable across all three tools. Ids are stable, **not unique within a call**: synthetic labels are index-derived (`pair 1`, `pair 2`, ...) so they never collide, but two pairs sharing the *same explicit* `label` that also drift the same field path produce identical finding ids, distinguished only by their position in `findings[]`. A downstream deduper (`export_record`) must not key on the id alone.
+
+**Error surface.** A malformed call returns the standard structured error envelope as a `text` block with `isError: true` and no `structuredContent`:
+
+```json
+{ "error": { "code": "INVALID_PAIRS", "message": "...", "detail": "field: pairs | pairs[i] is not an object | pairs[i].declared is not an object | pairs[i].canonical is not an object" } }
+```
+
+`INVALID_PAIRS` fires for: a non-array (or absent) `pairs`; a pair member that is not a plain object (e.g. a string or array in the array); or a **present-but-non-object** `declared`/`canonical` (e.g. a JSON-encoded schema string, or an array) — accepting that silently would coerce it to `{}` and misreport a malformed call as a fully-opaque, no-drift pair. An **absent** `declared`/`canonical` is not the same shape of problem and stays valid (coerces to `{}`, scored as vacuous). An **empty** `pairs` array is likewise valid, not malformed — it resolves to `score: null` (nothing to compare), never `INVALID_PAIRS`.
+
+**Invariants:**
+
+- **Read-only and file-free** — reads no repository files, writes nothing, persists nothing; structured input to structured output. The canonical the caller supplies is trusted, not verified — like `override_log` trusting the events it's handed, `doc_drift` cannot tell a real canonical from a fabricated one.
+- **Keyless, no network** — the free/paid boundary (CLAUDE.md rule 3) sits at `export_record`; `doc_drift` never checks a key or calls B&A infrastructure.
+- **Stateless / deterministic** — same input in, same output out; pairs render in input order, findings in per-pair walk order.
+- **Tool owns rendering** — `rendered` is built by the tool; the agent displays it verbatim.
+- **Severity by drift kind** — see the `findings.severity` description above; `override_log`'s severity-by-*field* pattern does not apply here.
+- **Opaque nodes are wildcards, by definition, not by exception.** A `{type:"object"}` node with no `properties` matches any counterpart — no drift is emitted at it or anywhere in the subtree it stands for, and its field-path is excluded from the score's denominator. **Accepted limitation:** drift *inside* an opaque node is invisible; the documented recourse is to feed a more complete canonical (e.g. a server's real `tools/list` output rather than a hand-trimmed stand-in).
+- **Stable id, not tamper-evidence; colliding explicit labels collide.** See Finding id above — two pairs sharing an explicit `label` and a drifted field path yield identical finding ids, distinguished only by position in `findings[]`, the same latent edge `override_log` accepts on its entry ids.
+- **v1 comparison surface is field presence + leaf `type` + `required`-membership.** Richer keyword comparisons (`enum`, array `items` shape, `format`, `additionalProperties` semantics, description drift) are deliberately out of scope for v1 (TBD-24 covers the broader framework-migration axis; richer keyword comparison is a later refinement, not a v1 obligation).
 
 ---
 
