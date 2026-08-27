@@ -32,7 +32,7 @@ Authorization: Bearer <key>
 
 **Error surface:** structured error content per `CLAUDE.md` error format. Never reveal infrastructure detail to the client.
 
-`TODO: TBD-5` — price/structure (one-time vs. subscription) determines whether validation checks entitlement or just key validity.
+**Price/structure (TBD-5, resolved 2026-08-27): $9/month subscription.** Because it is a subscription, `export_record` validation must check **active entitlement** — the caller's subscription must be **currently active** in Stripe at call time, not merely that a key is well-formed or was once issued. A lapsed subscriber is declined like a non-keyholder. Key issued at checkout; validated against Stripe customer metadata (site repo). See `planning/decisions/2026-08-27_tbd-5-8-pricing-and-launch.md`.
 
 ---
 

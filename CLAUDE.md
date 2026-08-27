@@ -132,11 +132,18 @@ When a TBD is **resolved**, record the reasoning in `planning/decisions/YYYY-MM-
 
 ### Key Open TBDs
 
-| TBD ID  | Blocks                                                                            |
-|---------|----------------------------------------------------------------------------------|
-| TBD-5   | Paid-tier price and structure (one-time vs. subscription) — `export_record` checkout |
+**No open TBD blocks the Phase-1 free-tier release.** The release-gating and
+launch decisions all resolved 2026-08-27:
 
-*(TBD-2 bundled-component licenses and TBD-4 ICM reproduce-vs-paraphrase both resolved 2026-08-27 — see `planning/decisions/2026-08-27_tbd-2-4-resolved.md`. Notices file finalized.)*
+- TBD-2 (bundled licenses) + TBD-4 (ICM reproduce) → `planning/decisions/2026-08-27_tbd-2-4-resolved.md`
+- TBD-5 ($9/mo subscription) + TBD-8 (split launch, free first) → `planning/decisions/2026-08-27_tbd-5-8-pricing-and-launch.md`
+- TBD-3 (DO Functions allowance = 90,000 GiB-s, non-load-bearing) → `src/TDD.md`
+
+What remains open is **non-blocking**: `context_audit` calibration refinements
+(TBD-10 provisional-weight raise, TBD-12 coverage basis, TBD-15 AGENTS.md v1.1),
+deferred tool v1.1 (TBD-21/22/23/24), and the `.claude/commands/` generation
+build step (rule-1 guardrail, not shipped). The paid tier (Phase 2) is blocked
+on the **site-repo** consent-gated checkout, external to this repo.
 
 Full list and status live in `src/TDD.md`.
 
@@ -146,16 +153,16 @@ Full list and status live in `src/TDD.md`.
 
 **Phase 1 — Free tier (local stdio server)** · Target: [DATE]
 
-- [ ] Repo created (`B-A-MCP`), structure scaffolded per the design doc
+- [x] Repo created (`B-A-MCP`), structure scaffolded per the design doc
 - [x] `LICENSE` + `THIRD_PARTY_NOTICES.md` at root (2026-08-27 — TBD-1/TBD-7 resolved 2026-08-20; **TBD-2 + TBD-4 resolved 2026-08-27**, notices file finalized: all five bundled blocks + both runtime deps filled from source, STUB banner removed)
-- [ ] Five prompts authored in `prompts/`
-- [ ] Build step generates `.claude/commands/` from `prompts/`
-- [ ] `context_audit` tool
+- [x] Five prompts authored in `prompts/` (`problem-fit`, `intake`, `decisions`, `design-doc`, `handoff`)
+- [ ] Build step generates `.claude/commands/` from `prompts/` — **NOT built** (no generator script; `.claude/commands/` is empty). Rule-1 guardrail against prompts/commands drift; **not publish-blocking** — `.claude/commands/` is not in the npm `files` whitelist and the prompts are not yet MCP-served (API.md §prompts). Its own later loop.
+- [x] `context_audit` tool (built, live, registered; calibration closed 2026-08-26)
 - [x] `doc_drift` tool (2026-08-27, PR #65 — free/keyless provided/inline schema-drift differ; TBD-9 resolved; API.md §doc_drift Shipped; ledger 1023/~4000; orientation walk-test / framework parsing / canonical self-discovery deferred to TBD-22/23/24)
 - [x] `override_log` tool (2026-08-27, PR #59 — free/keyless generator/validator; API.md §override_log; ledger 633/~4000; TBD-21 stubbed)
-- [ ] Context-budget ledger populated and under ~4k tokens
-- [ ] `src/API.md` covers every prompt and tool schema
-- [ ] `npm publish` dry-run clean from a fresh checkout
+- [x] Context-budget ledger populated and under ~4k tokens (1023 / ~4000 — `src/CONTEXT.md`; combined-total <4000 asserted by `test/override-log/ledger.test.ts`)
+- [x] `src/API.md` covers every prompt and tool schema (five gates + three tools)
+- [x] `npm publish` dry-run clean from a fresh checkout (2026-08-27 — clone at HEAD → `npm ci` 0 vulns → build → 193/193 → `npm publish --dry-run` clean; 34 files, LICENSE/NOTICES/README packed, bundled skills correctly excluded)
 
 **Phase 2 — Paid tier (`export_record`)** · Blocked on the site repo's consent-gated checkout
 
