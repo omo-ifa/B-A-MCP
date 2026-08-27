@@ -137,7 +137,6 @@ When a TBD is **resolved**, record the reasoning in `planning/decisions/YYYY-MM-
 | TBD-2   | Confirm each bundled component's license from its own `LICENSE`/`plugin.json` — all packaging (**rescoped 2026-08-20:** four confirmed; caveman needs `skills/caveman/` path-scoping + commit pin) |
 | TBD-4   | ICM reproduce-vs-paraphrase — blocks the notices file (**narrowed 2026-08-20:** code copyright is Van Clief; paraphrase call still owner's) |
 | TBD-5   | Paid-tier price and structure (one-time vs. subscription) — `export_record` checkout |
-| TBD-9   | `doc_drift` scope: which frameworks and migration formats are in scope for v1    |
 
 Full list and status live in `src/TDD.md`.
 
@@ -152,7 +151,7 @@ Full list and status live in `src/TDD.md`.
 - [ ] Five prompts authored in `prompts/`
 - [ ] Build step generates `.claude/commands/` from `prompts/`
 - [ ] `context_audit` tool
-- [ ] `doc_drift` tool (or deferred to Phase 2 per TBD-9)
+- [ ] `doc_drift` tool (TBD-9 resolved 2026-08-27 — v1 = provided/inline schema-drift differ; orientation walk-test / framework parsing / canonical self-discovery deferred to TBD-22/23/24)
 - [x] `override_log` tool (2026-08-27, PR #59 — free/keyless generator/validator; API.md §override_log; ledger 633/~4000; TBD-21 stubbed)
 - [ ] Context-budget ledger populated and under ~4k tokens
 - [ ] `src/API.md` covers every prompt and tool schema
