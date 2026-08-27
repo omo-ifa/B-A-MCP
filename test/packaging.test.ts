@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-test("packed tarball installs and the installed bin lists one tool", async () => {
+test("packed tarball installs and the installed bin lists two tools", async () => {
   const projectRoot = process.cwd();
 
   // Pack the current package into a temp dir.
@@ -27,7 +27,7 @@ test("packed tarball installs and the installed bin lists one tool", async () =>
     stdio: "pipe",
   });
 
-  // Run the installed binary over stdio and assert zero tools.
+  // Run the installed binary over stdio and assert two tools.
   const transport = new StdioClientTransport({
     command: "npx",
     args: ["--no-install", "b-a-mcp"],
@@ -42,8 +42,8 @@ test("packed tarball installs and the installed bin lists one tool", async () =>
     await client.connect(transport);
     connected = true;
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 1);
-    assert.equal(tools[0].name, "context_audit");
+    const names = tools.map((t) => t.name).sort();
+    assert.deepEqual(names, ["context_audit", "override_log"]);
   } finally {
     if (connected) {
       try {

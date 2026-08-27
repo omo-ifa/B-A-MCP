@@ -30,13 +30,13 @@ Naming: MCP prompt names are kebab-case, matching their source filename without 
 
 ## Tools (free, unauthenticated)
 
-`tools/list` currently returns one tool: `context_audit`. Two more are planned:
+`tools/list` returns `context_audit` and `override_log` (the latter **Building** on `feat/override-log` — the status flips to Shipped when the branch merges to trunk). One more is planned:
 
 | Tool name       | Status      | Design doc |
 |------------------|-------------|------------|
 | `context_audit`  | **Shipped** | `planning/designs/2026-08-18_context-audit-design.md` |
+| `override_log`   | **Building** | `planning/designs/2026-08-27_override-log-design.md` |
 | `doc_drift`      | Forthcoming | none yet (scope pending TBD-9) |
-| `override_log`   | Forthcoming | none yet |
 
 Naming: MCP tool names are snake_case.
 
@@ -141,6 +141,102 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
 - **Tool owns rendering** — `rendered` is built by the tool from the structured result, never narrated by the agent.
 - **Stable severity scale** — the five-level `severity` enum (`info`/`low`/`medium`/`high`/`critical`) is a fixed contract so historical `export_record` artifacts stay comparable, even as the underlying rubric evolves. An uncovered significant **source** directory is category `coverage` (severity `high`); an uncovered significant **test** directory — any path segment named `test`/`tests`/`__tests__`/`spec`, case-insensitive — is the distinct category `coverage_test` (severity `medium`). See `planning/decisions/2026-08-20_test-dir-coverage-severity.md`. Both remain gated behind the TBD-12 build guard and emit nothing on the default (no-opts) path.
 - **Normalized ordering** — findings are emitted in normalized (sorted) path order so two identical audits produce identical records.
+
+### `override_log`
+
+A free, keyless tool that turns guidance-with-override *events* into a canonical, rendered override log with a completeness score and a finding per missing required field. It reads no repository files, makes no network call, and persists nothing — generating and rendering the record is the free tier's *reasoning* act; persisting it is `export_record`'s (paid). See `planning/designs/2026-08-27_override-log-design.md`.
+
+**Input schema:**
+
+```json
+{
+  "type": "object",
+  "required": ["overrides"],
+  "properties": {
+    "overrides": {
+      "type": "array",
+      "description": "Override events to record. Each field is optional; a missing required field is flagged, never rejected.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "gate": { "type": "string", "description": "The gate/checkpoint the override was taken at." },
+          "risk": { "type": "string", "description": "The specific gap/risk the gate flagged." },
+          "alternative": { "type": "string", "description": "The cheaper/safer path the gate named." },
+          "decision": { "type": "string", "description": "What was chosen instead." },
+          "acknowledged_by": { "type": "string", "description": "Who authorized proceeding." },
+          "date": { "type": "string", "description": "When (a date string; presence checked, format not - v1)." },
+          "rationale": { "type": "string", "description": "Optional: why they proceeded." }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+All seven event fields are optional — the tool never hard-refuses a call for a missing field (guidance-with-override applied to the tool itself). Six are *required for a complete record* (`gate`, `risk`, `alternative`, `decision`, `acknowledged_by`, `date`); `rationale` is optional and never faulted. `overrides` (the array) is the only schema-required key. Empty/whitespace field values are treated as missing.
+
+**Output schema** (returned as `structuredContent`, matching the declared `outputSchema`). As with `context_audit`, the declared `outputSchema` keeps `findings.items` and `stats` as bare `{ type: "object" }` to hold the standing tool-definition cost within the rule-2 budget; the detailed shape below documents the payload the tool returns:
+
+```json
+{
+  "type": "object",
+  "required": ["score", "findings", "stats", "rendered"],
+  "properties": {
+    "score": { "type": ["number", "null"], "description": "100 * fully_documented / overrides_total, rounded; null when the overrides array is empty (never 100 over an empty denominator). An entry is fully documented iff all six required fields are present." },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "severity", "entry_index", "message", "evidence"],
+        "properties": {
+          "id": { "type": "string", "description": "stableId(\"override_field_missing\", <entry discriminator>, <field name>) — a stable sha256(...).slice(0,12) over the entry's identity discriminator and the missing field, never the moving evidence. stableId is formula-identical to context_audit's findingId (locked by a boundary test) but is not the same function — override_log does not import findingId." },
+          "category": { "const": "override_field_missing", "description": "the only category; every finding is a missing required field." },
+          "severity": { "enum": ["info", "low", "medium", "high", "critical"], "description": "keyed by the missing FIELD, not the category: high for risk/alternative/date/acknowledged_by, medium for gate/decision." },
+          "entry_index": { "type": "number", "description": "0-based position of the entry in the input array." },
+          "message": { "type": "string" },
+          "evidence": { "type": "string", "description": "the missing field's name." }
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "required": ["overrides_total", "fully_documented", "incomplete", "fields_missing_total"],
+      "properties": {
+        "overrides_total": { "type": "number" },
+        "fully_documented": { "type": "number" },
+        "incomplete": { "type": "number" },
+        "fields_missing_total": { "type": "number" }
+      }
+    },
+    "rendered": { "type": "string", "description": "tool-built markdown override log; the agent displays it verbatim." }
+  },
+  "additionalProperties": false
+}
+```
+
+**Result shape.** Both halves ride in one `CallToolResult`: the full JSON object above as `structuredContent`, and `rendered` also as a `text` content block (`content[0].text === structuredContent.rendered`). The `rendered` log has a summary header (counts + completeness %), one block per entry (its id, the verbatim field values, missing-field flags), and a canonical one-line override sentence that includes the cheaper `alternative`.
+
+**Entry id.** Each entry carries a stable id = `sha256(gate\0date\0decision).slice(0,12)` — a discriminator over the *identity* fields, never the moving field values, so it survives `risk` / `alternative` / `acknowledged_by` being completed. It is a reference/dedup key and the key `export_record` supersedes a prior version against — **not** a tamper-evidence guarantee: the id travels with the record and anyone holding it can recompute it. Unfakeability is the paid tier's property; this free tool does not assert it. The formula is identical to `context_audit`'s `findingId` (locked by a boundary test) so ids are comparable across tools. Ids are stable, **not unique within a call**: two entries sharing `gate`/`date`/`decision` (including two all-empty entries) produce identical entry and finding ids, distinguished in the output only by `entry_index`. A downstream deduper (`export_record`) must key on `entry_index` too, never the id alone.
+
+**Error surface.** A non-array (or absent) `overrides` returns the standard structured error envelope as a `text` block with `isError: true` and no `structuredContent`:
+
+```json
+{ "error": { "code": "INVALID_OVERRIDES", "message": "...", "detail": "field: overrides" } }
+```
+
+Absence of *fields* is never an error — it is scored and flagged as findings (guidance-with-override, not a hard refusal).
+
+**Invariants:**
+
+- **Read-only and file-free** — reads no repository files, writes nothing, persists nothing; structured input to structured output.
+- **Keyless, no network** — the free/paid boundary (CLAUDE.md rule 3) sits at `export_record`; `override_log` never checks a key or calls B&A infrastructure.
+- **Stateless / deterministic** — same input in, same output out; entries render in input order, findings in entry-then-required-field order.
+- **Tool owns rendering** — `rendered` is built by the tool; the agent displays it verbatim.
+- **Severity by field, not category** — keyed by the missing field; `context_audit`'s category-keyed `SEVERITY_BY_CATEGORY` pattern does not apply here (all findings share one category).
+- **Stable id, not tamper-evidence** — see Entry id above.
+- **v1 `date` validation is presence-only** — a malformed date renders verbatim; ISO-format validation + canonical rendering is deferred (TBD-21).
 
 ---
 
