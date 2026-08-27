@@ -6,61 +6,65 @@
 
 ## Repo state — verified 2026-08-26
 
-- **`main` HEAD:** `8d9143e` (`docs(workflow): review-derived checklists from the first task-observer backlog review`) at the moment this file was written. Merging this handoff advances `main` once more — a live HEAD ahead of `8d9143e` is expected; a HEAD behind it is wrong.
-- **Merge verification is now a standing rule** — `WORKFLOW.md` → "Review-derived checklists" → "Merge verification (Obs 16, corrected by Obs 20)". After a **squash** merge, verify **content on trunk** (grep changed symbols + new files, re-run tests on `main`); `git merge-base --is-ancestor <branch-sha> main` FAILS by design on a squash and is NOT a broken merge; never check `<post-merge-HEAD>` (passes trivially). Everything below was verified this way.
-- **Tests:** **115 / 115 pass**, `tsc --noEmit` clean, on `main` at `8d9143e`. **Node v25.2.1.** No code has changed since the TBD-10/11/12 build (`7a5bb28`) — the design, plan, and review sessions were docs-only.
-- **Open PRs: #48 only** — `plan(context_audit): TBD-18 orphans re-base implementation plan (reviewed)`. **Intentionally left open**; it is the next session's input. This handoff opens one further PR (docs).
-- Working tree clean before this write. `src/API.md` parses (4/4 JSON blocks) and matches the code (last changed `7a5bb28`). No `src/ERD.md` (no database). Context-budget ledger unchanged at **252 / ~4000** (rule 2). `prompts/` untouched → `.claude/commands/` not regenerated (rule 1).
+- **`main` HEAD:** `aba11a9` (`feat(context_audit): TBD-18 orphans genuine-abandoned re-base (built; re-validation opens TBD-19/20) (#51)`). Working tree **clean**.
+- **Tests:** **126 / 126 pass**, `tsc --noEmit` clean, **Node v25.2.1**. Breakdown (from `test/`): `context-audit/` **122** — accepted-layout **7**, bloat 11, coverage 8, graph **35**, ledger 1, links 15, orchestrate **18**, render 2, root 6, score 11, tokens 1, walk 7 — plus `packaging.test.ts` **1** and `server.test.ts` **3** = **126**. TBD-18 added **+11** over the prior 115 (accepted-layout 7, graph +2, orchestrate +2).
+- **Merge verification (Obs 20):** PR #48 (plan) and PR #51 (build) both landed by **squash**; verified by **content on trunk** (symbols + new files present, suite re-run on `main`), never by branch-SHA ancestry. `git merge-base --is-ancestor <branch-sha> main` FAILS by design on a squash — not a broken merge.
+- **Open PRs: none.** `feat/tbd-18-orphans-rebase` merged and deleted.
+- `src/API.md` parses (**4/4** JSON blocks) and matches the code (documents `stats.genuine_abandoned_count` + the re-based `orphans` semantics; 4 mentions). No `src/ERD.md` (no database). **Context-budget ledger re-measured = 252 / ~4000** (rule 2 — unchanged; the wire `contextAuditTool.outputSchema.properties.stats` is the opaque `{type:"object"}`). `prompts/` untouched → `.claude/commands/` not regenerated (rule 1).
 
 ---
 
 ## Active design doc
 
-- **TBD-18 — `orphans` genuine-abandoned re-base:** `planning/designs/2026-08-26_orphans-genuine-abandoned-rebase-design.md` — **approved + merged (#47)**, amended for the `stats.genuine_abandoned_count` surfacing decision.
-- **Implementation plan (built + reviewed, NOT executed):** `docs/superpowers/plans/2026-08-26-orphans-genuine-abandoned-rebase.md` — on **PR #48**. Ran the plan-document-reviewer (verdict: sound; CRITICAL backtick-fixture + IMPORTANT API.md-schema + 2 MINOR all applied). **Execution has not started.**
+- **TBD-18 — `orphans` genuine-abandoned re-base:** `planning/designs/2026-08-26_orphans-genuine-abandoned-rebase-design.md` — **approved + BUILT** (implemented and landed this session). The build is complete; the design's **§6 close condition is NOT satisfied** (see below), so the design's own exit criterion remains open pending TBD-19 + TBD-20.
+- **Plan (executed):** `docs/superpowers/plans/2026-08-26-orphans-genuine-abandoned-rebase.md` — all 8 tasks executed via subagent-driven-development under TDD, plus one final-review fix (R6). Landed.
+- **Re-validation record:** `planning/calibration/2026-08-26_context-audit-tbd-18-revalidation.md` — the categorical close-condition run (verdict: **CLOSE NOT SATISFIED**).
 
 ---
 
 ## Decisions + TBDs
 
-### The arc since the last handoff (all landed on `main` except the open plan)
+### This session
 
-1. **TBD-10/11/12 NUMBERS** — owner-ratified at `/decisions` and **built** (#45): `ROUTER_TOKEN=3000`, `CHAIN_TOKEN=6000` ratified (`CHAIN_DEPTH=4` kept, under-determined); `MIN_FILES=5` ratified; `TBD_10_WEIGHTS={routing_drift:1,coverage:3,bloat:1}` (`orphans` excluded, gated on TBD-18). **TBD-11 CLOSED.** Decisions: `planning/decisions/2026-08-26_tbd-11-tbd-12-cutoff-numbers-ratified.md`, `…_tbd-10-weights-partial-and-tbd-18-orphans-rebase.md`.
-2. **TBD-18 direction** — re-base `orphans` onto genuine-abandoned rot (net out the TBD-14 accepted-layout classes). **Design (#47) + plan (#48) done this arc.**
-3. **task-observer backlog review** — first-ever full review (#49). All **21** observations ACTIONED (2026-08-26); rules distilled into `WORKFLOW.md` "Review-derived checklists"; `last-review-date.txt` set; backlog now **0 OPEN**. Obs 21 newly logged (the three "literal text to a shell-adjacent tool" process faults).
+- **No TBD was resolved.** TBD-18's re-base was built and landed, but the categorical re-validation on the pinned nine-repo corpus **failed the close condition** — so TBD-18 does **not** close. No `planning/decisions/` record is written for a non-resolution; the reasoning lives in the calibration doc above and the TDD tracker.
+- **`src/TDD.md` updated:** TBD-18 row appended with BUILT-not-CLOSED + the two silent-FN findings; **TBD-19** and **TBD-20** opened (below). `planning/Roadmap.md` updated with the same (the `context_audit` status line). No phase shift — `override_log` is still next once `context_audit` stops moving.
+- **task-observer Obs 22 logged** (`~/.claude/projects/<id>/skill-observations/log.md`, Status OPEN): *a required-field schema addition's file scope is every literal that constructs the type, not just the definition + consumers* — surfaced by Task 7, where adding required `AuditStats.genuine_abandoned_count` broke the pre-existing `render.test.ts` fixture at `tsc`. Backlog now **1 OPEN**.
 
-### Open TBDs
-- **TBD-18** (this arc's build target) — design + plan ready, not executed. See Next-session starter.
-- **TBD-10** — `orphans` weight only, still gated behind TBD-18 landing + re-validating.
-- **TBD-12** — the source-vs-test significance **basis** (its own loop) remains open; `MIN_FILES` resolved.
+### TBD-18 — BUILT, NOT CLOSED (the headline state)
+
+The numerator-only re-base is correct and landed: `orphans = 1 − genuineAbandonedCount / orphanCandidateTotal`, findings still enumerate every candidate, `stats.genuine_abandoned_count` surfaced (score reconstructable from output), `orphans` still **excluded from the headline** (`TBD_10_WEIGHTS`/`ROUTING_LAYER_KEYS` untouched — **zero score impact today**). Re-validation: fidelity + reconstruction pass on all 9 repos; orphan population unchanged at **1 077**; **19/20** genuine-abandoned survive. **But two confirmed silent-FN vectors block closure** → TBD-19 + TBD-20.
+
+### Open TBDs — the two gates now in front of the `orphans` weight
+
+- **TBD-19 — D1 route-to-dir-nested basis (silent FN).** `isRouteToDirNested` keys on the broad `routedDirs`, which `graph.ts` populates from **file-parent** additions (a router linking `dir/file.md` adds `dir`) and root `""`, not directory-**target** routes as design §D1 intended. Confirmed casualty: Ghost `apps/admin/test-utils/posts-analytics/MSW_USAGE_GUIDE.md` (one of the 20 genuine-abandoned) is silently netted because `apps/admin` is in `routedDirs` only via a link to `apps/admin/README.md`. **Stub:** D1 unchanged in code. **Candidate direction (no guess):** re-base D1 onto the directory-target set (`dirTargetsBySrc`, already computed in `graph.ts` for reachability, not exposed). A design decision → `/decisions`.
+- **TBD-20 — D4b `plans/`/`CHANGELOG/` disposition (silent FN).** D4b is convention-tight, not structural. Of 34 D4b-sole nets, 32 are legit (superset `CHANGELOG/<version>.md` archives) but **2 are live ready-to-build posthog PRDs** under `products/desktop/docs/plans/`. **Stub:** D4b unchanged in code. **Candidate directions:** drop D4b; tighten (require a dated filename / version-shaped sibling set); or keep with a documented carve-out. → `/decisions` (design §9 item 4 pre-registered this).
+- **TBD-10 — `orphans` weight only.** Still gated; now sits **behind TBD-19 + TBD-20** (both must resolve and the re-validation must re-pass before TBD-18 closes and `orphans` becomes weighting-eligible). `coverage`/`bloat`/`routing_drift` weights are set (`{routing_drift:1, coverage:3, bloat:1}`); `orphans` excluded.
+- **TBD-12** — source-vs-test significance **basis** still open (`MIN_FILES=5` resolved).
 - **TBD-2 / TBD-4 / TBD-5 / TBD-9 / TBD-15** — packaging / notices / pricing / doc_drift scope / v1.1 root.method. Open, untouched.
 
 ---
 
 ## Remaining work
 
-- **Execute the TBD-18 plan (#48)** — the next actionable unit. 8 TDD tasks: `accepted-layout.ts` (D1–D4 + `isAcceptedLayout`) → `graph.ts` `genuineAbandonedCount` → `index.ts`/`types.ts` sub-score + `stats.genuine_abandoned_count` → docs (API.md rule 8, ledger re-measure rule 2 — expect unchanged 252).
-- **Then:** code review → **categorical re-validation** on the pinned nine-repo corpus (design §6, incl. the **D4b `plans/`/`CHANGELOG/` per-net individual check**, §6.2) → `/decisions` to set the `orphans` weight (TBD-10) → the README true-sample.
-- **README true-sample** — still gated (behind the `orphans` weight, behind TBD-18).
+- **TBD-19 + TBD-20 at `/decisions`** — the two silent-FN vectors. TBD-19 (D1 basis) likely needs a small design (change to the detector's input set); TBD-20 (D4b) may be a pure ruling. Both are prerequisites to closing TBD-18.
+- **Re-run the categorical re-validation** after TBD-19/20 build — the corpus harness lived in the session scratchpad (`tbd18-revalidation.mjs`); reproduction steps + detector totals are in the calibration doc's appendix. Only a passing re-run closes TBD-18.
+- **Then:** `/decisions` to set the `orphans` weight (TBD-10) → the **README true-sample** (still gated behind the weight, behind TBD-18).
+- **Docs:** all current (API.md, ledger, TDD.md, Roadmap.md updated this session). Nothing outstanding.
 
 ---
 
 ## Context not in the docs
 
-- **The calibration clones are intact at `~/dev/ba-calibration/`** at the pinned run-6 commits (verified clean in the numbers session). `runContextAudit({ path })` read-only per clone is the harness; the re-validation reuses them.
-- **Three build-relevant rulings from the review (also in `WORKFLOW.md` checklists):**
-  - **Obs 18** — TBD-18's Task 6 Test A (nested→accepted→`genuineAbandonedCount===0`) + Test B (genuine→`===1`) are mutation-resistant **as a pair** (`isAcceptedLayout≡false` reddens A; `≡true` reddens B). During RED, confirm each reddens under its opposite trivial mutation — that is the Obs-18 hand-trace; no separate mutation guard needed.
-  - **Obs 19** — the `stats.genuine_abandoned_count` surfacing makes the sub-score reconstructable from output, so the re-validation reconciles from the tool's output (no reproduced-internals harness, no fidelity gap). Only if the re-val reproduces a scorer internal does the re-derive-and-assert gate bind.
-  - **Obs 20** — merging #48 by squash → verify **content on trunk**, not branch-SHA ancestry (now a standing WORKFLOW.md rule).
-- **The genuine-orphan shape is subtle** (plan Task 6 Test B): the only non-accepted orphan is a doc **directly inside a directory routed by an UNREACHED non-root doc** (spec §D1 edge case). Every doc *nested below* a routed dir is D1-accepted; every doc *directly in* a dir routed by a *reached* source is itself reached. The reviewer confirmed Test B's fixture yields `genuineAbandonedCount===1`.
-- **task-observer:** invoked at start of the review session; backlog is now **0 OPEN**. No new observations owed. The manual-trigger review cadence is the right one here (local-only log; a cloud scheduler can't reach it — weekly-review "regime 2").
+- **The calibration corpus is intact at `~/dev/ba-calibration/`** at the pinned run-6 commits (verified unchanged this session): superset `18fc2c6`, posthog `7bd2689`, cal.com `176037d`, Ghost `0cd3280`, superpowers `b36e082`, caveman `a42ef76`, claude-mem `e2d1df5`, one-skill `281f134`, icm-architect `b20fb45`. Harness = `runContextAudit({ path })` (production) + `walk`/`buildGraph`/`computeSkillDirs`/`isAcceptedLayout` (exported) for per-doc attribution; the **Obs 19 fidelity gate** (re-derived genuine == production `stats.genuine_abandoned_count`) passed 9/9, so the per-doc attribution in the calibration doc is trustworthy.
+- **Why the build landed despite the close failing:** the defects are in detector **breadth/basis**, not the numerator-only shape or the surfacing — fixable without reverting anything — and `orphans` carries no weight, so there is no headline impact. Landing advances the code and records precisely what must happen before weighting.
+- **R6 root-`SKILL.md` guard** (`computeSkillDirs` skips a `""` parent): fixed a whole-repo silent-FN the whole-branch reviewer flagged. Not exercised against rot on this corpus (the two root-`SKILL.md` repos have 0 orphans), but correct and kept.
+- **Session rulings (workspace deleted):** R1 verbatim plan tests kept; R2 rule-8 satisfied by squash; R3 Obs-18 mutation-pair discharged; R4 `render.test.ts` fixture forced by the required-field add (→ Obs 22); R5 accepted an API.md `score`-desc coherence fix; R6 root-`SKILL.md` guard.
+- **task-observer:** backlog was 0 OPEN at start; Obs 22 logged this session → now **1 OPEN**. Manual-trigger review cadence (local-only log; the next review is the user's call).
 
 ---
 
 ## Next-session starter
 
-> **Execute the TBD-18 plan (#48) via subagents.** **First, invoke `task-observer` at session start** (CLAUDE.md requires it; the backlog is 0 OPEN, so nothing to surface — just note it). Then **merge PR #48** into `main` (squash; verify content on trunk per `WORKFLOW.md` — grep the plan doc is present, re-run `npm test`), so the plan is on trunk. Read `CLAUDE.md`, this file, `WORKFLOW.md` (the new "Review-derived checklists"), `planning/designs/2026-08-26_orphans-genuine-abandoned-rebase-design.md`, and `docs/superpowers/plans/2026-08-26-orphans-genuine-abandoned-rebase.md`. Confirm `git rev-parse HEAD` and `npm test` (expect **115**) before trusting anything; read constants from source.
+> **Resolve TBD-19 + TBD-20 — the two gates in front of the `orphans` weight.** Read `CLAUDE.md`, this file, `WORKFLOW.md`, the re-validation record `planning/calibration/2026-08-26_context-audit-tbd-18-revalidation.md`, and `src/TDD.md` (TBD-18/19/20 rows). Confirm `git rev-parse HEAD` (`aba11a9`) and `npm test` (expect **126**) before trusting any figure; read constants from source.
 >
-> Build with **`superpowers:subagent-driven-development`** — a fresh subagent per task, review between tasks — under **`superpowers:test-driven-development`** (the plan's steps are already RED→GREEN→commit). Apply the three build-relevant rulings above (Obs 18 mutation-pair check during RED; Obs 19; Obs 20 on every merge). Keep the standing tie-breaker (visible FP > silent FN): the re-base must never silently swallow genuine rot. Do **not** set the `orphans` weight and do **not** change findings enumeration (both out of scope this build). No threshold/weight NUMBER beyond the plan (rule 7). Branch + PR, never direct to `main`.
->
-> After all 8 tasks pass: **`superpowers:requesting-code-review`**, then the **categorical re-validation** on the pinned corpus at `~/dev/ba-calibration/` (design §6 — every netted orphan is a true accepted-layout doc; the **D4b `plans/`/`CHANGELOG/` nets checked individually**, §6.2; the 20 genuine-abandoned survive) as a `planning/calibration/` doc. Land via **`superpowers:finishing-a-development-branch`**. Only the re-validation closes TBD-18 and unblocks the `orphans` weight — a separate `/decisions` (TBD-10). Update `src/TDD.md` (TBD-18 → built / close pending or closed) and `planning/Roadmap.md`.
+> **TBD-19 (D1 basis)** — re-base `isRouteToDirNested` onto the directory-**target** set (`dirTargetsBySrc`) instead of the broad `routedDirs`. This changes a detector's input set, so run it through **`/decisions`** (Gate 2); if it needs a design, **`superpowers:brainstorming`** → **`/design-doc`** first. **TBD-20 (D4b)** — decide `plans/`/`CHANGELOG/` disposition at **`/decisions`** (may be a pure ruling, no design). Then build with **`superpowers:writing-plans`** → **`superpowers:subagent-driven-development`** (or **`superpowers:executing-plans`**) under **`superpowers:test-driven-development`**; **`superpowers:requesting-code-review`** before finishing. **Re-run the categorical re-validation** on the pinned corpus at `~/dev/ba-calibration/` (design §6 — every netted orphan a true accepted-layout doc; the 20 genuine survive incl. Ghost `MSW_USAGE_GUIDE.md`; D4b nets checked individually, §6.2) as a new `planning/calibration/` doc. Land via **`superpowers:finishing-a-development-branch`** (branch + PR, squash, verify content on trunk — Obs 20). **Only a passing re-validation closes TBD-18** and unblocks the `orphans` weight — a separate **`/decisions`** (TBD-10) — followed by the README true-sample. Update `src/TDD.md` + `planning/Roadmap.md`. Do **not** set the `orphans` weight or change findings enumeration (out of scope); no threshold/weight NUMBER (rule 7); `src/API.md` same commit as any schema change (rule 8); re-measure the ledger (rule 2).
