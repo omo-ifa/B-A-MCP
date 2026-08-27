@@ -40,32 +40,36 @@ export function subscoreFromCount(bad: number, total: number): Subscore {
   return { score: total === 0 ? null : Math.round(100 * (1 - bad / total)), n: total };
 }
 
-// TBD-10 — weights PARTIALLY RESOLVED 2026-08-26 from calibration run-7
-// (planning/decisions/2026-08-26_tbd-10-weights-partial-and-tbd-18-orphans-rebase.md,
-//  evidence planning/calibration/2026-08-26_context-audit-run-7-numbers-calibration.md §4).
-// Principle (resolved earlier): accuracy cluster weighted above bloat; a null sub-score
-// drops and the rest renormalize. Run-7 refined it against the first consolidated
-// four-sub-score data:
+// TBD-10 — weights. coverage/bloat/routing_drift resolved from run-7
+// (planning/decisions/2026-08-26_tbd-10-weights-partial-and-tbd-18-orphans-rebase.md);
+// orphans resolved 2026-08-26 after TBD-18 closed
+// (planning/decisions/2026-08-26_tbd-10-orphans-weight.md).
+// Principle: accuracy cluster weighted above bloat; a null sub-score drops and the rest
+// renormalize.
 //   coverage: 3 — the cleanest routing-health discriminator across the corpus.
 //   bloat:    1 — file/doc hygiene, not routing health (accuracy > bloat).
 //   routing_drift: 1 — DOWN-weighted from the stub 3: post-TBD-16 it is saturated at
-//                 ~100 (near-zero variance), a floor-catcher (it still catches a 0),
-//                 not a headline driver; a high weight only pulled headlines toward 100.
-//   orphans: NOT weighted — gated on TBD-18. Its raw sub-score is layout-dominated
-//                 (only 20 of 1 077 corpus orphans are genuine-abandoned), so weighting
-//                 it would score layout STYLE, not rot. It stays REPORTED in `subscores`
-//                 but is excluded from the headline until TBD-18 re-bases it.
+//                 ~100 (near-zero variance), a floor-catcher, not a headline driver.
+//   orphans:  1 — owner-ratified, PROVISIONAL (gated on §4-gap detection). Post-TBD-18 the
+//                 sub-score scores genuine-abandoned rot and DISCRIMINATES (corpus range
+//                 31–92), so it earns weight; but the §4-gap accepted-layout classes
+//                 (component-manifest, test-fixture, bare docs/**) still count as rot, a
+//                 known DOWNWARD bias on §4-gap-heavy repos. 1 is the largest weight that
+//                 keeps that bias's headline pull bounded (~±8); it is RAISE-eligible when
+//                 the three §4-gap /decisions items (design §9) land. Ceiling is §4-gap
+//                 detection, NOT signal quality.
 const TBD_10_WEIGHTS: Partial<Record<keyof Subscores, number>> = {
-  routing_drift: 1, coverage: 3, bloat: 1,
+  routing_drift: 1, coverage: 3, bloat: 1, orphans: 1,
 };
 
 // The WEIGHTED routing-layer sub-scores: the ones that measure routing health AND carry
 // weight in the composite (drift = router links/paths resolve; coverage = routing claims
-// the code). The headline must rest on at least one of these — a health composite is not
-// formed from the hygiene sub-score (bloat) alone. orphans is a routing-layer signal but
-// is NOT weighted (TBD-18), so it is deliberately excluded here too: an assessed-but-
-// unweighted orphans must not let the guard pass and yield a bloat-only headline.
-const ROUTING_LAYER_KEYS: (keyof Subscores)[] = ["routing_drift", "coverage"];
+// the code; orphans = docs reachable from a routing root). The headline must rest on at
+// least one of these — a health composite is not formed from the hygiene sub-score (bloat)
+// alone. orphans joined here when it became weighted (TBD-10, 2026-08-26): a weighted
+// orphans is a genuine routing-layer measurement and may satisfy the guard like the others
+// (the prior "unweighted orphans must not pass the guard" exclusion no longer applies).
+const ROUTING_LAYER_KEYS: (keyof Subscores)[] = ["routing_drift", "coverage", "orphans"];
 
 export function headlineScore(subscores: Subscores): number | null {
   // A routing-HEALTH composite must rest on at least one real WEIGHTED routing-layer
