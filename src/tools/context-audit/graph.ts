@@ -8,6 +8,7 @@ import type { WalkResult, WalkedDoc } from "./walk.js";
 export interface GraphResult {
   findings: RawFinding[];
   routedDirs: Set<string>;
+  dirTargets: Set<string>;        // flattened union of dirTargetsBySrc values: directories routed AS a directory target (D1's basis, TBD-19). Excludes file-parent and root "" entries that pollute routedDirs.
   orphanCount: number;
   orphanCandidateTotal: number;   // docs eligible to be orphans (under a routed dir, non-furniture, non-root)
   genuineAbandonedCount: number;  // orphans that are NOT accepted-layout: the sub-score numerator (spec TBD-18)
@@ -185,6 +186,17 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
     arr.push(d.relPath);
   }
 
+  // Flatten the per-source directory-target map into one set — D1's dir-target
+  // basis (TBD-19). Strictly the directories some router routed AS a directory,
+  // never a file-parent entry. Root "" (from a rare literal `.`/`./` directory
+  // route) is filtered OUT here so D1 can never treat the whole repo as one routed
+  // directory and net every doc — the "excludes root" invariant holds by
+  // construction, not by the rarity of `.` routes. dirTargetsBySrc itself keeps ""
+  // (its reachability use is unaffected). Computed unconditionally so it is
+  // returned even when the orphan guard skips scoring.
+  const dirTargets = new Set<string>();
+  for (const set of dirTargetsBySrc.values()) for (const d of set) if (d !== "") dirTargets.add(d);
+
   // reachability DFS from every root doc
   const roots = walkRes.docs.filter((d) => d.isRoot).map((d) => d.relPath);
   const reached = new Set<string>(roots);
@@ -228,7 +240,7 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
       if (!reached.has(doc.relPath)) {
         findings.push(f("orphan", doc.relPath, null, "in-scope doc unreachable from any routing root", doc.relPath, doc.relPath));
         orphanCount++;
-        if (!isAcceptedLayout(doc.relPath, { routedDirs, skillDirs })) genuineAbandonedCount++;
+        if (!isAcceptedLayout(doc.relPath, { routedDirs, dirTargets, skillDirs })) genuineAbandonedCount++;
       }
     }
   }
@@ -248,6 +260,7 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
   return {
     findings,
     routedDirs,
+    dirTargets,
     orphanCount,
     orphanCandidateTotal,
     genuineAbandonedCount,

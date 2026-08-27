@@ -1,0 +1,97 @@
+# Decision — TBD-19 (D1 route-to-dir-nested basis) + TBD-20 (D4b plans/CHANGELOG disposition)
+
+**Date:** 2026-08-26
+**Gate:** `/decisions` (Gate 2)
+**TBDs resolved:** TBD-19, TBD-20 (both the direction; the code is a separate build loop under TDD, gated by the same categorical re-validation that closes TBD-18)
+**Surfaced by:** the TBD-18 §6 categorical re-validation — `planning/calibration/2026-08-26_context-audit-tbd-18-revalidation.md` (verdict: CLOSE NOT SATISFIED, two confirmed silent-FN vectors)
+**Governing design:** `planning/designs/2026-08-26_orphans-genuine-abandoned-rebase-design.md` (amended by this decision — §D1, §D4, §5 table)
+**Spine (inherited from the design):** a **visible false positive beats a silent false negative**. Here a silent FN = scoring real rot as accepted (the sub-score exists to catch rot); a visible FP = flagging an accepted-layout doc as rot (still enumerated as a finding). Both resolutions below are chosen so their failure direction is the visible one, and both prefer a **structural** test over a **convention** guess.
+
+---
+
+## Context
+
+TBD-18 re-based the `orphans` sub-score to score genuine-abandoned rot only, netting out four accepted-layout classes via `isAcceptedLayout` (`src/tools/context-audit/accepted-layout.ts`). The build landed (numerator-only, `stats.genuine_abandoned_count` surfaced, `orphans` still excluded from the headline weight), but the categorical re-validation found **two confirmed silent-FN vectors** in the detector basis — the exact forbidden direction of the design's spine. Both route to `/decisions` here. Neither touches the numerator-only shape, the surfacing, findings enumeration, or any weight number; both are corrections to detector *breadth/basis* inside `accepted-layout.ts` (plus a one-line exposure in `graph.ts`).
+
+---
+
+## TBD-19 — D1 (`isRouteToDirNested`) keys on the wrong set
+
+### The defect (confirmed)
+
+`isRouteToDirNested(relPath, routedDirs)` fires when a doc is nested below a routed-ancestor directory but not directly inside one. It keys on `routedDirs`. But `graph.ts` populates `routedDirs` from **three** sources, only one of which is a genuine directory-target route:
+
+1. **file-parent additions** — a router linking the *file* `dir/file.md` adds the parent `dir` (`recordResolvedTarget`, the in-scope-doc branch and the non-doc-file branch: `routedDirs.add(parent)`).
+2. **root `""`** — a routed root-level file adds `""`.
+3. **directory-target routes** — a router linking the *directory* `dir/` adds `dir` **and** records it in `dirTargetsBySrc` (the directory-only-propagation basis TBD-14 added).
+
+Design §D1's stated concept is "nested below a routed **directory-target**." Keying on the broad `routedDirs` instead makes D1 accept any doc nested below a directory that merely *contains a linked file* — silently netting genuine rot.
+
+**Confirmed casualty:** Ghost `apps/admin/test-utils/posts-analytics/MSW_USAGE_GUIDE.md` — one of the 20 canonical genuine-abandoned residuals (the MSW proof of the test-fixture caution, re-val #2 §3.2) — is D1-sole-netted because its ancestor `apps/admin` sits in `routedDirs` **only** via a root link to the file `apps/admin/README.md`. 378 nets are D1-sole; **0** are root-`""`-only, so the driver is file-parent routed-ancestor directories, not the root.
+
+### Resolution — the nearest-routing-known-ancestor rule (uses BOTH `routedDirs` and `dirTargets`)
+
+> **Re-validation finding (2026-08-26) — the pre-registered "simple swap to `dirTargets`" was necessary but NOT sufficient; the refined mechanism below is the resolution.** The TBD-19 row (and the first draft of this record) directed a straight re-base of `isRouteToDirNested` off `routedDirs` onto `dirTargets`. Building that and re-running the categorical re-validation showed it **fixes MSW but reintroduces a silent FN of the same class in the other direction.** The old `routedDirs` implementation had a *guard* — `if (routedDirs.has(parent)) return false` — that shielded any doc whose immediate parent was a routing-known directory. The straight swap replaced that guard's set with `dirTargets`, so a doc whose parent is a **file-parent-routed** directory (in `routedDirs`, not `dirTargets`) no longer hit the guard and instead fell through to the strict-ancestor scan, which then matched a **distant** `dirTargets` ancestor *through* the intervening file-parent directories. Confirmed casualty: the two live posthog PRDs `products/desktop/docs/plans/{browser-tabs,skills-tab}.md` (`Status: ready-for-agent` / `Ready to build`) were netted because `products` is a directory-target three levels up, even though `products/desktop`, `products/desktop/docs`, and `products/desktop/docs/plans` are all merely file-parent-routed — plus 84 posthog `docs/internal/**` docs of the same shape. That is exactly the TBD-20-class silent FN (live docs silently removed from the rot score), reappearing via D1. The straight swap therefore **fails the close condition** (§6.2: the PRDs must flip to *counted*). The mechanism is refined to use both sets:
+
+D1 nets a doc iff its **nearest routing-known ancestor** — the first ancestor directory (scanning up from the immediate parent) that is in **`routedDirs`** (i.e. the closest directory the routing layer touches *at all*) — is a **strict** ancestor (an intervening subdirectory sits between it and the doc) **and** is a genuine **directory-target** (in `dirTargets`). `routedDirs` locates the nearest routing-known ancestor (the shield); `dirTargets` decides whether that ancestor is a real directory route.
+
+- **19.1 — the rule:** scan `[parent, grandparent, …, ""]`; stop at the first ancestor `a` in `routedDirs`; net iff `a !== parent && dirTargets.has(a)`. If the nearest routing-known ancestor is the immediate parent → *directly in a routed dir* → not nested → not netted. If it is a strict-ancestor **file-parent** (in `routedDirs`, not `dirTargets`) → not netted (MSW: nearest is `apps/admin`, a file-parent; PRDs: nearest is the file-parent parent). If it is a strict-ancestor **dir-target** → netted (genuine route-to-directory-nested). If no ancestor is routing-known → not netted.
+- **19.2 — why both sets, not `dirTargets` alone:** scanning `dirTargets` alone would *skip past* file-parent ancestors and match a distant directory-target — the silent FN above. Scanning to the nearest `routedDirs` ancestor first preserves the old guard's shielding effect (a doc whose closest routing-known context is a file-parent is treated as sitting in an *active* directory, more plausibly a real doc than passively-organized rot → counted, the safe direction), while `dirTargets` still removes the MSW over-net (a strict-ancestor file-parent no longer nets). The all-source-vs-reached-restricted question is moot **for distant dir-targets** — a nearer file-parent shields them, so the nearest-ancestor test never reaches a distant route whose reachability could matter. It is **not** moot for the *nearest* ancestor itself: when the nearest routing-known ancestor is a strict-ancestor dir-target sourced only by an **unreached** doc, D1 nets a genuinely-unreachable nested doc (design §D1 edge case B) — the one residual silent FN, accepted and deferred here (see "Rejected: reached-source-restricted" and the ratchet), empirically clean on the pinned corpus. This is the Obs-15 discriminating case: the same deep path nets or not depending on whether its nearest routing-known ancestor is a dir-target, which a single-set rule cannot express.
+- **19.3 — exposure:** add `dirTargets: Set<string>` (the flattened union of `dirTargetsBySrc` values) to `GraphResult`; `AcceptedLayoutCtx` carries **both** `routedDirs` and `dirTargets` (plus `skillDirs`) — `routedDirs` is **not** dropped from the context, since D1 now needs both. `routedDirs` remains computed in `buildGraph` and still feeds `underRoutedDir` (unchanged). `isRouteToDirNested(relPath, routedDirs, dirTargets)`. Internal only; no output-schema change.
+
+### Why this is structural, not a new guess
+
+The design claimed D1 "structural — no silent-FN vector." That claim was **false for the `routedDirs`-only implementation** (over-nets via a strict-ancestor file-parent — MSW) **and** for a `dirTargets`-only implementation (over-nets via a distant dir-target reached through file-parents — the PRDs). The nearest-routing-known rule is the structural statement that actually holds: a doc is route-to-directory-nested iff the closest directory the routing layer touches above it is a genuine directory route. Both failure directions are visible FPs (docs counted that could have been netted), never silent FNs.
+
+### Secondary (designed) effect, acceptable
+
+Where the rule nets *less* than the old `routedDirs` D1 (the MSW class — strict-ancestor file-parent), some §4 named-gap docs flip from netted to **counted** — exactly what §4 says should happen in v1 ("counted = visible FP by construction"). Where it nets the same as the old D1 (the PRD / `docs/internal/**` class — parent or a nearer ancestor is a file-parent), those docs stay **counted**, so the TBD-20 goal (PRDs counted) is achieved by D1 as well as by the D4b change. All flips are the visible-FP direction; `orphans` carries no headline weight, so there is zero score impact today. The re-validation measures the exact new `genuine_abandoned_count` per repo.
+
+### Rejected
+
+- **Keep `routedDirs`, special-case MSW / file-parent ancestors** — a filter bolted onto a wrong basis; per task-observer Obs 10, a definition problem is fixed by correcting the definition, not by a downstream filter.
+- **Reached-source-restricted `dirTargets`** — safer still (nets less), but more machinery (expose the reached set), and not the pre-registered direction; the flat union is already structural and the residual-only evaluation makes the distinction narrow. Revisit only if re-validation shows a nested-under-unreached-directory-target silent FN (none expected).
+
+---
+
+## TBD-20 — D4b (`plans/` / `CHANGELOG/` segment) is a convention guess
+
+### The defect (confirmed)
+
+`isTightDatedArchival` nets any doc under a path segment named `plans` or `CHANGELOG` (D4b), on the *guess* that such segments are archival. Design §D4/§5 flagged D4b as the **sole** silent-FN vector and §6.2 required checking its nets individually. The re-validation did, and the guess breaks on the corpus:
+
+- **`plans/`:** of the D4b-sole nets, **2 are live, ready-to-build PRDs** — posthog `products/desktop/docs/plans/browser-tabs.md` (`Status: ready-for-agent`) and `.../plans/skills-tab.md` (`Status: Ready to build`, last-updated 2026-06-11), both indexed by a sibling `README.md`. Netting them silently removes live docs from the rot score — the exact forbidden direction.
+- **`CHANGELOG/`:** the other 32 D4b-sole nets are superset `CHANGELOG/<semver>.md` (`1.4.1.md … 6.1.0.md`) — genuine per-release version archives. Correctly not-rot, but caught by a *convention* (the directory name), not a *structural* test.
+
+### Resolution — drop both segment rules; replace with a structural version-shaped-basename net
+
+- **20.1 — drop `plans/`:** remove the `plans` directory-segment rule entirely. It is a confirmed silent-FN vector, and dated plan docs (`*/plans/2026-06-11_*.md`) remain covered by **D4a** (dated filename). The 2 live PRDs (non-dated basenames) correctly flip to **counted**.
+- **20.2 — drop `CHANGELOG/`, replace structurally:** remove the `CHANGELOG` directory-segment rule and fold a **version-shaped basename** test into D4a. A basename that is essentially a full semantic version (e.g. `1.4.1.md`, `6.1.0.md`) is archival by structural self-evidence — the same argument D4a already makes for a dated filename ("no realistic way a live, must-be-routed doc carries a full date in its name"; a full semver basename is the same class). This keeps all 32 superset version archives netted **structurally** rather than by directory convention, and it no longer depends on the directory being named `CHANGELOG`.
+- **20.3 — version-shape tightness:** the basename (minus extension) matches a full-semver shape — `^v?\d+\.\d+(\.\d+)+$`, i.e. an optional leading `v` and **≥2 dots**. `1.4.1` / `6.1.0` net; ambiguous two-part forms (`v2`, `2.0`) do **not** net (they stay counted — the safe direction). The exact regex is pinned in the build under TDD with boundary tests, and every version-shape net is checked individually in the re-validation exactly as D4b was.
+
+### On-corpus effect (minimal and exact)
+
+All 32 legitimate CHANGELOG version archives were already 3-component semver basenames, so they stay netted (now via the structural version-shape rule). The only docs that change disposition are the **2 live posthog PRDs**, which flip from silently-netted to counted. Net effect: exactly the two silent-FN casualties closed; no legitimate archive lost to a visible FP. D4a's dated-filename rule is unchanged.
+
+### Rejected
+
+- **(a) Drop D4b entirely with no replacement** — loses the 32 legitimate CHANGELOG version archives to visible FP for no reason; the version-shape test recovers them structurally at negligible cost.
+- **(c) Keep D4b with a documented per-repo carve-out** — the tool ships to arbitrary repos; a corpus-specific carve-out does not generalize and re-introduces the guess.
+
+---
+
+## Cross-cutting
+
+- **X.1 — one build loop.** Both fixes live in `accepted-layout.ts` (D1 basis; D4 rule) plus a one-line `dirTargets` exposure in `graph.ts`. One TDD build, one categorical re-validation.
+- **X.2 — amend, do not re-author.** This decision amends the TBD-18 design (§D1 input-set, §D4 sub-rules, §5 FP/FN table). Corrective amendments to an approved design with pre-registered directions — no from-scratch brainstorm or new design doc.
+- **X.3 — rule 8 (API.md): triggered MINIMALLY (class-name phrase only, no schema change).** No `outputSchema` change, no field added; D1's input set and the reconstruction identity are undocumented internals / unchanged. But D4's class semantics expand (it now nets version-shaped basenames, not only dates), so the documented class name **"tight dated-archival" → "tight dated/versioned-archival"** in API.md (lines ~81 and ~113) is updated in the **same build commit** (rule 8). "route-to-directory-nested" is unchanged. Re-read API.md against the final code at build to confirm nothing else moved.
+- **X.4 — rule 2 (ledger): re-measure to confirm unchanged.** `dirTargets` is internal to `buildGraph`; no new output field, no widened `outputSchema`. The standing tool-definition cost should be unchanged (last measured 252 / ~4000), but re-measure and log in the same commit per rule-2 discipline.
+- **Close condition — unchanged from design §6.** TBD-18 closes only when a categorical re-validation on the pinned nine-repo corpus (`~/dev/ba-calibration/`, run-6 pins) confirms: (1) every netted orphan is a true accepted-layout doc and all **20** genuine-abandoned survive — MSW now among the counted; (2) the D4a version-shape nets are checked individually (the successor to §6.2's D4b check). Only a passing re-validation closes TBD-18 and makes `orphans` weight-eligible (TBD-10, a separate `/decisions`).
+
+## Non-goals (unchanged)
+
+No threshold or weight NUMBER (rule 7). No change to candidate determination, findings enumeration, the numerator-only shape, `stats.genuine_abandoned_count`, or `routedDirs`/reachability. Not the README sample. `TBD_10_WEIGHTS` / `ROUTING_LAYER_KEYS` untouched.
+
+## Ratchet
+
+If the re-validation surfaces a new residual class (e.g. a version-shape false positive, or a nested-under-unreached-directory-target silent FN), it returns **here** to `/decisions` before any further code — never a silent pass.

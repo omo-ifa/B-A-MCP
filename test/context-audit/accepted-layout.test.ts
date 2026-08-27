@@ -11,14 +11,32 @@ test("parentDir returns the directory portion, empty for root-level", () => {
   assert.equal(parentDir("c.md"), "");
 });
 
-test("D1 route-to-dir-nested: nested under a routed dir is accepted; direct child is not", () => {
-  const routedDirs = new Set(["src"]);
-  // src/sub/deep.md — parent "src/sub" not routed, ancestor "src" routed -> nested (accepted)
-  assert.equal(isRouteToDirNested("src/sub/deep.md", routedDirs), true);
-  // src/direct.md — parent "src" IS routed -> directly in routed dir -> NOT nested
-  assert.equal(isRouteToDirNested("src/direct.md", routedDirs), false);
-  // outside any routed dir -> not nested
-  assert.equal(isRouteToDirNested("other/x.md", routedDirs), false);
+test("D1 route-to-dir-nested: nets only when the NEAREST routing-known ancestor is a strict dir-target (TBD-19)", () => {
+  // src is a genuine directory-target (and therefore also in routedDirs).
+  const dt = new Set(["src"]);
+  const rd = new Set(["src"]);
+  assert.equal(isRouteToDirNested("src/sub/deep.md", rd, dt), true);    // nested below dir-target src
+  assert.equal(isRouteToDirNested("src/direct.md", rd, dt), false);     // directly in dir-target
+  assert.equal(isRouteToDirNested("other/x.md", rd, dt), false);        // no routing-known ancestor
+
+  // MSW REGRESSION: nearest routing-known ancestor is a strict-ancestor FILE-PARENT
+  // (apps/admin in routedDirs via a file link, not a dir-target) -> NOT netted.
+  const rdMsw = new Set(["apps/admin", "products"]);
+  const dtMsw = new Set(["products"]);
+  assert.equal(isRouteToDirNested("apps/admin/test-utils/x/MSW_USAGE_GUIDE.md", rdMsw, dtMsw), false);
+
+  // PRD REGRESSION: parent is a file-parent, and a DISTANT ancestor (products) is a
+  // dir-target. The nearest routing-known ancestor is the file-parent parent, so the
+  // doc must NOT net (a pure-dirTargets scan would wrongly net it via products).
+  const rdPrd = new Set(["products", "products/desktop", "products/desktop/docs", "products/desktop/docs/plans"]);
+  const dtPrd = new Set(["products"]);
+  assert.equal(isRouteToDirNested("products/desktop/docs/plans/browser-tabs.md", rdPrd, dtPrd), false);
+
+  // DISCRIMINATOR: the SAME deep path DOES net when NO intervening dir is routing-known,
+  // so the nearest routing-known ancestor is the dir-target products itself.
+  const rdClean = new Set(["products"]);
+  const dtClean = new Set(["products"]);
+  assert.equal(isRouteToDirNested("products/desktop/docs/plans/browser-tabs.md", rdClean, dtClean), true);
 });
 
 test("D2 skill-discovery: a doc under a SKILL.md directory is accepted", () => {
@@ -39,17 +57,23 @@ test("D3 agent-runtime config: .claude/**, root WARP.md, cursor-hooks/**", () =>
   assert.equal(isAgentRuntimeConfig("docs/guide.md"), false);
 });
 
-test("D4 tight dated-archival: dated filename, plans/, CHANGELOG/ — but NOT bare docs/", () => {
-  // D4a — dated filename (structural)
+test("D4 tight dated/versioned-archival: dated filename OR version-shaped basename; segment conventions dropped (TBD-20)", () => {
+  // D4a — dated filename (structural), unchanged
   assert.equal(isTightDatedArchival("posts/published-2014-12-19-hello.md"), true);
-  assert.equal(isTightDatedArchival("x/plans/2026-08-25-thing.md"), true);
-  // D4b — plans/ and CHANGELOG/ directory segments (convention)
-  assert.equal(isTightDatedArchival("skills/foo/plans/old.md"), true);
-  assert.equal(isTightDatedArchival("CHANGELOG/2020.md"), true);
-  // NOT netted: bare docs/ (spec gap — stays counted)
+  assert.equal(isTightDatedArchival("x/plans/2026-08-25-thing.md"), true);   // dated plan still nets, via D4a
+  // D4b — version-shaped basename (structural), full semver only
+  assert.equal(isTightDatedArchival("CHANGELOG/1.4.1.md"), true);
+  assert.equal(isTightDatedArchival("CHANGELOG/6.1.0.md"), true);
+  assert.equal(isTightDatedArchival("archive/v2.0.0.md"), true);
+  // ambiguous two-part forms do NOT net (counted = safe direction)
+  assert.equal(isTightDatedArchival("docs/v2.md"), false);
+  assert.equal(isTightDatedArchival("docs/2.0.md"), false);
+  // DROPPED conventions: a live, non-dated, non-versioned doc under plans/ or CHANGELOG/
+  // is NO LONGER netted (the posthog live-PRD silent-FN vector).
+  assert.equal(isTightDatedArchival("products/desktop/docs/plans/browser-tabs.md"), false);
+  assert.equal(isTightDatedArchival("CHANGELOG/upcoming.md"), false);
+  // NOT netted: bare docs/ (spec gap — stays counted), unchanged
   assert.equal(isTightDatedArchival("docs/architecture.md"), false);
-  // NOT netted: a file literally named plans.md (not a plans/ directory)
-  assert.equal(isTightDatedArchival("plans.md"), false);
 });
 
 test("D2 skill-discovery: a root-level SKILL.md must not register (silent-FN guard)", () => {
@@ -68,11 +92,11 @@ test("D2 skill-discovery: a root-level SKILL.md must not register (silent-FN gua
 });
 
 test("isAcceptedLayout ORs the four detectors; a plain unreferenced doc is NOT accepted", () => {
-  const ctx = { routedDirs: new Set(["src"]), skillDirs: new Set(["skills/foo"]) };
+  const ctx = { routedDirs: new Set(["src"]), dirTargets: new Set(["src"]), skillDirs: new Set(["skills/foo"]) };
   assert.equal(isAcceptedLayout("src/sub/nested.md", ctx), true);        // D1
   assert.equal(isAcceptedLayout("skills/foo/ref.md", ctx), true);        // D2
   assert.equal(isAcceptedLayout(".claude/agents/a.md", ctx), true);      // D3
   assert.equal(isAcceptedLayout("x/2020-01-01-note.md", ctx), true);     // D4
-  // genuine-abandoned: directly in a routed dir, no skill/agent/date signal
+  // genuine-abandoned: directly in a directory-target, no skill/agent/date signal
   assert.equal(isAcceptedLayout("src/ORPHAN.md", ctx), false);
 });

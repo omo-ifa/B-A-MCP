@@ -19,13 +19,27 @@ function ancestorDirs(relPath: string): string[] {
   return out;
 }
 
-// D1 — route-to-directory, nested. The doc is under a routed directory but not
-// DIRECTLY in one (an intervening subdirectory). Structural fact; no silent-FN.
-export function isRouteToDirNested(relPath: string, routedDirs: Set<string>): boolean {
+// D1 — route-to-directory, nested. Nets a doc iff its NEAREST routing-known
+// ancestor — the first ancestor directory in routedDirs, scanning up from the
+// immediate parent — is a STRICT ancestor (an intervening subdirectory sits
+// between it and the doc) AND a genuine directory-TARGET (in dirTargets).
+// Uses BOTH sets on purpose (TBD-19):
+//   - routedDirs-only over-nets: a doc nested below a dir that is in routedDirs
+//     merely via a file link (Ghost apps/admin, reached via a linked README) was
+//     silently netted (the MSW casualty).
+//   - dirTargets-only over-nets the OTHER way: dropping the routedDirs guard lets
+//     a doc whose nearest routing-known ancestor is a file-parent still match a
+//     DISTANT dir-target through intervening file-parent dirs (posthog live PRDs
+//     under products/desktop/docs/plans, with products a dir-target 3 levels up).
+// routedDirs locates the nearest directory the routing layer touches at all (the
+// shield); dirTargets decides whether that nearest ancestor is a real directory
+// route. Structural; both failure directions are visible FPs, never silent FNs.
+export function isRouteToDirNested(relPath: string, routedDirs: Set<string>, dirTargets: Set<string>): boolean {
   const parent = parentDir(relPath);
-  if (routedDirs.has(parent)) return false;               // directly in a routed dir -> not nested
-  for (const a of ancestorDirs(relPath)) if (a !== parent && routedDirs.has(a)) return true;
-  return false;
+  for (const a of ancestorDirs(relPath)) {
+    if (routedDirs.has(a)) return a !== parent && dirTargets.has(a);   // nearest routing-known ancestor decides
+  }
+  return false;   // no routing-known ancestor
 }
 
 // D2 — skill-discovery. Build the set of directories that directly contain a
@@ -58,26 +72,33 @@ export function isAgentRuntimeConfig(relPath: string): boolean {
   return false;
 }
 
-const DATED_FILENAME = /\d{4}-\d{2}-\d{2}/;   // D4a: a full ISO-ish date anywhere in the path
+const DATED_FILENAME = /\d{4}-\d{2}-\d{2}/;        // D4a: a full ISO-ish date anywhere in the path
+const VERSION_BASENAME = /^v?\d+\.\d+(\.\d+)+$/;   // D4b: a full-semver basename (>=2 dots), e.g. 1.4.1, 6.1.0, v2.0.0
 
-// D4 — tight dated-archival. D4a (dated filename) is structurally tight. D4b
-// (plans/ or CHANGELOG/ DIRECTORY segment) is convention tight — the close-
-// condition re-validation checks D4b nets individually (spec §6.2). Bare docs/**
-// is deliberately NOT netted (spec §4 gap).
+// D4 — tight dated/versioned archival. BOTH sub-rules are STRUCTURAL (self-evident
+// from the filename), never a directory-name convention. D4a: a dated filename.
+// D4b: a version-shaped basename (a released-version artifact by self-evidence,
+// e.g. CHANGELOG/1.4.1.md) — the successor to the dropped plans/ and CHANGELOG/
+// DIRECTORY-segment rules, which were a convention guess and a confirmed silent-FN
+// vector (live PRDs under plans/, TBD-20). Ambiguous two-part forms (v2, 2.0) do
+// NOT net -> counted, the safe direction. Bare docs/** is still NOT netted (spec §4
+// gap). The close-condition re-validation checks the D4b version-shape nets
+// individually (spec §6.2).
 export function isTightDatedArchival(relPath: string): boolean {
   if (DATED_FILENAME.test(relPath)) return true;                       // D4a
-  const dirSegs = relPath.split("/").slice(0, -1);                     // directory segments only (exclude the filename)
-  if (dirSegs.includes("plans")) return true;                         // D4b
-  if (dirSegs.includes("CHANGELOG")) return true;                     // D4b
+  const base = relPath.split("/").pop()!.replace(/\.md$/i, "");        // basename without the .md extension
+  if (VERSION_BASENAME.test(base)) return true;                       // D4b
   return false;
 }
 
-export interface AcceptedLayoutCtx { routedDirs: Set<string>; skillDirs: Set<string>; }
+// D1 needs BOTH the broad routedDirs (to find the nearest routing-known ancestor)
+// and dirTargets (to test whether it is a real directory route) — TBD-19.
+export interface AcceptedLayoutCtx { routedDirs: Set<string>; dirTargets: Set<string>; skillDirs: Set<string>; }
 
 // Any tight detector firing => the doc is accepted layout, not genuine-abandoned
 // rot, so it is excluded from the orphans sub-score numerator (still a finding).
 export function isAcceptedLayout(relPath: string, ctx: AcceptedLayoutCtx): boolean {
-  return isRouteToDirNested(relPath, ctx.routedDirs)
+  return isRouteToDirNested(relPath, ctx.routedDirs, ctx.dirTargets)
     || isSkillDiscovered(relPath, ctx.skillDirs)
     || isAgentRuntimeConfig(relPath)
     || isTightDatedArchival(relPath);
