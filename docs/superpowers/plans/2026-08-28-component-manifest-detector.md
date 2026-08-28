@@ -14,7 +14,7 @@
 
 - **Free/keyless (rule 3):** detector reads only the already-walked file tree. No network, no key, no persistence.
 - **Rule 2 (context-budget ledger):** no `tools/list` schema field is added → the ledger (`src/CONTEXT.md`, total 1023/~4000) is **unchanged**. Do not edit it; the combined-total assertion in `test/override-log/ledger.test.ts` must still pass.
-- **Rule 8 (`src/API.md`):** the accepted-layout-class enumeration appears in **two** description strings and MUST gain `component-manifest` in the same commit as the code (Task 4).
+- **Rule 8 (`src/API.md`):** the accepted-layout-class enumeration appears in **two** description strings and MUST gain `component-manifest` in the **same commit as the D5 code** (Task 2, Steps 5–6).
 - **Threshold = ≥3** sibling dirs (owner-ratified, L5). Marker file is literally `config.json` (L6). Both are case-insensitive basename matches (L7).
 - **Does NOT raise `orphans:1`** (L9) — no change to `score.ts` `TBD_10_WEIGHTS` / `ROUTING_LAYER_KEYS`.
 - **TDD:** every task writes the failing test first, watches it fail, then implements. Commit after each task.
@@ -26,6 +26,7 @@
 
 **Files:**
 - Modify: `src/tools/context-audit/walk.ts` (the `WalkResult` interface ~line 8; the `walk()` body ~lines 55–130)
+- Modify: `test/context-audit/bloat.test.ts:7` (the one other manual `WalkResult` literal — fan-out fix so `tsc` compiles at this commit)
 - Test: `test/context-audit/walk.test.ts`
 
 **Interfaces:**
@@ -76,13 +77,15 @@ Declare the set beside `docs` in `walk()` (near line ~56):
   const configDirs = new Set<string>();
 ```
 
-In the file-handling block (currently `if (!e.isFile()) continue; if (!e.name.toLowerCase().endsWith(".md")) continue;`), record `config.json` BEFORE the `.md` filter:
+In the file-handling block (currently `if (!e.isFile()) continue; if (!e.name.toLowerCase().endsWith(".md")) continue;`), record `config.json` before the `.md` filter — but honor `.gitignore` the same way `.md` docs do (M3 parity: a specifically-gitignored `config.json` must NOT count as a registry marker; a whole ignored dir is already pruned upstream at the directory `continue`):
 
 ```ts
       if (!e.isFile()) continue;
-      if (e.name.toLowerCase() === "config.json") configDirs.add(rel(dir));
+      if (e.name.toLowerCase() === "config.json" && !(relPath && ig.ignores(relPath))) configDirs.add(rel(dir));
       if (!e.name.toLowerCase().endsWith(".md")) continue;
 ```
+
+Also fix the one **other** manual `WalkResult` construct site so `tsc` compiles once the interface gains a required field (fan-out — the only other literal in the repo; every other consumer gets `WalkResult` from `walk()`): in `test/context-audit/bloat.test.ts:7`, add `configDirs: new Set<string>()` to the returned literal, e.g. `return { docs: ..., findings: [], filesSkipped: 0, configDirs: new Set<string>() };`.
 
 Return it (line ~130):
 
@@ -98,7 +101,7 @@ Expected: PASS. (The pre-existing walk tests also still pass.)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tools/context-audit/walk.ts test/context-audit/walk.test.ts
+git add src/tools/context-audit/walk.ts test/context-audit/walk.test.ts test/context-audit/bloat.test.ts
 git commit -m "feat(context_audit): walk emits configDirs (dirs containing config.json)"
 ```
 
@@ -109,6 +112,7 @@ git commit -m "feat(context_audit): walk emits configDirs (dirs containing confi
 **Files:**
 - Modify: `src/tools/context-audit/accepted-layout.ts` (add two functions; extend `AcceptedLayoutCtx` ~line 96; extend `isAcceptedLayout` ~line 100)
 - Modify: `src/tools/context-audit/graph.ts` (import; compute `manifestDirs`; pass it into the ctx literal ~line 243) — required so `tsc` stays green after the ctx gains a field
+- Modify: `src/API.md` (the `subscores` description ~line 81; the `stats.genuine_abandoned_count` description ~line 113) — **rule 8: same commit as the D5 code**
 - Test: `test/context-audit/accepted-layout.test.ts`
 
 **Interfaces:**
@@ -250,16 +254,40 @@ Update the `isAcceptedLayout` call (line ~243):
         if (!isAcceptedLayout(doc.relPath, { routedDirs, dirTargets, skillDirs, manifestDirs })) genuineAbandonedCount++;
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [ ] **Step 5: Update `src/API.md` — same commit as the code (rule 8)**
 
-Run: `npm test`
-Expected: PASS — the new accepted-layout tests pass, and the full suite is green (`tsc` clean; the ctx literal in both `graph.ts` and the test now has all four fields).
+The accepted-layout-class enumeration appears in **two** description strings and goes stale the moment D5 lands; both must gain `component-manifest` in THIS commit (with the D5 code).
 
-- [ ] **Step 6: Commit**
+- The `subscores` description (~line 81) lists "four accepted-layout classes — route-to-directory-nested, skill-discovery, agent-runtime config, and tight dated/versioned-archival". Change **only that phrase** to enumerate five, e.g.: "…five accepted-layout classes — route-to-directory-nested, skill-discovery, agent-runtime config, tight dated/versioned-archival, and component-manifest — are still enumerated as `orphan` findings…". **M4 caution:** line 81 contains other "four" tokens ("All four routing/hygiene sub-scores", "FOUR sub-scores — bloat, orphans, routing_drift, coverage") — do NOT touch those; edit only the "four accepted-layout classes" phrase.
+- The `stats.genuine_abandoned_count` description (~line 113): the parenthetical "(route-to-directory-nested, skill-discovery, agent-runtime config, tight dated/versioned-archival)" gains `, component-manifest` before the close paren.
+
+Do not change any other wording, field, or the schema shape.
+
+- [ ] **Step 6: Verify both edited `json` blocks still parse (API-json-ok check)**
+
+Run (extracts each ```json fenced block from API.md and JSON.parses it):
 
 ```bash
-git add src/tools/context-audit/accepted-layout.ts src/tools/context-audit/graph.ts test/context-audit/accepted-layout.test.ts
-git commit -m "feat(context_audit): detector D5 component-manifest (registry-glob shape)"
+node -e '
+const fs=require("fs");
+const s=fs.readFileSync("src/API.md","utf8");
+const blocks=[...s.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m=>m[1]);
+let n=0; for (const b of blocks){ JSON.parse(b); n++; }
+console.log("json blocks parsed OK:", n);
+'
+```
+Expected: prints `json blocks parsed OK: N` (N ≥ 1), no `SyntaxError`. A thrown error means the edit broke JSON (likely an unescaped quote) — fix the string. Also `grep -c "component-manifest" src/API.md` → expect ≥ 2.
+
+- [ ] **Step 7: Run the full suite to verify it passes**
+
+Run: `npm test`
+Expected: PASS — the new accepted-layout tests pass, the full suite is green (`tsc` clean; the ctx literal in both `graph.ts` and the test now has all four fields), and the ledger assertion in `test/override-log/ledger.test.ts` still holds (no schema change).
+
+- [ ] **Step 8: Commit (code + contract together — rule 8)**
+
+```bash
+git add src/tools/context-audit/accepted-layout.ts src/tools/context-audit/graph.ts test/context-audit/accepted-layout.test.ts src/API.md
+git commit -m "feat(context_audit): detector D5 component-manifest (registry-glob shape) + API.md enumeration (rule 8)"
 ```
 
 ---
@@ -333,51 +361,6 @@ git commit -m "test(context_audit): D5 registry-nets integration proof (>=3 nets
 
 ---
 
-### Task 4: update `src/API.md` (rule 8, same-commit contract)
-
-**Files:**
-- Modify: `src/API.md` (the `subscores` description ~line 81; the `stats.genuine_abandoned_count` description ~line 113)
-
-**Interfaces:**
-- Consumes: nothing.
-- Produces: nothing (documentation contract).
-
-- [ ] **Step 1: Add `component-manifest` to both class enumerations**
-
-In `src/API.md`, the `subscores` description lists "four accepted-layout classes — route-to-directory-nested, skill-discovery, agent-runtime config, and tight dated/versioned-archival". Change it to enumerate **five**, adding `component-manifest`, e.g.: "…five accepted-layout classes — route-to-directory-nested, skill-discovery, agent-runtime config, tight dated/versioned-archival, and component-manifest — are still enumerated as `orphan` findings…".
-
-In the `stats.genuine_abandoned_count` description, the parenthetical "(route-to-directory-nested, skill-discovery, agent-runtime config, tight dated/versioned-archival)" gains `, component-manifest` before the close paren.
-
-Do not change any other wording, field, or the schema shape.
-
-- [ ] **Step 2: Verify both edited `json` blocks still parse (API-json-ok check)**
-
-Run (extracts each ```json fenced block from API.md and JSON.parses it):
-
-```bash
-node -e '
-const fs=require("fs");
-const s=fs.readFileSync("src/API.md","utf8");
-const blocks=[...s.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m=>m[1]);
-let n=0; for (const b of blocks){ JSON.parse(b); n++; }
-console.log("json blocks parsed OK:", n);
-'
-```
-Expected: prints `json blocks parsed OK: N` (N ≥ 1) with no `SyntaxError`. A thrown error means the edit broke JSON (likely an unescaped quote) — fix the string.
-
-- [ ] **Step 3: Confirm the enumeration edit landed and the suite is green**
-
-Run: `grep -c "component-manifest" src/API.md` (expect ≥ 2), then `npm test` (expect all pass; ledger assertion in `test/override-log/ledger.test.ts` still green — no schema change).
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add src/API.md
-git commit -m "docs(api): add component-manifest to the accepted-layout class enumeration (rule 8)"
-```
-
----
-
 ## Self-Review
 
 **1. Spec coverage** — every design section maps to a task:
@@ -386,12 +369,14 @@ git commit -m "docs(api): add component-manifest to the accepted-layout class en
 - Netting semantics unchanged / excluded-from-numerator-still-a-finding (L8) → verified by **Task 3** (`orphanCount` includes them, `genuineAbandonedCount` excludes them).
 - `orphans:1` NOT raised (L9) → no `score.ts` edit in any task. ✓
 - Close condition = corpus re-validation (L10) → explicitly out of scope; not a task (its own later session under TBD-10). ✓
-- Ledger unchanged (rule 2 / L11) → asserted by leaving `src/CONTEXT.md` untouched and the ledger test green (Task 2/4 Step run). ✓
-- API.md required edit, both strings, json-parse-valid (L11 / rule 8) → **Task 4**. ✓
+- Ledger unchanged (rule 2 / L11) → asserted by leaving `src/CONTEXT.md` untouched and the ledger test green (Task 2 Step 7). ✓
+- API.md required edit, both strings, json-parse-valid (L11 / rule 8) → **Task 2 (Steps 5–6), same commit as the D5 code** (folded in from a former standalone task per plan-review I2). ✓
 - Deferrals TBD-25/26 → already stubbed at Gate 2; no task. ✓
 
 **2. Placeholder scan** — no "TBD/TODO/handle edge cases/similar to Task N"; every code and test step shows real content. ✓
 
 **3. Type consistency** — `computeManifestDirs(configDirs, docRelPaths)` and `isComponentManifest(relPath, manifestDirs)` are used with those exact signatures in Task 2's tests, in `graph.ts` (Task 2 Step 4), and via `AcceptedLayoutCtx.manifestDirs` (four fields: `routedDirs`, `dirTargets`, `skillDirs`, `manifestDirs`) consistently across the interface, `graph.ts`, and both test literals. `WalkResult.configDirs` is produced in Task 1 and consumed in Task 2 Step 4 under the same name. ✓
 
-**4. Fan-out (WORKFLOW.md Obs 22)** — adding required `manifestDirs` to `AcceptedLayoutCtx` breaks every ctx literal; the two construct sites (`graph.ts:243`, `accepted-layout.test.ts:95`) are both fixed in Task 2 (Steps 3–4), so `tsc` is green at the Task-2 commit. ✓
+**4. Fan-out (WORKFLOW.md Obs 22) — two required-field additions, each with its own construct sites:**
+- `WalkResult.configDirs` (Task 1): the only manual `WalkResult` literal is `test/context-audit/bloat.test.ts:7` (every other consumer gets `WalkResult` from `walk()`); fixed in Task 1 Step 3 so `tsc` is green at the Task-1 commit. (Caught by plan-review C1.)
+- `AcceptedLayoutCtx.manifestDirs` (Task 2): the two construct sites (`graph.ts:243`, `accepted-layout.test.ts:95`) are both fixed in Task 2 (Steps 3–4), so `tsc` is green at the Task-2 commit. ✓
