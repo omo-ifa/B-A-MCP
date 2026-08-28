@@ -40,13 +40,27 @@ The detector keys on the **visible artifact of a registry glob** — a manifest 
 
 Condition 3 is the guard that preserves TBD-14's Ruling 2 (a visible false positive beats a silent false negative): a lone human `DESCRIPTION.md`, or a coincidental pair, never fires — it stays counted as a visible finding. Only a genuinely-repeating registry pattern nets.
 
-### Data shape / interface
+### Data shape / interface (precompute pinned)
 
-Inputs are the doc's relative path plus the set of already-known doc/file paths from the walk — the same material the other detectors consume. The precise internal form (a precomputed set of qualifying parent directories, mirroring `computeSkillDirs`, versus a per-doc test) is an implementation choice for the plan; the **contract** is: `(relPath, context) → boolean`, folded into `isAcceptedLayout`. `AcceptedLayoutCtx` may gain one precomputed set; no change reaches the tool's external surface.
+A per-doc `config.json` test is **impossible** from the doc list: `walk.ts` collects `.md` files only (`walk.ts` skips every non-`.md` entry), so `config.json` never appears in `WalkResult.docs`. The detector must therefore be fed a precomputed set, exactly mirroring how `computeSkillDirs` feeds D2. Pinned design:
+
+1. **`walk.ts` emits the set of directories that contain a `config.json`.** The walk already traverses every entry; it additionally records the parent directory of any `config.json` it encounters (case-insensitive) into a new `WalkResult` field (e.g. `configDirs: Set<string>`). `config.json` is **not** added as a doc — only its containing directory is noted. This is the one behavioral addition to `walk.ts`; nothing else about the walk changes.
+2. **`computeManifestDirs()`** (new, in `accepted-layout.ts`, mirroring `computeSkillDirs`) consumes the `config.json`-dir set plus the `.md` doc list and returns the set of **qualifying** directories: a dir `P` qualifies iff `P` contains a `config.json` **and** a `description.md`, **and** ≥ 3 of `P`'s grandparent's immediate child directories each satisfy the same (`P` counts toward the 3).
+3. **`AcceptedLayoutCtx` gains `manifestDirs: Set<string>`** — the output of `computeManifestDirs()`, computed once per audit (like `skillDirs`).
+4. **Detector D5** is then trivial and pure: `basename(relPath) === "description.md"` (case-insensitive) `&& manifestDirs.has(parentDir(relPath))`. Folded into the `isAcceptedLayout` disjunction.
+
+The contract to `isAcceptedLayout` is unchanged in shape; `AcceptedLayoutCtx` gains one precomputed set. No change reaches the tool's external MCP surface.
 
 ### Surface changes
 
-**None to the MCP contract.** No new field in the `tools/list` input/output schema. The `orphans` sub-score *value* changes on registry-shaped repos (the 110 net out); the schema shape does not. Therefore the context-budget ledger (rule 2) is unchanged, and `src/API.md` needs at most a prose touch to the `orphans`/`stats` description if current wording would otherwise mislead — no schema edit.
+**None to the MCP contract** — no new field in the `tools/list` input/output schema; the `orphans` sub-score *value* changes on registry-shaped repos (the ~110 net out), the schema shape does not. So the context-budget ledger (rule 2) is unchanged.
+
+**`src/API.md` edit is REQUIRED** (rule 8, same commit as the code) — not conditional. Two embedded-schema description strings enumerate the accepted-layout classes and go stale the moment D5 lands:
+
+- `stats.genuine_abandoned_count` — "…NOT a detected accepted-layout class (route-to-directory-nested, skill-discovery, agent-runtime config, tight dated/versioned-archival)".
+- `subscores` — the same four-class list ("…four accepted-layout classes — route-to-directory-nested, skill-discovery, agent-runtime config, and tight dated/versioned-archival…").
+
+Both gain **component-manifest**. The strings sit inside ```json schema blocks, so the edit must keep those blocks valid JSON (the manual API-json-ok parse check: extract the block, `JSON.parse`, confirm it still parses).
 
 ### Deliberately skipped
 
@@ -77,14 +91,18 @@ Resolved in `planning/decisions/2026-08-28_component-manifest-detector-mechanism
 - **L12** — Test-harness-fixture mechanization deferred → **TBD-25**.
 - **L13** — Bare-`docs/**` disposition deferred → **TBD-26**.
 
+**Gate-3 finding (no new decision).** L11's condition — "`src/API.md` prose touched only if wording shifts" — has **fired**: the `stats.genuine_abandoned_count` and `subscores` strings both enumerate the accepted-layout classes and would misdescribe the netting once D5 lands, so the API.md edit is required this commit (rule 8). This resolves L11's conditional; it is not a new decision. No other ledger item is affected, so the gate does not reopen.
+
 ---
 
 ## Docs affected
 
 A list, not diffs:
 
-- **`src/tools/context-audit/accepted-layout.ts`** — gains detector D5 and its wiring into `isAcceptedLayout` (the build's job, not this doc).
-- **`src/API.md`** — `orphans` / `stats` prose reviewed; edited only if current wording would misdescribe the new netting (rule 8, same commit as the code if so).
+- **`src/tools/context-audit/walk.ts`** — additionally records the parent directory of any `config.json` into a new `WalkResult.configDirs` set (`config.json` stays out of `docs`). The one behavioral addition to the walk.
+- **`src/tools/context-audit/accepted-layout.ts`** — gains `computeManifestDirs()`, detector D5, and the `manifestDirs` field on `AcceptedLayoutCtx`, wired into `isAcceptedLayout` (the build's job, not this doc).
+- **`src/tools/context-audit/index.ts`** — passes the walk's `configDirs` into `computeManifestDirs()` and the resulting `manifestDirs` into `AcceptedLayoutCtx` (wiring only).
+- **`src/API.md`** — **REQUIRED** (rule 8, same commit): add `component-manifest` to the accepted-layout-class enumeration in **both** the `stats.genuine_abandoned_count` and `subscores` description strings; keep both ```json blocks valid (API-json-ok parse check).
 - **`src/CONTEXT.md`** — context-budget ledger: re-confirmed unchanged (rule 2); no numeric edit expected.
 - **`src/TDD.md`** — TBD-25 and TBD-26 already stubbed at Gate 2; no further change this loop.
 - **`SESSION_HANDOFF.md`** — updated at `/handoff` to record the detector built and the remaining §4-gap items (TBD-25/26) still gating the TBD-10 raise.
