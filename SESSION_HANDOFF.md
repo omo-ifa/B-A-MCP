@@ -2,78 +2,135 @@
 
 **Purpose.** Verified continuity between Claude Code sessions. Every field below was checked from inside the repo this session, never asserted or carried forward. When this conflicts with claude-mem recall, **this file wins**. Updated at every `/handoff`.
 
----
-
-## Repo state — verified 2026-08-27
-
-- **`main` HEAD:** `fb158fc` (`feat(doc_drift): schema-of-record drift differ (free tool #3) (#65)`), with this handoff PR on top. Working tree clean once this handoff commits. **`doc_drift` is built, merged, and verified on trunk** (PR #65, squash). **All three free tools (`context_audit`, `override_log`, `doc_drift`) are now shipped — the free tier's reasoning surface is feature-complete.**
-- **Tests:** **193 / 193 pass**, `tsc` clean, **Node v20+** (engines floor; developed on v25). The count rose 158 → 193 this session (+35: five new `test/doc-drift/*.test.ts` files — id 4, diff 13, analyze 7, render 4, index 6 — plus `server.test.ts`/`packaging.test.ts` updated to three tools and a `doc_drift` stdio call, and `override-log/ledger.test.ts` extended to assert the three-tool combined budget).
-- **Merge verification (Obs 20):** PR #65 landed by **squash**; verified by **content on trunk** — all six `src/tools/doc-drift/*.ts` and five `test/doc-drift/*.test.ts` present, `docDriftTool` wired in `src/server.ts` (import + list + handler), `### doc_drift` section in `src/API.md`, ledger `Total: 1023` in `src/CONTEXT.md`, `TBD-9` resolved and `TBD-22/23/24` present in `src/TDD.md`; suite re-run on `main` = 193. Never by branch-SHA ancestry (`--is-ancestor` fails by design on a squash).
-- **Open PRs:** this handoff PR (`docs/handoff-2026-08-27-doc-drift`). `feat/doc-drift` merged and deleted.
-- `src/API.md` matches the code as committed (all three tools documented; `doc_drift` schema mirrors `index.ts`). No `src/ERD.md` (no database). **Context-budget ledger = 1023 / ~4000** (rule 2 — `context_audit` 252 + `override_log` 381 + `doc_drift` 390; `test/override-log/ledger.test.ts` asserts the combined total < 4000). `prompts/` untouched → `.claude/commands/` not regenerated (rule 1).
+> **This handoff lives on the active branch `feat/orphans-component-manifest`** (the D5 build loop, held pre-implementation). The next session works on that branch — check it out first, then follow the Next-session starter at the bottom.
 
 ---
 
-## Active design doc
+## Repo state — verified 2026-08-28
 
-- **`doc_drift` — schema-of-record drift differ:** `planning/designs/2026-08-27_doc-drift-design.md` — **approved + BUILT + SHIPPED (complete).** A free/keyless **pure structural differ** over a caller-supplied `{declared, canonical}` JSON-Schema pair (array → one consolidated report). Reads no files, no network, no key. The impure "obtain the canonical truth" step is relocated to the calling agent — that is what keeps the tool framework-agnostic and read-only.
-- **Plan (executed):** `docs/superpowers/plans/2026-08-27-doc-drift.md` — 6 TDD tasks. Tasks 1–2 ran inline (`executing-plans`); Tasks 3–6 via `subagent-driven-development` (fresh implementer per task, per-task review, whole-branch review) after an owner mid-run review. Adversarially plan-reviewed pre-build (2 criticals fixed); per-task reviews 6/6 clean; whole-branch review verdict **Ready-to-merge**, zero Critical/Important.
-- **Decision record:** `planning/decisions/2026-08-27_doc-drift-v1-scope-and-diff-sides.md` — the Gate 2 ledger (D1–D13), the two scoping Findings, and the Gate-3 review addenda.
+- **`main` HEAD:** `27c2824`. This session landed three squash PRs on `main`:
+  - **#67** — `THIRD_PARTY_NOTICES.md` finalized (TBD-2 + TBD-4 resolved): all five bundled-component blocks + both runtime deps filled verbatim from each component's own `LICENSE`/`NOTICE`/`README` at the pinned commit; STUB banner removed; icm-architect author corrected to Jake Van Clief. `Integration_Spec.md` §2 pins recorded; `ops/CONTEXT.md` publish runbook written.
+  - **#68** — README corrected: all three free tools shipped (was "one shipping today, two forthcoming"); `broken_refs` dropped from the sub-score list; "See it run" sample marked illustrative.
+  - **#69** — TBD-3/5/8 resolved, stale TBD-18 status-cell fixed, CLAUDE.md Phase-1 checklist reconciled.
+- **Active branch:** `feat/orphans-component-manifest` HEAD `d75b48f` — **6 commits, docs/plan only, NO code** (held before implementation at the owner's instruction). This is the `context_audit` detector-D5 (component-manifest) build loop, taken through Gate 2 → Gate 3 → plan → plan-review → owner-approved plan.
+- **Tests:** **193 / 193 pass** on both `main` and this branch (`tsc` clean, Node v20+). The branch adds no code yet, so the count is unchanged from `main`.
+- **Ledger:** **1023 / ~4000** (rule 2) — unchanged; the D5 loop adds no `tools/list` schema field.
+- **Phase-1 free tier:** feature-complete and **release-ready**. All three free tools shipped; notices finalized; `npm publish --dry-run` clean from a fresh checkout (verified this session: clone → `npm ci` 0 vulns → build → 193/193 → dry-run 34 files, LICENSE/NOTICES/README packed, bundled skills excluded). The only remaining release gesture is the actual `npm publish` on a semver tag (owner-gated: needs npm login + go; runbook in `ops/CONTEXT.md`). Launch is **split — free tier first** (TBD-8).
+
+---
+
+## Active work — `context_audit` detector D5 (component-manifest)
+
+The full gated loop is complete through **plan-approval**; implementation is the next session.
+
+- **Decision (Gate 2):** `planning/decisions/2026-08-28_component-manifest-detector-mechanism.md` — mechanism rulings L1–L13. D5 nets a `DESCRIPTION.md` iff its parent dir holds `config.json` + `description.md` AND **≥3** sibling dirs under the same grandparent each do (registry-glob shape; no path prefix — preserves TBD-14 Ruling 2). Threshold ≥3 owner-ratified; marker literally `config.json`; raise/widen only by explicit future ruling. Deferred: **TBD-25** (test-harness-fixture — no source-free tight mechanism today), **TBD-26** (bare-`docs/**`).
+- **Design (Gate 3):** `planning/designs/2026-08-28_component-manifest-orphan-detector-design.md` — walk emits `configDirs` (walk is `.md`-only, so `config.json` presence must be walk-supplied); `computeManifestDirs()` mirrors `computeSkillDirs`; `AcceptedLayoutCtx` gains `manifestDirs`; API.md enumeration edit REQUIRED same-commit (rule 8).
+- **Plan (approved):** `docs/superpowers/plans/2026-08-28-component-manifest-detector.md` — **3 tasks** (walk `configDirs`; D5 + wiring + API.md + unit tests; graph integration proof). Plan-reviewed: verdict Ready-after-fixes; the reviewer independently verified the D1-isolation claim and all integration counts. Fixes applied: **C1** (fan-out to `bloat.test.ts` WalkResult literal), **I2** (API.md folded into the code commit, rule 8), **M3** (config.json honors `.gitignore` like `.md`), **M4** (API.md edit-target disambiguation), plus owner test-only additions (top-level-registry test, deeper-than-qualifying-dir test, tsc-red-state clarification, graph.ts intent comment).
+- **Scope boundary:** this loop mechanizes **detector D5 only**. It does **NOT** raise `orphans:1` (L9) and does **NOT** close TBD-10 — the provisional→final raise needs the categorical corpus re-validation on the pinned nine-repo corpus (a separate later session) AND all three §4-gap items (D5 + TBD-25 + TBD-26).
 
 ---
 
 ## Decisions + TBDs
 
-### Recorded this session (doc_drift v1)
+### Resolved this session
+- **TBD-2** (bundled licenses) + **TBD-4** (ICM reproduces icm-architect MIT files) → `planning/decisions/2026-08-27_tbd-2-4-resolved.md`.
+- **TBD-5** ($9/mo subscription → `export_record` checks active entitlement) + **TBD-8** (split launch, free first) → `planning/decisions/2026-08-27_tbd-5-8-pricing-and-launch.md`.
+- **TBD-3** (DO Functions allowance = 90,000 GiB-s, confirmed from DO's live pricing page; non-load-bearing) → `src/TDD.md`.
+- **TBD-18** status-cell corrected (was already closed 2026-08-26).
 
-All in `planning/decisions/2026-08-27_doc-drift-v1-scope-and-diff-sides.md`. **TBD-9 resolved**; **TBD-22/23/24 opened**.
+### Opened this session
+- **TBD-25** — `context_audit` orphans test-harness-fixture mechanization (§4-gap #2). Open.
+- **TBD-26** — `context_audit` orphans bare-`docs/**` disposition (§4-gap #3). Open.
 
-- **Diff-sides:** provided/inline — the caller supplies both schemas (an array of `{label?, declared, canonical}` pairs). Read-files **rejected** (Findings 1–2: B-A-MCP emits no committed canonical artifact — schemas are TS literals; and the doc deliberately diverges from the minimized emitted schema).
-- **Drift kinds (4) + shape:** `field_only_in_doc` (high), `field_only_in_canonical` (medium), `type_mismatch` (high), `required_drift` (high both directions), plus object-vs-leaf shape drift (emits `type_mismatch`). Severity by drift-kind.
-- **Opaque `{type:object}`-no-`properties` = wildcard, excluded from the score denominator entirely** — an all-opaque/minimized schema scores `null`, never a fabricated 100 (the anti-gaming guarantee; owner's Gate-3 MUST-FIX).
-- **Score:** `round(100 × in_sync / fields_compared)`, **null** on empty denominator.
-- **Boundary validation:** `INVALID_PAIRS` for a non-array `pairs`, a non-object pair member, or a present-but-non-object `declared`/`canonical`; an **absent** declared/canonical stays valid; an **empty** `pairs` array is valid → `score: null`.
-- **`stableId`:** duplicated (not imported), boundary-tested against `context_audit.findingId`; discriminator = identity (category + label + field-path), never the moving evidence.
-
-### Open TBDs
-
-- **TBD-22 (opened) — `doc_drift` canonical self-discovery / read-files mode.** v1.1; nothing blocked (provided/inline ships).
-- **TBD-23 (opened) — `doc_drift` orientation walk-test.** Redundant with `context_audit`'s orphans/coverage/routing_drift until proven distinct.
-- **TBD-24 (opened) — `doc_drift` framework migration/route parsing.** Phase 2 (the unbounded axis the v1 narrowing avoids).
-- **TBD-21 — `override_log` `date` format validation.** v1.1 (presence-only ships).
-- **`context_audit` §4-gap `/decisions` items** (component-manifest / test-fixture / bare-`docs/**` detection) — each tightens `orphans` and is the trigger to **raise the provisional `orphans:1`** (TBD-10 stays Open only for that raise). A `context_audit` refinement, not a new tool.
-- **TBD-12** (rest — source-vs-test significance basis, `SOURCE_EXTS`, coverage-finding emission) still open.
-- **TBD-2 / TBD-4 / TBD-5 / TBD-15** — packaging / notices / pricing / v1.1 `root.method`. Owner-gated / untouched.
-
----
-
-## Remaining work
-
-- **Phase-1 RELEASE — the next milestone now that all three free tools ship.** `LICENSE` + `THIRD_PARTY_NOTICES` final + `npm publish` dry-run from a fresh checkout. **BLOCKED on TBD-2 / TBD-4** (bundled-component license confirmations + the ICM paraphrase call — owner rulings / external confirmation). **Not fully autonomous** — surface the two owner-gated TBDs early.
-- **`context_audit` §4-gap refinements — the fully-autonomous alternative.** The three `/decisions` items above; each tightens `orphans` and is the trigger to raise the provisional `orphans:1` weight (TBD-10). A `context_audit` refinement (its own `brainstorming`→`/decisions`→`/design-doc`→build loop), not a new tool. **Do NOT reopen `context_audit`'s closed TBDs** (10-provisional / 11 / 12-`MIN_FILES` / 14 / 16 / 18 / 19 / 20) or any shipped tool.
-- **`doc_drift` v1.1** — TBD-21 / 22 / 23 / 24 as demand appears (each its own loop).
-- **Docs:** current on trunk once this handoff PR merges (API.md all three tools `Shipped` + `doc_drift` §, ledger 1023, Roadmap tool #3 shipped + "all three free tools shipped", `CLAUDE.md` checklist ticked, `src/TDD.md` TBD-9 resolved + 22/23/24). Nothing outstanding.
+### Still open (none blocks Phase-1 release)
+- **TBD-10** — `orphans:1` provisional→final raise, gated on the three §4-gap items (D5 building now; TBD-25/26 open) + corpus re-validation.
+- **TBD-12** (coverage significance numbers, data-blocked), **TBD-15** (AGENTS.md v1.1), **TBD-21** (override_log ISO-date), **TBD-22/23/24** (doc_drift v1.1).
 
 ---
 
 ## Context not in the docs
 
-- **The "two findings" scoping pre-flight (task-observer Obs 30).** Before choosing an input shape, two cheap checks retired the read-files candidate: **Finding 1** — B-A-MCP emits no committed machine-readable canonical artifact (the schemas are TS literals in each tool's `index.ts`), so the canonical truth can't be self-discovered without executing (MCP-specific, not read-only) or parsing source (the rabbit hole). **Finding 2** — `src/API.md` deliberately over-specifies relative to the emitted `tools/list` schema (which is minimized to hold the rule-2 budget), so a diff against the emitted schema would false-fire on the intentional minimization. Provided/inline absorbs both: the caller picks the meaningful pair.
-- **The score contradiction the owner caught at Gate-3 review.** Opaque field-paths are excluded from the denominator **entirely** (not scored in-sync) — scoring them in-sync would let a minimized schema read 100% and reward the exact Finding-2 minimization the wildcard rule exists to neutralize. Locked by discriminating tests (`diff.test.ts` opaque-root/opaque-child; `analyze.test.ts` all-opaque → null).
-- **Owner mid-run review (post-Task-2) — A/B/C.** (A) reject a present-but-non-object `declared`/`canonical` at the `runDocDrift` boundary — a string-encoded schema would coerce to `{}` and misreport as all-drift; `analyze()` stays defensively lenient internally. (B) implement the object-vs-leaf shape-drift guard (`diff.ts` `shape()` + `dHas !== cHas` branch), don't merely document it. (C) verified `Severity` is imported from `context-audit/types.ts` the **same** way `override_log` does — mirror, not a new coupling.
-- **Execution shape.** Tasks 1–2 inline under `executing-plans`; owner then asked to resume via `subagent-driven-development` for Tasks 3–6 (haiku implementers for the transcription tasks 3–4, sonnet for the multi-file tasks 5–6, sonnet reviewers, opus whole-branch review). No rulings were made during the SDD loop — pre-flight scan clean, all six task reviews clean, no breaker.
-- **`by_kind` may exceed `drifted`** (one field-path can carry `required_drift` + `type_mismatch`); documented in `src/API.md`'s `stats` prose so a consumer does not expect them to reconcile.
+- **The §4-gap is real un-mechanized code, not a paper gap.** TBD-14 classified component-manifest / test-fixture by hand in the re-validation; the *code* (`accepted-layout.ts`) never netted them. D5 is the first of the three to be mechanized. `orphans` raw score still carries the other two as rot until TBD-25/26 land.
+- **D1-isolation in the integration test.** The plan's registry fixture links a *file* under the registry parent, so that dir is a `routedDir` (file-parent) but NOT a `dirTarget` → detector D1 cannot fire → only D5 can net the `DESCRIPTION.md` files. Verified by the plan reviewer (expected counts: `orphanCount 4 / genuineAbandoned 1` for a ≥3 registry with one real rot doc; `2 / 2` for a 2-entry registry below threshold).
+- **Two fan-out sites for the two new required fields:** `WalkResult.configDirs` → `test/context-audit/bloat.test.ts:7`; `AcceptedLayoutCtx.manifestDirs` → `graph.ts:243` + `accepted-layout.test.ts:95`. tsc must be green at each task commit.
+- **Owner workflow note (task-observer Obs 34):** a "what" ruling (taxonomy) that explicitly defers the "how" (mechanism) does NOT make a task bounded — the deferred mechanism is architectural/decisions-gated work. Read a cited decision's scope note before inheriting its authority.
 
 ---
 
 ## Next-session starter
 
-> **All three free tools ship — the free tier is feature-complete. The next milestone is the Phase-1 RELEASE, but it is owner-gated; the fully-autonomous alternative is the `context_audit` §4-gap refinements.** `doc_drift` is done and on trunk (PR #65); do not reopen it. Read `CLAUDE.md`, this file, `WORKFLOW.md`, `planning/Roadmap.md` (Phase-1 build order — items 4–6 are the build step / ledger / `npm publish` dry-run), `src/CONTEXT.md` (conventions + the context-budget ledger, now **1023 / ~4000**), and `src/API.md`. Confirm `git rev-parse HEAD` and `npm test` (expect **193**) first.
->
-> **Two paths — surface both to the owner and take the owner-gated one to them early:**
->
-> 1. **Phase-1 RELEASE (owner-gated, higher value).** The three free tools are all shipped; what remains is `LICENSE` + `THIRD_PARTY_NOTICES.md` final + an `npm publish` dry-run from a fresh checkout. **This is BLOCKED on TBD-2 (confirm each of the five bundled components' license from its own files — caveman still needs `skills/caveman/` path-scoping + a commit pin) and TBD-4 (the ICM reproduce-vs-paraphrase call — the product owner's).** Both need owner rulings / external confirmation, so this is not fully autonomous — **surface the two TBDs to the owner at the top of the session.** Once they resolve: finalize the notices file (rule 4 — each bundled component's block in the same commit), then the `npm publish` dry-run; the release publishes on a semver tag (`ops/CONTEXT.md`).
->
-> 2. **`context_audit` §4-gap refinements (fully autonomous).** The three open `/decisions` items — component-manifest detection, test-harness-fixture detection, bare-`docs/**` disposition — each tightens the `orphans` sub-score and is the trigger to **raise the provisional `orphans:1`** weight (TBD-10 stays Open only for that raise). A `context_audit` refinement, its own full loop: `superpowers:brainstorming` → **`/decisions`** (resolve-or-defer; stub new TBDs in `src/TDD.md`) → **`/design-doc`** (to `planning/designs/`) → **`superpowers:writing-plans`** (plan-reviewed) → **`superpowers:executing-plans`** or **`superpowers:subagent-driven-development`** under **`superpowers:test-driven-development`** → **`superpowers:requesting-code-review`** → **`superpowers:finishing-a-development-branch`** (PR, squash, verify content on trunk — Obs 20). Any output-contract change triggers rule 8 (`src/API.md` same commit) and, if a tool definition widens, rule 2 (re-measure the ledger; a test asserts the combined total < ~4000). **Do NOT reopen `context_audit`'s closed TBDs** (10-provisional / 11 / 12-`MIN_FILES` / 14 / 16 / 18 / 19 / 20) or any shipped tool.
->
-> Lower-priority: **`doc_drift` v1.1** (TBD-22 canonical self-discovery / TBD-23 orientation walk-test / TBD-24 framework parsing) and **`override_log` TBD-21** (ISO-date validation) — each its own loop, only if demand appears. `.claude/commands/` regenerates only if `prompts/` changes (it should not for a tool).
+> Paste the block below into a fresh Claude Code session to execute the approved D5 plan.
+
+```
+Execute the approved component-manifest detector (D5) plan for the B-A-MCP repo, via
+subagent-driven-development under test-driven-development.
+
+## Session start (per CLAUDE.md)
+- caveman is auto-on; task-observer: invoke at session start before any tool work.
+- Read CLAUDE.md and SESSION_HANDOFF.md. This is a Claude Code build session on an
+  existing, approved plan — the brainstorming/decisions/design/plan gates are DONE.
+
+## Starting state — verify before touching anything
+- Branch: `feat/orphans-component-manifest` (check it out; do NOT branch again).
+- `git rev-parse --short HEAD` must be `d75b48f`. Working tree clean.
+- `npm test` must pass at the branch baseline (193 tests; the branch is docs/plan
+  only — no code yet). `tsc` clean.
+- If any of these differ, STOP and report — do not proceed on a surprised state.
+
+## What to build
+Plan (APPROVED — follow verbatim): docs/superpowers/plans/2026-08-28-component-manifest-detector.md
+Design (WHAT/WHY): planning/designs/2026-08-28_component-manifest-orphan-detector-design.md
+Mechanism decisions (L1–L13): planning/decisions/2026-08-28_component-manifest-detector-mechanism.md
+
+It adds detector D5 to context_audit's orphans sub-score: a DESCRIPTION.md is netted as
+intentional registry layout (not rot) iff its parent dir holds config.json + description.md
+AND ≥3 sibling dirs under the same grandparent each do. Structural, no source read, no path
+prefix. Three tasks: (1) walk.ts emits configDirs; (2) computeManifestDirs + isComponentManifest
++ D5 in accepted-layout.ts + graph.ts wiring + API.md enumeration (same commit) + unit tests;
+(3) graph integration proof.
+
+## Execution protocol (subagent-driven-development + TDD)
+- One fresh subagent per task. Each task is strict TDD: write the failing test, verify it
+  fails, implement minimally, verify pass, commit. Steps are spelled out in the plan.
+- Task 2 Step 2: the tsc COMPILE failure is the red state. Do NOT run `node --test dist/...`
+  after a failed build — a stale dist runs old tests green; that green is not a pass.
+- After EACH task: run a per-task code review (fresh reviewer), then REPORT THE RESULT BACK
+  to the user — files changed, test-count delta, per-task review verdict — before starting
+  the next task. Do not batch silently.
+
+## Hard rules (do not violate)
+- Rule 2: the context-budget ledger stays unchanged. Do NOT edit src/CONTEXT.md; no
+  tools/list schema field is added. The combined-total assertion in
+  test/override-log/ledger.test.ts must stay green.
+- Rule 8: the src/API.md enumeration edit ships in the SAME commit as the D5 code (Task 2,
+  Steps 5–6) — not a separate commit. Keep the edited ```json blocks parse-valid.
+- Do NOT touch src/tools/context-audit/score.ts. orphans:1, TBD_10_WEIGHTS, and
+  ROUTING_LAYER_KEYS stay exactly as they are — this loop does NOT raise the weight (L9).
+- Fan-out: adding required fields breaks literals. Task 1 fixes test/context-audit/bloat.test.ts:7
+  (WalkResult). Task 2 fixes graph.ts:243 and accepted-layout.test.ts:95 (AcceptedLayoutCtx).
+  tsc must be green at each task's commit.
+
+## Scope boundary — what this loop does NOT do
+- It mechanizes detector D5 only. It does NOT close TBD-10's provisional→final orphans:1 raise
+  — that needs the categorical corpus re-validation on the pinned nine-repo corpus (a separate
+  later session) AND all three §4-gap items. Do NOT touch TBD-25 (test-harness-fixture) or
+  TBD-26 (bare-docs) — they stay stubbed/open. Do NOT run the corpus re-validation here.
+
+## After all three tasks
+1. superpowers:requesting-code-review — whole-branch review. Address findings
+   (superpowers:receiving-code-review — verify, don't blindly accept).
+2. superpowers:finishing-a-development-branch — open the PR, squash-merge to main, then
+   VERIFY CONTENT ON TRUNK (Obs 20 / WORKFLOW.md): squash discards branch SHAs, so grep the
+   new symbols (computeManifestDirs, isComponentManifest, configDirs, "component-manifest" in
+   API.md) on main, confirm files present, and re-run `npm test` on main so the new tests
+   execute there.
+3. /handoff — update SESSION_HANDOFF.md: D5 shipped; orphans:1 still provisional; TBD-25/26
+   remain the two §4-gap items gating the TBD-10 raise; the corpus re-validation is the next
+   context_audit step.
+
+## Expected end state
+New tests added (~7 unit + 2 integration + 1 walk), full suite green above the 193 baseline,
+tsc clean, API.md enumerates five accepted-layout classes, ledger still 1023/~4000 (unchanged).
+```
+
+> **Alternative, owner-gated track:** the Phase-1 `npm publish` (free tier, split launch) is ready whenever the owner runs it — see `ops/CONTEXT.md`.

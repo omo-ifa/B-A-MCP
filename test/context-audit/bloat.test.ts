@@ -4,7 +4,7 @@ import { scoreBloat } from "../../src/tools/context-audit/bloat.js";
 import type { WalkResult } from "../../src/tools/context-audit/walk.js";
 
 function wr(docs: { relPath: string; content: string; isRoot: boolean }[]): WalkResult {
-  return { docs: docs.map((d) => ({ ...d, absPath: "/x/" + d.relPath })), findings: [], filesSkipped: 0 };
+  return { docs: docs.map((d) => ({ ...d, absPath: "/x/" + d.relPath })), findings: [], filesSkipped: 0, configDirs: new Set<string>() };
 }
 
 test("routing token weight sums only routing docs; subscore in [0,100]; n counts routing docs measured", () => {

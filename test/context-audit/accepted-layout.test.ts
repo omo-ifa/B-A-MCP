@@ -5,6 +5,7 @@ import { computeSkillDirs, isSkillDiscovered } from "../../src/tools/context-aud
 import { isAgentRuntimeConfig } from "../../src/tools/context-audit/accepted-layout.js";
 import { isTightDatedArchival } from "../../src/tools/context-audit/accepted-layout.js";
 import { isAcceptedLayout } from "../../src/tools/context-audit/accepted-layout.js";
+import { computeManifestDirs, isComponentManifest } from "../../src/tools/context-audit/accepted-layout.js";
 
 test("parentDir returns the directory portion, empty for root-level", () => {
   assert.equal(parentDir("a/b/c.md"), "a/b");
@@ -91,12 +92,59 @@ test("D2 skill-discovery: a root-level SKILL.md must not register (silent-FN gua
   assert.equal(isSkillDiscovered("skills/foo/ref.md", nested), true);
 });
 
-test("isAcceptedLayout ORs the four detectors; a plain unreferenced doc is NOT accepted", () => {
-  const ctx = { routedDirs: new Set(["src"]), dirTargets: new Set(["src"]), skillDirs: new Set(["skills/foo"]) };
+test("D5 computeManifestDirs: >=3 sibling dirs each with config.json + DESCRIPTION.md qualify", () => {
+  const configDirs = new Set(["r/a", "r/b", "r/c"]);
+  const docs = ["r/a/DESCRIPTION.md", "r/b/DESCRIPTION.md", "r/c/DESCRIPTION.md"];
+  const md = computeManifestDirs(configDirs, docs);
+  assert.deepEqual([...md].sort(), ["r/a", "r/b", "r/c"]);
+});
+
+test("D5 computeManifestDirs: exactly 2 siblings do NOT qualify (threshold is >=3)", () => {
+  const configDirs = new Set(["r/a", "r/b"]);
+  const docs = ["r/a/DESCRIPTION.md", "r/b/DESCRIPTION.md"];
+  assert.equal(computeManifestDirs(configDirs, docs).size, 0);
+});
+
+test("D5 computeManifestDirs: config.json without DESCRIPTION.md, or vice versa, is not a candidate", () => {
+  const configDirs = new Set(["r/a", "r/b", "r/c"]);   // c has config but no DESCRIPTION.md
+  const docs = ["r/a/DESCRIPTION.md", "r/b/DESCRIPTION.md", "r/d/DESCRIPTION.md"]; // d has DESCRIPTION but no config
+  // only a and b carry BOTH -> group of 2 -> below threshold -> none qualify
+  assert.equal(computeManifestDirs(configDirs, docs).size, 0);
+});
+
+test("D5 computeManifestDirs: siblings are grouped by grandparent, not globally", () => {
+  const configDirs = new Set(["g1/a", "g1/b", "g2/c"]);
+  const docs = ["g1/a/DESCRIPTION.md", "g1/b/DESCRIPTION.md", "g2/c/DESCRIPTION.md"];
+  // g1 has 2, g2 has 1 -> neither group reaches 3
+  assert.equal(computeManifestDirs(configDirs, docs).size, 0);
+});
+
+test("D5 computeManifestDirs: a top-level registry (grandparent \"\") qualifies", () => {
+  // plugin dirs directly under repo root -> grandparent is "" (root). G === "" is a
+  // valid grandparent (a registry may sit at the top level); only a candidate dir that
+  // IS the root ("") is excluded. All three qualify.
+  const configDirs = new Set(["a", "b", "c"]);
+  const docs = ["a/DESCRIPTION.md", "b/DESCRIPTION.md", "c/DESCRIPTION.md"];
+  assert.deepEqual([...computeManifestDirs(configDirs, docs)].sort(), ["a", "b", "c"]);
+});
+
+test("D5 isComponentManifest: DESCRIPTION.md in a qualifying dir nets, case-insensitive; other files do not", () => {
+  const manifestDirs = new Set(["r/a"]);
+  assert.equal(isComponentManifest("r/a/DESCRIPTION.md", manifestDirs), true);
+  assert.equal(isComponentManifest("r/a/description.md", manifestDirs), true);   // case-insensitive
+  assert.equal(isComponentManifest("r/a/README.md", manifestDirs), false);       // not the manifest doc
+  assert.equal(isComponentManifest("r/z/DESCRIPTION.md", manifestDirs), false);  // dir not qualifying
+  // L4: only the DESCRIPTION.md DIRECTLY in the qualifying dir nets; one nested a
+  // level deeper (parent "r/a/sub", not "r/a") is NOT netted.
+  assert.equal(isComponentManifest("r/a/sub/DESCRIPTION.md", manifestDirs), false);
+});
+
+test("isAcceptedLayout ORs the five detectors; a plain unreferenced doc is NOT accepted", () => {
+  const ctx = { routedDirs: new Set(["src"]), dirTargets: new Set(["src"]), skillDirs: new Set(["skills/foo"]), manifestDirs: new Set(["reg/a"]) };
   assert.equal(isAcceptedLayout("src/sub/nested.md", ctx), true);        // D1
   assert.equal(isAcceptedLayout("skills/foo/ref.md", ctx), true);        // D2
   assert.equal(isAcceptedLayout(".claude/agents/a.md", ctx), true);      // D3
   assert.equal(isAcceptedLayout("x/2020-01-01-note.md", ctx), true);     // D4
-  // genuine-abandoned: directly in a directory-target, no skill/agent/date signal
+  assert.equal(isAcceptedLayout("reg/a/DESCRIPTION.md", ctx), true);     // D5
   assert.equal(isAcceptedLayout("src/ORPHAN.md", ctx), false);
 });

@@ -91,9 +91,37 @@ export function isTightDatedArchival(relPath: string): boolean {
   return false;
 }
 
+// D5 — component-manifest (registry-glob shape). A DESCRIPTION.md is registry
+// content iff its parent dir carries BOTH a config.json and a description.md AND is
+// one of >=3 sibling dirs (same grandparent) that each do — the visible artifact of
+// a registry glob, never a path prefix (TBD-14 Ruling 2). configDirs is walk-supplied
+// because walk collects .md only, so config.json is otherwise invisible.
+export function computeManifestDirs(configDirs: Set<string>, docRelPaths: string[]): Set<string> {
+  const descDirs = new Set<string>();
+  for (const p of docRelPaths) {
+    if (p.split("/").pop()!.toLowerCase() === "description.md") descDirs.add(parentDir(p));
+  }
+  // candidate = a dir that has BOTH a config.json and a description.md (never the repo root)
+  const byGrand = new Map<string, string[]>();
+  for (const d of descDirs) {
+    if (d === "" || !configDirs.has(d)) continue;
+    const g = parentDir(d);
+    let arr = byGrand.get(g);
+    if (!arr) { arr = []; byGrand.set(g, arr); }
+    arr.push(d);
+  }
+  const qualifying = new Set<string>();
+  for (const group of byGrand.values()) if (group.length >= 3) for (const d of group) qualifying.add(d);
+  return qualifying;
+}
+
+export function isComponentManifest(relPath: string, manifestDirs: Set<string>): boolean {
+  return relPath.split("/").pop()!.toLowerCase() === "description.md" && manifestDirs.has(parentDir(relPath));
+}
+
 // D1 needs BOTH the broad routedDirs (to find the nearest routing-known ancestor)
 // and dirTargets (to test whether it is a real directory route) — TBD-19.
-export interface AcceptedLayoutCtx { routedDirs: Set<string>; dirTargets: Set<string>; skillDirs: Set<string>; }
+export interface AcceptedLayoutCtx { routedDirs: Set<string>; dirTargets: Set<string>; skillDirs: Set<string>; manifestDirs: Set<string>; }
 
 // Any tight detector firing => the doc is accepted layout, not genuine-abandoned
 // rot, so it is excluded from the orphans sub-score numerator (still a finding).
@@ -101,5 +129,6 @@ export function isAcceptedLayout(relPath: string, ctx: AcceptedLayoutCtx): boole
   return isRouteToDirNested(relPath, ctx.routedDirs, ctx.dirTargets)
     || isSkillDiscovered(relPath, ctx.skillDirs)
     || isAgentRuntimeConfig(relPath)
-    || isTightDatedArchival(relPath);
+    || isTightDatedArchival(relPath)
+    || isComponentManifest(relPath, ctx.manifestDirs);
 }

@@ -147,3 +147,52 @@ test("D2: a symlink to an OUT-OF-SCOPE router target keeps the symlink finding (
     assert.ok(res.findings.some((f) => f.category === "symlink" && f.file === "alias.md"));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("walk emits configDirs for directories containing a config.json", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-walk-cfg-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "# root");
+    mkdirSync(join(dir, "plugin-a"));
+    writeFileSync(join(dir, "plugin-a", "config.json"), "{}");
+    writeFileSync(join(dir, "plugin-a", "DESCRIPTION.md"), "a");
+    mkdirSync(join(dir, "plain"));
+    writeFileSync(join(dir, "plain", "notes.md"), "n");
+    const res = walk(resolveRoot(dir));
+    // config.json's parent dir is recorded...
+    assert.ok(res.configDirs.has("plugin-a"));
+    // ...a dir with no config.json is not...
+    assert.ok(!res.configDirs.has("plain"));
+    // ...and config.json is NOT added as a doc (walk stays .md-only).
+    assert.ok(!res.docs.some((d) => d.relPath === "plugin-a/config.json"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("walk honors gitignore for config.json (file-level ignore, not whole-dir): ignored dir absent, sibling present", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-walk-cfg-gi-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "# root");
+    // file-level ignore (NOT "ignored-dir/" -- a whole-dir ignore is pruned
+    // upstream at the directory `continue` and wouldn't exercise the
+    // configDirs gitignore guard at all).
+    writeFileSync(join(dir, ".gitignore"), "ignored-dir/config.json\n");
+    mkdirSync(join(dir, "ignored-dir"));
+    writeFileSync(join(dir, "ignored-dir", "config.json"), "{}");
+    mkdirSync(join(dir, "ok-dir"));
+    writeFileSync(join(dir, "ok-dir", "config.json"), "{}");
+    const res = walk(resolveRoot(dir));
+    // a specifically-gitignored config.json does not mark its directory...
+    assert.ok(!res.configDirs.has("ignored-dir"));
+    // ...while a sibling dir's non-ignored config.json still does
+    assert.ok(res.configDirs.has("ok-dir"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("walk records a root-level config.json as configDirs.has(\"\")", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-walk-cfg-root-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "# root");
+    writeFileSync(join(dir, "config.json"), "{}");
+    const res = walk(resolveRoot(dir));
+    assert.ok(res.configDirs.has(""));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
