@@ -639,3 +639,43 @@ test("dirTargets excludes root '' even when a router routes to '.' (D1 cannot ne
     assert.ok(g.dirTargets.has("src/lib"), "a genuine subdir target is still present");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("D5 integration: a >=3-entry registry's DESCRIPTION.md files are orphans but NOT genuine-abandoned", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-graph-d5-"));
+  try {
+    // Root routes to a FILE under packages/app-store -> that dir is a routedDir
+    // (file-parent) but NOT a dirTarget, so D1 will not net the plugin docs; only D5 can.
+    writeFileSync(join(dir, "CLAUDE.md"), "root [idx](packages/app-store/index.md)\n");
+    mkdirSync(join(dir, "packages", "app-store"), { recursive: true });
+    writeFileSync(join(dir, "packages", "app-store", "index.md"), "store index\n"); // reachable
+    for (const p of ["plugin-a", "plugin-b", "plugin-c"]) {
+      mkdirSync(join(dir, "packages", "app-store", p));
+      writeFileSync(join(dir, "packages", "app-store", p, "config.json"), "{}");
+      writeFileSync(join(dir, "packages", "app-store", p, "DESCRIPTION.md"), "d\n"); // orphan, netted by D5
+    }
+    // one genuinely-abandoned doc to prove the counter still catches rot
+    writeFileSync(join(dir, "packages", "app-store", "plugin-a", "notes.md"), "rot\n");
+    const g = buildGraph(resolveRoot(dir), walk(resolveRoot(dir)));
+    // 3 DESCRIPTION.md + 1 notes.md are all orphans...
+    assert.equal(g.orphanCount, 4);
+    // ...but only notes.md is genuine-abandoned; the 3 registry manifests net out.
+    assert.equal(g.genuineAbandonedCount, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("D5 integration: a 2-entry registry does NOT net (threshold >=3) — both DESCRIPTION.md count as rot", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-graph-d5b-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "root [idx](packages/app-store/index.md)\n");
+    mkdirSync(join(dir, "packages", "app-store"), { recursive: true });
+    writeFileSync(join(dir, "packages", "app-store", "index.md"), "store index\n");
+    for (const p of ["plugin-a", "plugin-b"]) {
+      mkdirSync(join(dir, "packages", "app-store", p));
+      writeFileSync(join(dir, "packages", "app-store", p, "config.json"), "{}");
+      writeFileSync(join(dir, "packages", "app-store", p, "DESCRIPTION.md"), "d\n");
+    }
+    const g = buildGraph(resolveRoot(dir), walk(resolveRoot(dir)));
+    assert.equal(g.orphanCount, 2);
+    assert.equal(g.genuineAbandonedCount, 2);   // below threshold -> not netted
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
