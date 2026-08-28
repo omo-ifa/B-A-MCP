@@ -45,7 +45,7 @@
 
 ## Remaining work
 
-- **Owner decision to surface (from the final whole-branch review, M5):** `planning/designs/2026-08-28_component-manifest-orphan-detector-design.md`'s "Docs affected" line names `src/tools/context-audit/index.ts` as the wiring site, but the orphan computation lives in `graph.ts`, which is where the code correctly landed (the plan was authoritative). The shipped code is correct; only that one design-doc line is stale. **Not edited this session** — it's an approved Gate-3 doc; correcting it is the owner's call. One-line fix if desired.
+- **M5 (whole-branch review) — RESOLVED 2026-08-28.** The design doc's "Docs affected" line named `src/tools/context-audit/index.ts` as the wiring site; the orphan computation actually lives in `graph.ts` (the plan was authoritative and the code landed there). Corrected at the owner's instruction — `planning/designs/2026-08-28_component-manifest-orphan-detector-design.md` now names `graph.ts`. Shipped code was always correct; this was a docs-only fix.
 - **The `orphans:1` finalization track is NOT a ready plan.** TBD-25 and TBD-26 have no approved mechanism yet (rule 7 — not guessed); they need `/decisions` passes first, then the corpus re-validation, then the raise. See the Next-session starter.
 
 ---
