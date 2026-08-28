@@ -147,3 +147,22 @@ test("D2: a symlink to an OUT-OF-SCOPE router target keeps the symlink finding (
     assert.ok(res.findings.some((f) => f.category === "symlink" && f.file === "alias.md"));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("walk emits configDirs for directories containing a config.json", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ca-walk-cfg-"));
+  try {
+    writeFileSync(join(dir, "CLAUDE.md"), "# root");
+    mkdirSync(join(dir, "plugin-a"));
+    writeFileSync(join(dir, "plugin-a", "config.json"), "{}");
+    writeFileSync(join(dir, "plugin-a", "DESCRIPTION.md"), "a");
+    mkdirSync(join(dir, "plain"));
+    writeFileSync(join(dir, "plain", "notes.md"), "n");
+    const res = walk(resolveRoot(dir));
+    // config.json's parent dir is recorded...
+    assert.ok(res.configDirs.has("plugin-a"));
+    // ...a dir with no config.json is not...
+    assert.ok(!res.configDirs.has("plain"));
+    // ...and config.json is NOT added as a doc (walk stays .md-only).
+    assert.ok(!res.docs.some((d) => d.relPath === "plugin-a/config.json"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

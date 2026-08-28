@@ -5,7 +5,7 @@ import { hasStructuralName } from "./root.js";
 import type { Root, RawFinding } from "./types.js";
 
 export interface WalkedDoc { relPath: string; absPath: string; content: string | null; isRoot: boolean; }
-export interface WalkResult { docs: WalkedDoc[]; findings: RawFinding[]; filesSkipped: number; }
+export interface WalkResult { docs: WalkedDoc[]; findings: RawFinding[]; filesSkipped: number; configDirs: Set<string>; }
 
 const HARD_SKIP_DIRS = new Set(["node_modules", "dist", "build", "vendor", ".venv", "target"]);
 const DOT_ALLOW = new Set([".claude", ".github"]);
@@ -56,6 +56,7 @@ export function walk(root: Root): WalkResult {
   const docs: WalkedDoc[] = [];
   const findings: RawFinding[] = [];
   let filesSkipped = 0;
+  const configDirs = new Set<string>();
 
   const ig = ignore();
   const giPath = join(root.path, ".gitignore");
@@ -110,6 +111,7 @@ export function walk(root: Root): WalkResult {
       }
 
       if (!e.isFile()) continue;
+      if (e.name.toLowerCase() === "config.json" && !(relPath && ig.ignores(relPath))) configDirs.add(rel(dir));
       if (!e.name.toLowerCase().endsWith(".md")) continue;
       if (relPath && ig.ignores(relPath)) continue;
 
@@ -127,5 +129,5 @@ export function walk(root: Root): WalkResult {
 
   recurse(root.path);
   docs.sort((a, b) => (a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0));
-  return { docs, findings, filesSkipped };
+  return { docs, findings, filesSkipped, configDirs };
 }
