@@ -101,7 +101,7 @@ A list, not diffs:
 
 - **`src/tools/context-audit/walk.ts`** — additionally records the parent directory of any `config.json` into a new `WalkResult.configDirs` set (`config.json` stays out of `docs`). The one behavioral addition to the walk.
 - **`src/tools/context-audit/accepted-layout.ts`** — gains `computeManifestDirs()`, detector D5, and the `manifestDirs` field on `AcceptedLayoutCtx`, wired into `isAcceptedLayout` (the build's job, not this doc).
-- **`src/tools/context-audit/index.ts`** — passes the walk's `configDirs` into `computeManifestDirs()` and the resulting `manifestDirs` into `AcceptedLayoutCtx` (wiring only).
+- **`src/tools/context-audit/graph.ts`** — passes the walk's `configDirs` into `computeManifestDirs()` (over the readable-docs relPaths) and the resulting `manifestDirs` into the `AcceptedLayoutCtx` literal at the `isAcceptedLayout` call (wiring only). *(This is the orphan-computation site; an earlier draft of this doc named `index.ts` — corrected 2026-08-28 to match where the code landed.)*
 - **`src/API.md`** — **REQUIRED** (rule 8, same commit): add `component-manifest` to the accepted-layout-class enumeration in **both** the `stats.genuine_abandoned_count` and `subscores` description strings; keep both ```json blocks valid (API-json-ok parse check).
 - **`src/CONTEXT.md`** — context-budget ledger: re-confirmed unchanged (rule 2); no numeric edit expected.
 - **`src/TDD.md`** — TBD-25 and TBD-26 already stubbed at Gate 2; no further change this loop.
