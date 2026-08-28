@@ -154,12 +154,24 @@ test("D5 computeManifestDirs: siblings are grouped by grandparent, not globally"
   assert.equal(computeManifestDirs(configDirs, docs).size, 0);
 });
 
+test("D5 computeManifestDirs: a top-level registry (grandparent \"\") qualifies", () => {
+  // plugin dirs directly under repo root -> grandparent is "" (root). G === "" is a
+  // valid grandparent (a registry may sit at the top level); only a candidate dir that
+  // IS the root ("") is excluded. All three qualify.
+  const configDirs = new Set(["a", "b", "c"]);
+  const docs = ["a/DESCRIPTION.md", "b/DESCRIPTION.md", "c/DESCRIPTION.md"];
+  assert.deepEqual([...computeManifestDirs(configDirs, docs)].sort(), ["a", "b", "c"]);
+});
+
 test("D5 isComponentManifest: DESCRIPTION.md in a qualifying dir nets, case-insensitive; other files do not", () => {
   const manifestDirs = new Set(["r/a"]);
   assert.equal(isComponentManifest("r/a/DESCRIPTION.md", manifestDirs), true);
   assert.equal(isComponentManifest("r/a/description.md", manifestDirs), true);   // case-insensitive
   assert.equal(isComponentManifest("r/a/README.md", manifestDirs), false);       // not the manifest doc
   assert.equal(isComponentManifest("r/z/DESCRIPTION.md", manifestDirs), false);  // dir not qualifying
+  // L4: only the DESCRIPTION.md DIRECTLY in the qualifying dir nets; one nested a
+  // level deeper (parent "r/a/sub", not "r/a") is NOT netted.
+  assert.equal(isComponentManifest("r/a/sub/DESCRIPTION.md", manifestDirs), false);
 });
 ```
 
@@ -177,10 +189,10 @@ test("isAcceptedLayout ORs the five detectors; a plain unreferenced doc is NOT a
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Run the build to verify it fails to compile (this IS the red state)**
 
-Run: `npm run build 2>&1 | head; node --test dist/test/context-audit/accepted-layout.test.js`
-Expected: FAIL — `tsc` errors that `computeManifestDirs`/`isComponentManifest` are not exported and that the `ctx` literal is missing `manifestDirs` (once the interface is extended in Step 3 the literal errors resolve).
+Run: `npm run build`
+Expected: **`tsc` FAILS** — errors that `computeManifestDirs`/`isComponentManifest` are not exported and that the `ctx` literal is missing `manifestDirs` (resolved once Step 3 adds them). **The compile failure is the red/fail state for this task** — do NOT then run `node --test dist/...`: `tsc` produced no new `dist`, so a stale `dist` from an earlier build would run the OLD compiled tests and report green. That green is a stale artifact, not a pass. Confirm the red by reading the `tsc` error output itself; only after Step 3 compiles do you run the tests (Step 7).
 
 - [ ] **Step 3: Implement the two functions and extend the type + disjunction**
 
@@ -242,9 +254,12 @@ export function isAcceptedLayout(relPath: string, ctx: AcceptedLayoutCtx): boole
 import { isAcceptedLayout, computeSkillDirs, computeManifestDirs } from "./accepted-layout.js";
 ```
 
-Beside the `skillDirs` computation (line ~234), add:
+Beside the `skillDirs` computation (line ~234), add — including the one-line comment verbatim (it records why the `content !== null` filter is deliberate):
 
 ```ts
+    // content !== null mirrors skillDirs: an unreadable/binary doc does not count
+    // toward the >=3 sibling threshold, so a dir whose DESCRIPTION.md is unreadable
+    // won't help form a registry — the conservative direction (fewer nets, visible FP).
     const manifestDirs = computeManifestDirs(walkRes.configDirs, walkRes.docs.filter((d) => d.content !== null).map((d) => d.relPath));
 ```
 
