@@ -1,7 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import { join, posix } from "node:path";
 import { extractLinks, classifyLink, isRoutingPathShape, isMarkdownPlaceholder, stripDestDelimiter } from "./links.js";
-import { isAcceptedLayout, computeSkillDirs } from "./accepted-layout.js";
+import { isAcceptedLayout, computeSkillDirs, computeManifestDirs } from "./accepted-layout.js";
 import type { Root, RawFinding } from "./types.js";
 import type { WalkResult, WalkedDoc } from "./walk.js";
 
@@ -232,6 +232,10 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
   let genuineAbandonedCount = 0;
   if (resolvedRefsFromRoots > 0) {
     const skillDirs = computeSkillDirs(walkRes.docs.filter((d) => d.content !== null).map((d) => d.relPath));
+    // content !== null mirrors skillDirs: an unreadable/binary doc does not count
+    // toward the >=3 sibling threshold, so a dir whose DESCRIPTION.md is unreadable
+    // won't help form a registry — the conservative direction (fewer nets, visible FP).
+    const manifestDirs = computeManifestDirs(walkRes.configDirs, walkRes.docs.filter((d) => d.content !== null).map((d) => d.relPath));
     for (const doc of walkRes.docs) {
       if (doc.isRoot || doc.content === null) continue;
       if (isFurniture(doc.relPath)) continue;
@@ -240,7 +244,7 @@ export function buildGraph(root: Root, walkRes: WalkResult): GraphResult {
       if (!reached.has(doc.relPath)) {
         findings.push(f("orphan", doc.relPath, null, "in-scope doc unreachable from any routing root", doc.relPath, doc.relPath));
         orphanCount++;
-        if (!isAcceptedLayout(doc.relPath, { routedDirs, dirTargets, skillDirs })) genuineAbandonedCount++;
+        if (!isAcceptedLayout(doc.relPath, { routedDirs, dirTargets, skillDirs, manifestDirs })) genuineAbandonedCount++;
       }
     }
   }
