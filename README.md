@@ -47,41 +47,41 @@ The server exposes all three tools — `context_audit`, `override_log`, and `doc
 
 ## See it run
 
-`context_audit` builds its own report and hands it back verbatim — one screen, no narration. Below is an **illustrative** report showing the shape of that output (the root path is shown generically, and your own numbers will differ); a real run on this repository will replace it before release:
+`context_audit` builds its own report and hands it back verbatim — one screen, no narration. Below is a **real run on this repository** — every number is live (the root path is shown generically, and a long finding list is abbreviated with `…N more`). Point the tool at this repo to reproduce it:
 
 ```text
 # context_audit — routing health
 
-**Score:** 100/100  (uncalibrated — TBD-10/11/12 stubs active; not a published figure)
-**Root:** /path/to/your/repo  (resolved via claude_md)
+**Score:** 100/100
+**Root:** /path/to/b-a-mcp  (resolved via claude_md — root path shown generically)
 
 | sub-score      | value      |
 |----------------|------------|
 | bloat          | 100 (n=4)  |
-| orphans        | 100 (n=69) |
-| routing_drift  |  99 (n=67) |
-| coverage       | 100 (n=2)  |
+| orphans        | 100 (n=83) |
+| routing_drift  |  99 (n=83) |
+| coverage       | 100 (n=6)  |
 
 ## high (1)
 - routing_path_missing  CLAUDE.md:131 — router path does not resolve to an existing file
-    (evidence: planning/decisions/YYYY-MM-DD_title.md)
+    (evidence: planning/decisions/YYYY-MM-DD_title.md — a literal placeholder in the TBD-policy text)
 
-## medium (20)
-- orphan  planning/plans/2026-08-18-context-audit.md — in-scope doc unreachable from any routing root
-- …19 more orphans, all dated plan / calibration docs. They are recognised as archival by
+## medium (24)
+- orphan  docs/superpowers/plans/2026-08-21-agents-md-router-recognition.md — in-scope doc unreachable from any routing root
+- …23 more orphans, all dated plan / calibration docs. They are recognised as archival by
   layout, so none is scored as genuine-abandoned rot — which is why the orphans sub-score is 100
   while the finding list still shows every one of them.
 
 ## low (3)
 - bloat  CLAUDE.md — routing file is large; a reader must load it all to orient here
-    (evidence: router_tokens=3373)
-- …2 malformed links
+    (evidence: router_tokens=3665)
+- …2 malformed links in an old plan doc
 
-## info (53)
+## info (55)
 - broken_ref  … — example / placeholder links inside planning docs: reported, never scored
 
 ## stats
-- docs_in_scope: 74, routing_files: 4, routing_tokens: 4863
+- docs_in_scope: 88, routing_files: 4, routing_tokens: 6266
 
 > coverage measures whether the routing layer claims your code, not whether the claim is
 > accurate — content accuracy is doc_drift's job.
@@ -90,7 +90,7 @@ The server exposes all three tools — `context_audit`, `override_log`, and `doc
 Two things that report is doing on purpose:
 
 - **The finding list and the score are different questions.** Every orphaned doc is *listed* (so you can see it), but only genuine-abandoned rot is *scored* — dated archival plans, skill directories, and agent-runtime config are recognised as intentional layout, not failure. That is why a repo with 20 orphan findings can still score 100 on the orphans sub-score.
-- **It refuses to publish a number it can't defend.** The score prints with an `uncalibrated … not a published figure` caveat while the scoring thresholds are still being calibrated against real repositories. When the calibration work closes, the caveat goes away. The tool would rather show you a caveat than a confident wrong number.
+- **It refuses to publish a number it can't defend.** Through calibration the score printed with an `uncalibrated … not a published figure` caveat; that calibration is now closed — the four sub-score weights and every score-driving threshold were ratified against a pinned corpus of real repositories — so the number above is published clean. The flag is a real switch, not decoration: the tool would still rather show a caveat than a confident wrong number.
 
 ---
 
@@ -107,7 +107,7 @@ The free tier stands on its own. The paid tier just keeps the receipt.
 
 ## Status
 
-Phase 1 (free tier). All three repo-audit tools — `context_audit`, `override_log`, `doc_drift` — are shipped and registered, and the free tier is feature-complete. `context_audit` still marks its own score uncalibrated (see above) while the headline weighting is finalised against a pinned corpus of real repositories.
+Phase 1 (free tier). All three repo-audit tools — `context_audit`, `override_log`, `doc_drift` — are shipped and registered, and the free tier is feature-complete. `context_audit`'s headline weighting and score-driving thresholds are now calibrated against a pinned corpus of real repositories, so it publishes its score without a caveat (see above).
 
 ---
 
