@@ -92,7 +92,7 @@ When handing literal text to a tool the shell or a matcher re-interprets, verify
 - Adding a **required member to a shared type** is a fan-out change: its Files scope is *every construct site* (grep the type/field name across `src` + `test`), not the definition plus intended consumers — a type checker rejects each incomplete literal, so a pre-existing fixture that builds the type will break the build. Enumerate the construct sites, or state that the compiler surfaces them and each is fixed in the same commit (Obs 22).
 - A plan's **verification/measurement commands must run on the declared runtime floor**, not the dev machine — validate each against the Global Constraints (engine floor, module system, package `type`): ESM dist → `import()` / `node --input-type=module`, never `require()`; prefer commands the test harness already runs (floor-validated) over hand-rolled one-liners (Obs 28).
 
-### Calibration & measurement (Obs 7, 8, 11, 12, 14, 17, 19, 24) — the `planning/calibration/` pattern
+### Calibration & measurement (Obs 7, 8, 11, 12, 14, 17, 19, 24, 36) — the `planning/calibration/` pattern
 
 - **Structural pre-flight** before calibrating: verify the metric's core input assumption holds in the sample (a cheap grep) before any threshold run (Obs 7).
 - **Pin the corpus** and record the pins; change one variable per run; an unmoved control is itself a result (Obs 12).
@@ -102,6 +102,7 @@ When handing literal text to a tool the shell or a matcher re-interprets, verify
 - **Cross-foot every headline total/delta** against its itemized breakdown, computed not eyeballed; carry a machine-printed total (Obs 17).
 - **Instrumentation fidelity:** any harness reproducing scorer internals must re-derive a shipped output and assert equality with the production entrypoint before its raw numbers are trusted (Obs 19).
 - **A re-validation gate for a false-accept/false-reject fix must probe BOTH directions** — the specific case the fix removes (does it now classify right?) *and* a search for the mirror case the fix's mechanism could newly mis-classify — with the exact target casualties as first-class close-condition checks, not just "the known-good set still passes." A predicate whose single set plays two roles (an exclude-*guard* and an include-*test*) may need different sets for each; narrowing it to fix one over-inclusion can delete the guard and open a symmetric one (Obs 24).
+- **When a score excludes an "accepted" class via a detector, the close condition is a per-detector CODE-vs-taxonomy reconciliation, not a residual hand-classification** — "every residual classifies into some accepted class" validates the *taxonomy*, not the *score*; the detectors net only a subset of accepted-class docs, and the un-netted remainder lands silently in the score's numerator. Run the production scorer, attribute its numerator by reason-not-netted, and reconcile detector-netted against hand-classified-accepted per class (assert equal, or enumerate and justify every un-netted member). A residual that is taxonomically accepted but code-counted is a defect, not a pass (Obs 36; pairs with Obs 19's re-derive-the-shipped-output).
 
 ### Code review (Obs 5, 23, 27)
 

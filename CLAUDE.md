@@ -140,7 +140,7 @@ launch decisions all resolved 2026-08-27:
 - TBD-3 (DO Functions allowance = 90,000 GiB-s, non-load-bearing) → `src/TDD.md`
 
 What remains open is **non-blocking**: `context_audit` calibration refinements
-(TBD-10 provisional-weight raise, TBD-12 coverage basis, TBD-15 AGENTS.md v1.1),
+(TBD-12 coverage basis, TBD-15 AGENTS.md v1.1),
 deferred tool v1.1 (TBD-21/22/23/24), and the `.claude/commands/` generation
 build step (rule-1 guardrail, not shipped). The paid tier (Phase 2) is blocked
 on the **site-repo** consent-gated checkout, external to this repo.

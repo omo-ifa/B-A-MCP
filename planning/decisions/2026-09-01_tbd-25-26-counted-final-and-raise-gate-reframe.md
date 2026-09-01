@@ -72,3 +72,15 @@ If the upcoming corpus re-validation measures the residual downward bias as **no
 - **TBD-10 stays Open** for the `orphans:1` provisional→final raise **only**, now gated on the reframed condition above (landed decisions ✓ for all three + the pending corpus re-validation). `coverage:3` / `bloat:1` / `routing_drift:1` remain final.
 - **No code changed; no number set; no schema/ledger/API.md change** (rules 2 and 8 not triggered).
 - **Next:** the categorical corpus re-validation on the pinned nine-repo corpus, then the owner-ratified `orphans:1` raise `/decisions`.
+
+---
+
+## Update 2026-09-01 (post-measurement) — RAISE REJECTED; `orphans:1` ratified FINAL; TBD-10 CLOSED
+
+The corpus re-validation and the per-detector code-vs-taxonomy reconciliation ran the same day (`planning/calibration/2026-09-01_orphans-raise-revalidation-and-reconciliation.md`; fidelity triple-tied, Obs 19). Outcome:
+
+- **The "bounded residual" condition is NOT met — but this is the ratchet firing correctly, not a premise collapse.** The `orphans` numerator (`genuine_abandoned_count = 374` corpus-wide) is **~90% un-netted accepted-layout/convention/archival across ≥8 classes**, ≤~45 plausible true rot. The layout tint was already documented (TBD-19/20 re-val §5) and priced into the weight (TBD-10: `orphans:1` bounds the §4-gap headline pull at ±8; superset 31 named §4-gap-driven). The optimistic branch (raise) does not fire; the pessimistic (hold) does.
+- **The one new lever — bare-`docs/**` as tight-anchored doc-sites — was verified and FAILS.** Of 187 bare-docs residuals, 0 have a STRONG generator config as nearest ancestor; **115 (61%) are plain `docs/` folders with no generator artifact at all**; only superset's 72 sit under a Docusaurus config (one repo → a detector would be single-repo self-tuned). Both live posthog PRDs are unanchored (safe), but moot. **TBD-26 is NOT reopened** — the "bare-docs ≈ mechanizable doc-site" reclassification is false.
+- **Per the owner's pre-committed rule (lever fails → hold), `orphans:1` is ratified FINAL** (value unchanged; provisional→final status only). It is the largest weight that bounds the layout-tint pull; raising to 2 would double a layout-dominated signal (netting bare-docs alone moves the sub-score up to +65). `TBD_10_WEIGHTS` / `ROUTING_LAYER_KEYS` unchanged; no code, no schema/ledger/API.md change.
+- **TBD-10 CLOSES** — all four sub-score weights final. **TBD-25 / TBD-26 stay counted-final.**
+- **Standing fix (Obs 36):** the close condition for a score that nets an accepted class is now a per-detector code-vs-taxonomy reconciliation (added to WORKFLOW.md's Calibration & measurement checklist), not a residual hand-classification.
