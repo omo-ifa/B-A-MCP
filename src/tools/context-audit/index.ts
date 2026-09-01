@@ -92,7 +92,7 @@ export async function runContextAudit(args: { path?: string }): Promise<Outcome>
     genuine_abandoned_count: g.genuineAbandonedCount,
     files_skipped: w.filesSkipped,
     token_count_method: TOKEN_METHOD,
-    calibrated: false,
+    calibrated: true,   // TBD-10/11/12 threshold numbers all ratified (2026-09-01) — score is a published figure
   };
   const rendered = renderAudit({ root, score, subscores, findings, stats });
   return { ok: true, result: { root, score, subscores, findings, stats, rendered } };

@@ -8,7 +8,7 @@ export function renderAudit(result: Omit<AuditResult, "rendered">): string {
   lines.push(`# context_audit — routing health`);
   lines.push("");
   const scoreText = score === null ? "not assessed" : `${score}/100`;
-  lines.push(`**Score:** ${scoreText}${stats.calibrated ? "" : "  _(uncalibrated — TBD-10/11/12 stubs active; not a published figure)_"}`);
+  lines.push(`**Score:** ${scoreText}${stats.calibrated ? "" : "  _(uncalibrated — score thresholds not yet finalized; not a published figure)_"}`);
   lines.push(`**Root:** \`${root.path}\` (resolved via \`${root.method}\`)`);
   if (root.method !== "claude_md") lines.push(`> Weaker claim: no root \`CLAUDE.md\` anchored this audit; resolved via \`${root.method}\`.`);
   lines.push("");

@@ -21,12 +21,17 @@ test("renderer emits score, weaker-claim note, coverage disclaimer, and uncalibr
   assert.match(md, /72/);
   assert.match(md, /given_path/);
   assert.match(md, /accuracy|claims the code|doc_drift/i);   // coverage disclaimer present
-  assert.match(md, /uncalibrated|TBD-1[012]/i);
+  assert.match(md, /uncalibrated.*not a published figure/i);
   assert.match(md, /broken_ref/);
   assert.match(md, /\| coverage \| not assessed \(n=0\) \|/);   // null sub-score shown as "not assessed", never N/A or a bare number
   assert.match(md, /\| routing_drift \| 100 \(n=3\) \|/);        // assessed sub-score shows value AND n
   assert.doesNotMatch(md, /\| broken_refs \|/);                  // broken_refs is no longer a sub-score
   assert.doesNotMatch(md, /N\/A/);
+});
+
+test("renderer omits the uncalibrated caveat when calibrated is true", () => {
+  const md = renderAudit({ ...base, stats: { ...base.stats, calibrated: true } });
+  assert.doesNotMatch(md, /uncalibrated|not a published figure/i);   // calibration closed -> headline published clean
 });
 
 test("renderer shows 'not assessed' for a null headline score, never a bare number or N/A", () => {

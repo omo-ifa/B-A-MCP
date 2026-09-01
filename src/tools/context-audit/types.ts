@@ -56,7 +56,7 @@ export interface AuditStats {
   genuine_abandoned_count: number;
   files_skipped: number;
   token_count_method: string;
-  calibrated: boolean;      // false while TBD-10/11/12 stubs are active
+  calibrated: boolean;      // true once the score's weighting + thresholds are calibrated (all ratified 2026-09-01); false renders the headline with a "not a published figure" caveat
 }
 
 export interface AuditResult {

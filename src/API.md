@@ -113,7 +113,7 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
         "genuine_abandoned_count": { "type": "number", "description": "orphans scored as rot — unreachable candidates that are NOT a detected accepted-layout class (route-to-directory-nested, skill-discovery, agent-runtime config, tight dated/versioned-archival, component-manifest). The orphans sub-score is 1 − genuine_abandoned_count / (its n); orphan_count stays the count of every orphan finding, so genuine_abandoned_count ≤ orphan_count." },
         "files_skipped": { "type": "number" },
         "token_count_method": { "type": "string", "description": "e.g. char-approx-v1; a changed constant becomes a new method string" },
-        "calibrated": { "type": "boolean", "description": "false while the bloat/coverage threshold TBDs (TBD-10/11/12) are stubbed" }
+        "calibrated": { "type": "boolean", "description": "true once the score's weighting and thresholds are calibrated; false renders the headline with an 'uncalibrated / not a published figure' caveat" }
       }
     },
     "rendered": { "type": "string", "description": "tool-built markdown summary of the above; the agent displays it verbatim" }

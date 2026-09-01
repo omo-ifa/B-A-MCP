@@ -25,7 +25,8 @@ test("runs end-to-end on a real fixture and returns structuredContent + rendered
     if (!outcome.ok) return;
     assert.equal(outcome.result.root.method, "claude_md");
     assert.ok(outcome.result.findings.some((f) => f.category === "routing_drift"));  // missing.md
-    assert.equal(outcome.result.stats.calibrated, false);
+    assert.equal(outcome.result.stats.calibrated, true);   // calibration closed 2026-09-01 (TBD-10/11/12 threshold numbers ratified)
+    assert.doesNotMatch(outcome.result.rendered, /uncalibrated|not a published figure/i);   // no caveat once calibrated
     const call = toCallToolResult(outcome);
     assert.equal(call.content[0].type, "text");
     assert.equal(call.content[0].text, outcome.result.rendered);
