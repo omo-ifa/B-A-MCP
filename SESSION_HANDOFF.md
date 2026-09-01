@@ -2,60 +2,58 @@
 
 **Purpose.** Verified continuity between Claude Code sessions. Every field below was checked from inside the repo this session, never asserted or carried forward. When this conflicts with claude-mem recall, **this file wins**. Updated at every `/handoff`.
 
-> **This handoff lives on `main`.** The D5 build loop is complete and merged; there is no active feature branch. The next session starts fresh from `main` — pick a track from the Next-session starter at the bottom.
+> **This handoff lives on `main`.** Track B (the `context_audit` orphans calibration) is complete and merged; there is no active feature branch and no active design doc. This handoff's own docs commit (SESSION_HANDOFF.md + the Roadmap update) lands on top of the Track-B merge via a small `docs/` PR. The next session starts fresh from `main`.
 
 ---
 
-## Repo state — verified 2026-08-28
+## Repo state — verified 2026-09-01
 
-- **Branch:** `main` (the D5 feature branch `feat/orphans-component-manifest` was squash-merged and deleted, local + remote).
-- **`main` HEAD:** `182edcd` — `feat(context_audit): detector D5 component-manifest (registry-glob orphan netting) (#70)`. (This handoff's own docs commit lands on top via a small `docs/` PR — see the note at the end.)
-- **Working tree:** clean.
-- **Tests:** **204 / 204 pass** on `main` (`tsc` clean, Node v20+) — re-run on `main` post-merge this session so the new D5 tests execute on the trunk, not just the branch. Baseline was 193; +11 (1 walk incl. gitignore-parity + root-level, 6 accepted-layout, 2 graph integration, +2 coverage from the final-review fix wave).
-- **Ledger:** **1023 / ~4000** (rule 2) — unchanged; D5 adds no `tools/list` schema field.
-- **Phase-1 free tier:** feature-complete and **release-ready**. All three free tools shipped; notices finalized; `npm publish --dry-run` clean from a fresh checkout (verified a prior session). The only remaining release gesture is the actual `npm publish` on a semver tag (owner-gated: needs npm login + go; runbook in `ops/CONTEXT.md`). Launch is **split — free tier first** (TBD-8).
+- **Branch:** `main`. Track B branch `docs/tbd-25-26-orphans-gate-reframe` was squash-merged (PR #73) and deleted (local + remote).
+- **`main` HEAD:** `96e6dc4` — `docs: close TBD-10 — orphans:1 FINAL (raise rejected on measured evidence); TBD-25/26 counted-final (#73)`. This handoff's docs commit lands on top.
+- **Working tree:** clean after the handoff commit.
+- **Tests:** **204 / 204** as last verified 2026-08-28. **No production code changed this session** (docs-only: decision + calibration records, tracker, WORKFLOW/CLAUDE/Roadmap prose), so the suite is unchanged and was **not** re-run this session. `TBD_10_WEIGHTS` / `ROUTING_LAYER_KEYS` in `src/tools/context-audit/score.ts` untouched (verified in-diff and independent review).
+- **Ledger:** **1023 / ~4000** (rule 2) — unchanged; no schema field added.
+- **Phase-1 free tier:** feature-complete and **release-ready**. All three free tools shipped; notices finalized; a prior `npm publish --dry-run` was clean from a fresh checkout. The only remaining release gesture is the actual `npm publish` on a semver tag (owner-gated: npm login + go; runbook `ops/CONTEXT.md`). Split launch, free tier first (TBD-8).
 
 ---
 
 ## Active design doc
 
-- `planning/designs/2026-08-28_component-manifest-orphan-detector-design.md` — **COMPLETE / SHIPPED** (detector D5, merged in PR #70).
-- Mechanism decision (Gate 2): `planning/decisions/2026-08-28_component-manifest-detector-mechanism.md` — rulings L1–L13.
-- Plan (executed): `docs/superpowers/plans/2026-08-28-component-manifest-detector.md`.
-
-**What shipped.** `context_audit`'s `orphans` sub-score now nets a `DESCRIPTION.md` as intentional registry layout (out of `genuine_abandoned_count`) iff its parent dir holds `config.json` + `description.md` AND ≥3 sibling dirs under the same grandparent each do — structural, no source read, no path prefix (preserves TBD-14 Ruling 2). `walk.ts` emits `WalkResult.configDirs`; `accepted-layout.ts` gains `computeManifestDirs` + `isComponentManifest` and a 4-field `AcceptedLayoutCtx`; D5 is the fifth arm of `isAcceptedLayout`; `graph.ts` wires it; `src/API.md` enumerates **five** accepted-layout classes (rule 8, same commit). `score.ts` untouched — **`orphans:1` NOT raised** (L9).
+- **None active.** This session resolved decisions **counted-final** (no build), so no design doc was opened. The last design (`planning/designs/2026-08-28_component-manifest-orphan-detector-design.md`, detector D5) remains **COMPLETE / SHIPPED**.
 
 ---
 
 ## Decisions + TBDs
 
 ### Resolved this session
-- **None.** This session was pure execution of the already-approved D5 plan (Gates 0–3 were done in prior sessions). No TBD was resolved.
+- **TBD-25** (test-harness fixtures) → **Resolved, counted-final.** No tight source-free mechanism (the fixture fact lives in source the tool won't read; every proxy swallows `MSW_USAGE_GUIDE.md`). The un-netted residual stays a bounded visible-FP. `planning/decisions/2026-09-01_tbd-25-26-counted-final-and-raise-gate-reframe.md` Ruling 1.
+- **TBD-26** (bare-`docs/**`) → **Resolved, counted-final** (net nothing). A `docs/`/`plans/` segment net re-opens the TBD-20 silent-FN vector; an unrouted undated doc is arguably a true-positive orphan. Same record, Ruling 2. The doc-site reopen-lever was later **verified and failed** (§4 of the calibration record) → **not reopened**.
+- **TBD-10** (`context_audit` headline weighting) → **Resolved / CLOSED.** The `orphans:1` provisional→final raise was **REJECTED on measured evidence**; `orphans:1` ratified **FINAL** (value unchanged). All four sub-score weights now final. `planning/calibration/2026-09-01_orphans-raise-revalidation-and-reconciliation.md`.
 
-### Advanced this session
-- **D5 (component-manifest) mechanized and shipped** — the **first of the three §4-gap items** that gate TBD-10's `orphans:1` provisional→final raise. Recorded in the `src/TDD.md` TBD-10 status cell (2026-08-28 update).
+**`context_audit` calibration is COMPLETE — the tool is frozen.**
 
-### Still open (none blocks Phase-1 release)
-- **TBD-10** — `orphans:1` stays **PROVISIONAL**. Remaining gates: **TBD-25** + **TBD-26** (the other two §4-gap items) **AND** the categorical corpus re-validation on the pinned nine-repo corpus. `coverage:3` / `bloat:1` / `routing_drift:1` are final.
-- **TBD-25** — `orphans` test-harness-fixture mechanization (§4-gap #2). Open; deferred pending a tight source-free mechanism (no path-prefix rule allowed — the Ruling-2 casualty is `MSW_USAGE_GUIDE.md`).
-- **TBD-26** — `orphans` bare-`docs/**` disposition (§4-gap #3). Open.
-- **TBD-12** (coverage significance numbers, data-blocked), **TBD-15** (AGENTS.md v1.1), **TBD-21** (override_log ISO-date), **TBD-22/23/24** (doc_drift v1.1).
+### Still open (none blocks anything)
+- **TBD-12** — `coverage` source-vs-test significance **basis**, `SOURCE_EXTS` (provisional), the still-off coverage-finding emission. `MIN_FILES=5` already ratified.
+- **TBD-15** (AGENTS.md v1.1 root.method label), **TBD-21** (override_log ISO-date), **TBD-22/23/24** (doc_drift v1.1).
+- **Known bounded visible-FP `orphans` gaps** (calibration record §6) — doc-site (single-repo), month-slug archive (a D4a widening), per-source inventory (a registry shape), nested `.claude/**` (a bounded D3 fix). **All counted (visible FP), none blocking**; precision-only future work reachable via the ratchet (explicit `/decisions` + detector loop), never a silent widening. **Not opened as TBDs** — consistent with TBD-25/26 counted-final.
 
 ---
 
 ## Remaining work
 
-- **M5 (whole-branch review) — RESOLVED 2026-08-28.** The design doc's "Docs affected" line named `src/tools/context-audit/index.ts` as the wiring site; the orphan computation actually lives in `graph.ts` (the plan was authoritative and the code landed there). Corrected at the owner's instruction — `planning/designs/2026-08-28_component-manifest-orphan-detector-design.md` now names `graph.ts`. Shipped code was always correct; this was a docs-only fix.
-- **The `orphans:1` finalization track is NOT a ready plan.** TBD-25 and TBD-26 have no approved mechanism yet (rule 7 — not guessed); they need `/decisions` passes first, then the corpus re-validation, then the raise. See the Next-session starter.
+- **README true-sample** — a true `runContextAudit` run for the README. **Now fully UNGATED** (all four sub-score weights final). This is the next `context_audit` deliverable if that track resumes. Note the layout-tint caveat (below) when choosing the sample repo.
+- **Phase-1 `npm publish` (Track A)** — owner-gated, ready now.
+- **No open detector work is required** — the orphans track is closed; the §6 gaps are optional precision improvements, not blockers.
 
 ---
 
 ## Context not in the docs
 
-- **The §4-gap is real un-mechanized code, not a paper gap.** TBD-14 classified component-manifest / test-fixture / bare-docs by hand in the re-validation; the *code* (`accepted-layout.ts`) never netted them. D5 is now the first of the three mechanized. `orphans` raw score still carries TBD-25/26's classes as rot until those land.
-- **D1-isolation in the integration test (verified by hand-trace this session).** The registry fixture routes to a *file* under the registry parent, so that dir is a `routedDir` (file-parent) but NOT a `dirTarget` → detector D1 cannot fire → only D5 nets the `DESCRIPTION.md` files. The `notes.md` control proves the counter still catches real rot. Counts: `orphanCount 4 / genuineAbandoned 1` for a ≥3 registry with one rot doc; `2 / 2` for a 2-entry registry below threshold. Both fail loudly under a broken/absent D5 — genuine discriminators.
-- **gitignore-parity is now the only D5 branch with a dedicated test.** `walk.ts` records `config.json` into `configDirs` only when not gitignored; the added `walk` test uses a *file-level* ignore (`ignored-dir/config.json`), not a whole-dir ignore (which is pruned upstream and would not exercise the branch).
-- **Execution quality (this session):** subagent-driven-development under TDD, one fresh subagent per task + per-task review (all ✅ Approved, 0 Critical/Important) + whole-branch review on opus (Ready to merge: Yes). One final-review fix wave closed two coverage minors. Two plan-mandated minors parked (dup `docs.filter/map` in `graph.ts`; a dropped OR-test comment) — non-load-bearing, code stands.
+- **The headline finding: the `orphans` sub-score is layout-tinted by design-limit, and this was invisible until this session.** Prior re-validations validated the **taxonomy** ("every residual classifies into an accepted class") but never reconciled it against **what the detectors net**. The code's `genuine_abandoned_count` is **374 corpus-wide (~90% un-netted accepted-layout/convention/archival; ≤~45 true rot)**, not the "20 true rot" the hand-classification implied. `orphans:1` (the weight) **bounds** this tint's headline pull; that is exactly why the raise to 2 was rejected. Do **not** re-open `orphans:1` as "provisional" — it is FINAL.
+- **The standing fix is now a rule:** WORKFLOW.md "Calibration & measurement" checklist (Obs 36) — a re-validation for a detector-netted score must reconcile **code-netting vs taxonomy** (per-detector netted == accepted), not merely classify residuals.
+- **The measurement harnesses live in the session scratchpad** (`…/scratchpad/orphans-revalidation.mjs`, `orphans-buckets.mjs`, `reconciliation.mjs`, `docsite-anchor-verify.mjs`) and will be torn down. To re-run: build (`npm run build`), then import the **production** functions (`walk`, `buildGraph`, `computeSkillDirs`, `computeManifestDirs`, `isAcceptedLayout`) from `dist/`, reconstruct the genuine-abandoned set from the `orphan` findings, and **triple-tie** the count against `buildGraph.genuineAbandonedCount` and `runContextAudit().stats.genuine_abandoned_count` before trusting any number (Obs 19). Corpus pinned at `~/dev/ba-calibration/` (nine repos, pins in the calibration record §0).
+- **`graph.ts` emits every orphan — accepted-layout and genuine — as an `orphan` finding** (`graph.ts:245`); `genuineAbandonedCount` is computed separately and is **not** flagged per-doc in the output. That is why the harness must re-run `isAcceptedLayout` to identify the genuine set.
+- **task-observer:** Obs 36 (code-vs-taxonomy reconciliation) and Obs 37 (measure-then-rule; a firing ratchet is the safeguard working) logged this session.
 
 ---
 
@@ -64,39 +62,37 @@
 Two tracks. Pick one; both are ready to describe to the owner.
 
 ### Track A — Phase-1 `npm publish` (owner-gated, ready now)
-The free tier is release-ready. Publishing is owner-gated (npm login + go). Runbook: `ops/CONTEXT.md`. Split launch, free tier first (TBD-8). Nothing else in the repo blocks it.
+The free tier is release-ready. Publishing is owner-gated (npm login + go). Runbook: `ops/CONTEXT.md`. Split launch, free tier first (TBD-8). Nothing in the repo blocks it.
 
-### Track B — continue `context_audit` toward the `orphans:1` provisional→final raise
-This is **gated work, not a ready plan** — do not fabricate a plan. The raise (TBD-10) needs all three §4-gap items mechanized + a corpus re-validation. D5 is done; two items remain, and both must go through the gates first.
+### Track B — README true-sample run (now unblocked)
+`context_audit` calibration is frozen (all weights final), so a true `runContextAudit` sample for the README is unblocked.
 
 ```
-Continue the context_audit orphans track for the B-A-MCP repo (main @ 182edcd).
+Produce the README true-sample for context_audit in the B-A-MCP repo (main @ 96e6dc4 + handoff commit).
 
 ## Session start (per CLAUDE.md)
 - caveman auto-on; invoke task-observer before any tool work.
-- Read CLAUDE.md, SESSION_HANDOFF.md, and src/TDD.md (TBD-10, TBD-25, TBD-26).
+- Read CLAUDE.md, SESSION_HANDOFF.md, and planning/Roadmap.md (context_audit line).
 
 ## Goal
-Move TBD-10's orphans:1 from PROVISIONAL to FINAL. Gates remaining:
-  1. TBD-25 — a TIGHT, SOURCE-FREE test-harness-fixture detector (no path prefix; must
-     NOT swallow MSW_USAGE_GUIDE.md, the Ruling-2 casualty). No mechanism exists yet.
-  2. TBD-26 — bare-`docs/**` disposition (routed-by-convention vs orphaned).
-  3. The categorical corpus re-validation on the PINNED nine-repo corpus, confirming the
-     §4-gap downward-bias is bounded before the raise.
+Add a real, reproducible `runContextAudit` sample to the README — a true run, never a
+hand-written mock (rule: the score must be unfakeable). Pick a sample target that reads
+honestly given the KNOWN layout-tint: the orphans sub-score counts un-netted accepted-layout
+docs (bare-docs, doc-sites, archives) as genuine-abandoned — see
+planning/calibration/2026-09-01_orphans-raise-revalidation-and-reconciliation.md before
+choosing the repo, so the published number is not dominated by a Docusaurus tree.
 
 ## How (name the skills; do not restate their bodies)
-- TBD-25 and TBD-26 are decisions-gated. Run the `decisions` gate on each: resolve or
-  re-defer, nothing built on a guess (rule 7). If a tight source-free mechanism is found,
-  take it through `design-doc`, then `superpowers:writing-plans` (plan-document-reviewer),
-  then `superpowers:subagent-driven-development` under `superpowers:test-driven-development`,
-  then the reviewers and `superpowers:finishing-a-development-branch`.
-- The corpus re-validation follows the planning/calibration/ pattern (pin the corpus,
-  one variable per run, verify positives on ground truth) — see prior runs under
-  planning/calibration/. It is a measurement task, not a build.
+- This is a docs deliverable over stable code, not a build. If it needs any code (e.g. a
+  reproducible sample harness), route through superpowers:writing-plans (plan-document-reviewer)
+  then superpowers:test-driven-development, then the reviewers and
+  superpowers:finishing-a-development-branch. If it is pure docs, brainstorm the framing first.
+- Any run MUST use the production entrypoint runContextAudit and be reproducible from a pinned
+  target; triple-tie any derived number against the shipped output (Obs 19).
 
 ## Hard rules
 - Rule 2 (ledger unchanged unless a schema field is genuinely added + re-measured).
-- Rule 8 (API.md same-commit as any schema/description change).
-- Do NOT raise orphans:1 until ALL THREE gates above are satisfied (owner ratifies the
-  final number at an interactive gate — rule 7).
+- Rule 8 (src/API.md same-commit as any schema/description change).
+- Do NOT re-open orphans:1 as provisional — it is FINAL (TBD-10 closed 2026-09-01). The
+  layout-tint is a documented, weight-bounded limitation, not a bug to fix here.
 ```
