@@ -43,6 +43,7 @@
 
 - **Track A — Phase-1 `npm publish`** (owner-gated). The last Phase-1 gesture. Runbook `ops/CONTEXT.md`. Release is honest now — the README shows a calibrated sample, not a placeholder.
 - **No open detector or calibration work** — `context_audit` is frozen and now publishes clean.
+- **Deferred feature (non-blocking): serve the 5 gate prompts over MCP + build the `.claude/commands/` generator.** Both are "later loop" per the CLAUDE.md checklist and do NOT block the publish. Scoped 2026-09-01 — see the Track B next-session starter below.
 
 ---
 
@@ -58,7 +59,7 @@
 
 ## Next-session starter
 
-The natural next step is the owner-gated release. `context_audit` is frozen and now publishes clean, so nothing else in the repo is in flight.
+Two tracks, independent (either order). **Track A** (release) is owner-gated and ready. **Track B** (serve the gate prompts over MCP + the commands generator) is a scoped, non-blocking feature.
 
 ### Track A — Phase-1 `npm publish` (owner-gated, ready now)
 
@@ -91,4 +92,57 @@ explicit go, and it is an outward, hard-to-reverse action — confirm before pub
 - Rule 3 (free/paid boundary): the published tier is keyless; export_record (paid) is NOT in
   this release (blocked on the site-repo checkout, Phase 2).
 - Rule 4 (THIRD_PARTY_NOTICES.md) must match the pinned bundle exactly.
+```
+
+### Track B — serve the 5 gate prompts over MCP + `.claude/commands/` generator (scoped 2026-09-01, non-blocking)
+
+The 3 tools ship; the 5 gates are source-only (`prompts/*.md`) and NOT served over MCP (`src/API.md` §Prompts: "Not yet served"), and the `.claude/commands/` generator is unbuilt (CLAUDE.md rule 1 / checklist). Neither blocks the npm publish. Full scoping was done 2026-09-01 (this starter carries it).
+
+```
+Serve the 5 gate prompts over MCP and build the .claude/commands/ generator (b-a-mcp).
+
+## Session start (per CLAUDE.md)
+- caveman auto-on; invoke task-observer before any tool work.
+- Read CLAUDE.md, SESSION_HANDOFF.md, src/API.md (§Prompts), src/server.ts, and the 5
+  prompts/*.md bodies.
+
+## Shared prerequisite
+Normalize all 5 prompts/*.md to ONE frontmatter schema. Four use `---` frontmatter
+(`description:`; intake also has `argument-hint:`); problem-fit.md uses a `#`-header with NO
+frontmatter. Both deliverables parse these files — normalize first.
+
+## A — serve prompts over MCP (mirror the tools pattern in src/server.ts; @modelcontextprotocol/sdk
+already a dep; prompts/ already in the npm `files` whitelist, so the .md ship in the package)
+- Add `prompts: {}` to server capabilities; add ListPrompts + GetPrompts handlers; a prompt-registry
+  module (like contextAuditTool) that loads prompts/*.md, parses frontmatter, resolves the path
+  relative to the module (import.meta.url -> ../../prompts), NEVER cwd. GetPrompt returns
+  { messages:[{ role:"user", content:{ type:"text", text:<body-minus-frontmatter> } }] } with argument
+  interpolation where a gate takes one.
+- DECISIONS to resolve at /decisions FIRST (not settled): per-gate argument schemas (intake takes a
+  "raw feature idea"; do the others?); runtime-read vs bundle-at-build load strategy; the
+  "conversation above" context model (an MCP prompt returns a message the client injects into its
+  existing session — confirm that UX); rule-2 ledger treatment of the prompts/list standing cost
+  (rule 2 is tool-scoped today — extend it); rule 8 (add the promised input-schema column to
+  src/API.md §Prompts, same commit).
+- TESTS (TDD): prompts/list returns 5 correctly-named; prompts/get returns the right body per name;
+  intake argument interpolation; unknown name -> structured error; one e2e over stdio (mirror the
+  existing "server lists three tools" / "server calls X over stdio" tests).
+
+## B — .claude/commands/ generator
+- A SEPARATE scripts/gen-commands.ts (NOT wired into tsc): glob prompts/*.md, parse frontmatter+body,
+  emit .claude/commands/<name>.md in Claude Code slash-command format ($ARGUMENTS where a gate takes
+  args). Run at /handoff per rule 1. Keep .claude/commands out of the npm files whitelist (already is).
+- Consider making it a drift CHECK too (fail if prompts/ and generated commands/ diverge) — the real
+  point of the rule-1 guardrail.
+
+## How (name the skills; do not restate their bodies)
+- superpowers:brainstorming to frame -> problem-fit (trivially yes) -> intake (read the 5 prompt
+  bodies for what each assumes as input/context) -> decisions (the open items above) -> design-doc ->
+  superpowers:writing-plans (plan-document-reviewer) -> superpowers:subagent-driven-development under
+  superpowers:test-driven-development -> the reviewers -> superpowers:finishing-a-development-branch.
+
+## Hard rules
+- Rule 1 (prompts/ is source of truth; .claude/commands/ generated, never hand-edited; regenerate at
+  /handoff). Rule 2 (measure + ledger the prompts/list standing cost). Rule 8 (src/API.md §Prompts
+  same commit). Rule 3 (all keyless — the prompts are free).
 ```
