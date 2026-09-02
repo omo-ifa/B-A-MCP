@@ -39,3 +39,16 @@ test("CRLF line endings are handled", () => {
   assert.equal(attributes.description, "d");
   assert.equal(body.replace(/\r/g, ""), "# Title\nbody");
 });
+
+test("an opening fence with no closing fence is treated as body, not frontmatter", () => {
+  const raw = `---\ndescription: "d"\n# Title with no closing fence\n\nbody`;
+  const { attributes, body } = parseFrontmatter(raw);
+  assert.deepEqual(attributes, {});
+  assert.equal(body, raw);
+});
+
+test("an unterminated quoted value is not quote-stripped (only matching pairs are)", () => {
+  const { attributes } = parseFrontmatter(`---\ndescription: "no closing quote\n---\nx`);
+  // leading quote survives because there is no matching trailing quote
+  assert.equal(attributes.description, '"no closing quote');
+});
