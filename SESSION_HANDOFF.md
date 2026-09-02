@@ -46,7 +46,7 @@
 - **Registry path anchor is three hops, not two.** `rootDir "."` compiles `src/prompts/index.ts` to `dist/src/prompts/index.js`, so the shipped `prompts/` dir is `../../../prompts` from there (`../../prompts` = the nonexistent `dist/prompts`). The design resolves it by **walking up from `import.meta.url` to the nearest ancestor containing `prompts/`** (never cwd); both dev-from-`dist` and installed runs execute from `dist/src/`.
 - **The `$ARGUMENTS` token is handled oppositely by the two channels by design:** the MCP server **substitutes** it (no client-side templating in MCP); the generator **preserves it literally** (Claude Code substitutes at slash-command time). Both behaviors need a test.
 - **Live symptom that motivated the work:** this session's tooling surfaced `intake`/`decisions`/`design-doc`/`handoff` but **not `problem-fit`** — it has no frontmatter, so the one un-normalized gate is already invisible. Normalization fixes a current gap, not just a future one.
-- **task-observer:** Obs 38 logged (verify library/protocol facts against the version the repo pins, not the newest docs).
+- **task-observer:** Obs 38 (verify library/protocol facts against the version the repo pins, not the newest docs) — **ACTIONED 2026-09-01**: now a WORKFLOW.md review-derived rule (Plan & test authoring, kin to Obs 28) + seeded `cross-cutting-principles.md` with the general form.
 
 ---
 

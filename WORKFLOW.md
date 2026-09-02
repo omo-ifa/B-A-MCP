@@ -62,7 +62,7 @@ These bindings exist so docs can't drift from code:
 
 ## Review-derived checklists
 
-Distilled from the task-observer backlog reviews (2026-08-26, Obs 1–21; extended 2026-08-27 with Obs 22–28; the log at `~/.claude/projects/<id>/skill-observations/log.md`). Each rule cites the observation it generalizes. These are project-local applications; the ones marked *(upstream)* also target read-only Superpowers skills and may be proposed there separately.
+Distilled from the task-observer backlog reviews (2026-08-26, Obs 1–21; extended 2026-08-27 with Obs 22–28; later additions Obs 36 and Obs 38, 2026-09-01; the log at `~/.claude/projects/<id>/skill-observations/log.md`). Each rule cites the observation it generalizes. These are project-local applications; the ones marked *(upstream)* also target read-only Superpowers skills and may be proposed there separately.
 
 ### Merge verification (Obs 16, **corrected by Obs 20**)
 
@@ -91,6 +91,7 @@ When handing literal text to a tool the shell or a matcher re-interprets, verify
 - When a change **removes/reshapes one contributor** to an aggregate, hand-trace which term satisfies each nearby test; a guard can pass on the soon-removed path, and a `floor()`-quantized fixture must clear a full step or the term under test is silently 0 (Obs 18).
 - Adding a **required member to a shared type** is a fan-out change: its Files scope is *every construct site* (grep the type/field name across `src` + `test`), not the definition plus intended consumers — a type checker rejects each incomplete literal, so a pre-existing fixture that builds the type will break the build. Enumerate the construct sites, or state that the compiler surfaces them and each is fixed in the same commit (Obs 22).
 - A plan's **verification/measurement commands must run on the declared runtime floor**, not the dev machine — validate each against the Global Constraints (engine floor, module system, package `type`): ESM dist → `import()` / `node --input-type=module`, never `require()`; prefer commands the test harness already runs (floor-validated) over hand-rolled one-liners (Obs 28).
+- **Ground an external library/protocol/API fact against the version the repo PINS, not the newest docs.** Before citing a spec/SDK/library behavior, find the pinned version first (dependency floor in the manifest, prior design docs/plans, the lockfile) and verify/cite THAT revision; a docs tool's default "latest" is a lead, not the answer, and a wrong version citation in a spec is a real defect a reviewer will reject even when the underlying fact happens to hold in both revisions. State the pinned version alongside the fact (Obs 38; kin to Obs 28's runtime-floor rule — here the pin governs the *fact cited*, there the *command run*).
 
 ### Calibration & measurement (Obs 7, 8, 11, 12, 14, 17, 19, 24, 36) — the `planning/calibration/` pattern
 
