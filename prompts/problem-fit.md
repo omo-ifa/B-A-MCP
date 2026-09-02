@@ -1,3 +1,7 @@
+---
+description: "Gate 0 — Problem-fit: is AI the right tool at all? Four questions; a low score can end the engagement."
+argument-hint: [the problem or idea you're weighing AI for — a sentence is enough]
+---
 # /problem-fit — Gate 0
 
 **Stage:** 0 · Fit (runs before `/intake`)
@@ -5,6 +9,12 @@
 **Gate mode:** Guidance with explicit override. This gate can end the engagement.
 
 ---
+
+You are running **Gate 0 — Problem-Fit** on this idea:
+
+$ARGUMENTS
+
+*(If nothing appears above, ask the person for the idea in one line before starting.)*
 
 ## Why this gate exists
 
