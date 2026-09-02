@@ -12,7 +12,7 @@ It runs locally, over stdio, on your own machine. It reads your real files and n
 
 Two kinds of surface:
 
-- **The build-loop gates** — five prompts, one per stage of the loop. Each does one job and hands a clean artifact to the next: is AI even the right tool here, understand the problem, resolve every open decision (or defer it as a tracked TBD), write the design doc (WHAT and WHY, never the step-by-step), then verify the record still matches the code at close. The gates guide with an override: none silently blocks you — each states the risk, names the cheaper path, and logs the override if you proceed anyway.
+- **The build-loop gates** — five prompts, one per stage of the loop, served over MCP and invocable as slash commands in your client. Each does one job and hands a clean artifact to the next: is AI even the right tool here, understand the problem, resolve every open decision (or defer it as a tracked TBD), write the design doc (WHAT and WHY, never the step-by-step), then verify the record still matches the code at close. The two entry points — `problem-fit` and `intake` — take an optional idea to start from; the rest run on the conversation and repo you already have. The gates guide with an override: none silently blocks you — each states the risk, names the cheaper path, and logs the override if you proceed anyway.
 
 - **The repo-audit tools** — three read-only checks that run against your working tree, all shipping today. **`context_audit`** walks your routing layer and returns a scored, hard-to-fake diagnosis of routing bloat, orphaned docs, routing drift, and coverage gaps. **`override_log`** turns a set of guidance-with-override events into a canonical, scored override log. **`doc_drift`** diffs a documented schema against the canonical one and reports where they have drifted apart.
 
@@ -42,6 +42,8 @@ Register it with Claude Code as a local MCP server (stdio):
 ```
 
 The server exposes all three tools — `context_audit`, `override_log`, and `doc_drift` — on `tools/list`. For `context_audit`, point it at a directory (or let it default to the working directory); it resolves upward to the nearest `CLAUDE.md` / `AGENTS.md` and audits from there. `override_log` and `doc_drift` take their input inline and read no files.
+
+It also serves the five gates on `prompts/list` — invoke them as slash commands (`/problem-fit`, `/intake`, `/decisions`, `/design-doc`, `/handoff`). `problem-fit` and `intake` accept an optional `idea` argument; the other three run on the conversation and repo already in context.
 
 ---
 
@@ -107,7 +109,7 @@ The free tier stands on its own. The paid tier just keeps the receipt.
 
 ## Status
 
-Phase 1 (free tier). All three repo-audit tools — `context_audit`, `override_log`, `doc_drift` — are shipped and registered, and the free tier is feature-complete. `context_audit`'s headline weighting and score-driving thresholds are now calibrated against a pinned corpus of real repositories, so it publishes its score without a caveat (see above).
+Phase 1 (free tier). All three repo-audit tools — `context_audit`, `override_log`, `doc_drift` — are shipped and registered, and the five gate prompts are served over MCP; the free tier is feature-complete. `context_audit`'s headline weighting and score-driving thresholds are now calibrated against a pinned corpus of real repositories, so it publishes its score without a caveat (see above).
 
 ---
 
