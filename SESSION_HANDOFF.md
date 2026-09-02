@@ -8,8 +8,8 @@
 
 ## Repo state — verified 2026-09-01
 
-- **`main` HEAD:** `63a7780` — `docs(workflow): add Obs 38 — ground external facts against the pinned version (#79)`. Local up to date with `origin/main`.
-- **Merged to `main` this session (two `docs/` PRs, both squash-merged, branches deleted):** #78 (`8bcf64a`) — Track-B design approved; #79 (`63a7780`) — Obs 38 review-derived rule. Base was `2b77172` (#77). Content verified on trunk after each squash-merge (WORKFLOW squash-merge rule, not branch ancestry).
+- **`main` HEAD:** the tip of `main` is **this handoff commit itself** (the session's last docs commit); local up to date with `origin/main` at close. (Citing a fixed HEAD here is self-defeating — merging the handoff advances the tip past it — so the tip is named by role, not SHA.)
+- **Substantive work merged to `main` this session (all `docs/` PRs, squash-merged, branches deleted):** #78 (`8bcf64a`) — Track-B design approved; #79 (`63a7780`) — Obs 38 review-derived rule; #80 + this commit — handoff repo-state refresh. Base was `2b77172` (#77). Content verified on trunk after each squash-merge (WORKFLOW squash-merge rule, not branch ancestry).
 - **Working tree:** clean.
 - **Code/tests:** **untouched** this session — docs only, no `src/`, `test/`, `prompts/`, or schema change. Last known-green baseline stands (205/205 on `main` @ `a7d06c4`). No re-run needed — nothing executable changed.
 - **Ledger / rule 2:** unchanged (no tool added or widened). The prompts-surface ledger note is a **planned** change for the build, not made this session.
