@@ -2,6 +2,28 @@
   "name": "b-a-mcp",
   "version": "0.1.0",
   "description": "B&A build-loop gates and repo-audit tools as a local MCP server.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "claude-code",
+    "build-loop",
+    "repo-audit",
+    "context-audit",
+    "prompts",
+    "stdio",
+    "developer-tools"
+  ],
+  "homepage": "https://github.com/omo-ifa/B-A-MCP#readme",
+  "bugs": {
+    "url": "https://github.com/omo-ifa/B-A-MCP/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omo-ifa/B-A-MCP.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Bobb Alexander Solutions",
   "type": "module",
   "bin": {
     "b-a-mcp": "dist/src/index.js"
