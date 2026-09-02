@@ -2,17 +2,16 @@
 
 **Purpose.** Verified continuity between Claude Code sessions. Every field below was checked from inside the repo this session, never asserted or carried forward. When this conflicts with claude-mem recall, **this file wins**. Updated at every `/handoff`.
 
-> **Design-only session.** The gate chain (problem-fit → intake → decisions → design-doc) ran for **Track B** — serve the five gate prompts over MCP + the `.claude/commands/` generator — and produced **one approved design doc**. No code was written, no schema changed. This session's docs (the design doc, a Roadmap pointer note, and this handoff) land on `main` via a small `docs/` PR. The **build** is the next Track-B session; **Track A (`npm publish`) remains the only other open Phase-1 gesture** and does not depend on Track B.
+> **Design-only session.** The gate chain (problem-fit → intake → decisions → design-doc) ran for **Track B** — serve the five gate prompts over MCP + the `.claude/commands/` generator — and produced **one approved design doc**. No code was written, no schema changed. This session's docs (the design doc, a Roadmap pointer note, this handoff, and an actioned task-observer rule) landed on `main` via two small `docs/` PRs (#78 design, #79 Obs 38). The **build** is the next Track-B session; **Track A (`npm publish`) remains the only other open Phase-1 gesture** and does not depend on Track B.
 
 ---
 
 ## Repo state — verified 2026-09-01
 
-- **Branch this session:** `docs/track-b-design-mcp-prompts-commands`, cut from `main` at `2b77172`.
-- **`main` HEAD (base):** `2b77172` — `docs(handoff): add Track B starter — serve gate prompts over MCP + commands generator (#77)`.
-- **This session's docs commit** (design doc + Roadmap note + this handoff) rides up on the `docs/` branch → PR → squash-merge. Verify content on `main` after merge (WORKFLOW squash-merge rule), not branch ancestry.
-- **Working tree:** clean after the docs commit.
-- **Code/tests:** **untouched** this session — no `src/`, `test/`, `prompts/`, or schema change. Last known-green baseline stands (205/205 on `main` @ `a7d06c4`, carried into `2b77172`). No re-run needed — nothing executable changed.
+- **`main` HEAD:** `63a7780` — `docs(workflow): add Obs 38 — ground external facts against the pinned version (#79)`. Local up to date with `origin/main`.
+- **Merged to `main` this session (two `docs/` PRs, both squash-merged, branches deleted):** #78 (`8bcf64a`) — Track-B design approved; #79 (`63a7780`) — Obs 38 review-derived rule. Base was `2b77172` (#77). Content verified on trunk after each squash-merge (WORKFLOW squash-merge rule, not branch ancestry).
+- **Working tree:** clean.
+- **Code/tests:** **untouched** this session — docs only, no `src/`, `test/`, `prompts/`, or schema change. Last known-green baseline stands (205/205 on `main` @ `a7d06c4`). No re-run needed — nothing executable changed.
 - **Ledger / rule 2:** unchanged (no tool added or widened). The prompts-surface ledger note is a **planned** change for the build, not made this session.
 
 ---
