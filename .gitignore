@@ -19,6 +19,3 @@ npm-debug.log*
 # Build output
 dist/
 build/
-
-# Generated at build time from prompts/ (do not commit hand-edited)
-.claude/commands/
