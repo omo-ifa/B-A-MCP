@@ -93,7 +93,7 @@ When handing literal text to a tool the shell or a matcher re-interprets, verify
 - A plan's **verification/measurement commands must run on the declared runtime floor**, not the dev machine — validate each against the Global Constraints (engine floor, module system, package `type`): ESM dist → `import()` / `node --input-type=module`, never `require()`; prefer commands the test harness already runs (floor-validated) over hand-rolled one-liners (Obs 28).
 - **Ground an external library/protocol/API fact against the version the repo PINS, not the newest docs.** Before citing a spec/SDK/library behavior, find the pinned version first (dependency floor in the manifest, prior design docs/plans, the lockfile) and verify/cite THAT revision; a docs tool's default "latest" is a lead, not the answer, and a wrong version citation in a spec is a real defect a reviewer will reject even when the underlying fact happens to hold in both revisions. State the pinned version alongside the fact (Obs 38; kin to Obs 28's runtime-floor rule — here the pin governs the *fact cited*, there the *command run*).
 
-### Calibration & measurement (Obs 7, 8, 11, 12, 14, 17, 19, 24, 36) — the `planning/calibration/` pattern
+### Calibration & measurement (Obs 7, 8, 11, 12, 14, 17, 19, 24, 36) — the calibration-run pattern (records in the private B-A-MCP-internal repo)
 
 - **Structural pre-flight** before calibrating: verify the metric's core input assumption holds in the sample (a cheap grep) before any threshold run (Obs 7).
 - **Pin the corpus** and record the pins; change one variable per run; an unmoved control is itself a result (Obs 12).
@@ -128,6 +128,6 @@ When handing literal text to a tool the shell or a matcher re-interprets, verify
 ## Release
 
 - Free tier publishes to npm on a **semver tag**. Nothing deploys to a server.
-- `ops/CONTEXT.md` holds the release runbook.
+- The release runbook lives in the private B-A-MCP-internal repo.
 - A release is blocked unless `LICENSE` and `THIRD_PARTY_NOTICES.md` are final (not stubs) and the notices file matches the pinned versions in `package.json`.
-- `export_record` (paid tier) is a separate release, blocked on the site repo's consent-gated checkout. See `planning/Integration_Spec.md`.
+- `export_record` (paid tier) is a separate release, blocked on the site repo's consent-gated checkout. See the Integration Spec (private B-A-MCP-internal repo).

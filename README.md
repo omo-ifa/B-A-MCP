@@ -49,7 +49,7 @@ It also serves the five gates on `prompts/list` — invoke them as slash command
 
 ## See it run
 
-`context_audit` builds its own report and hands it back verbatim — one screen, no narration. Below is a **real run on this repository** — every number is live (the root path is shown generically, and a long finding list is abbreviated with `…N more`). Point the tool at this repo to reproduce it:
+`context_audit` builds its own report and hands it back verbatim — one screen, no narration. Below is a **real run on this repository** (every number is live; only the root path is shown generically). Point the tool at this repo to reproduce it:
 
 ```text
 # context_audit — routing health
@@ -59,31 +59,20 @@ It also serves the five gates on `prompts/list` — invoke them as slash command
 
 | sub-score      | value      |
 |----------------|------------|
-| bloat          | 100 (n=4)  |
-| orphans        | 100 (n=83) |
-| routing_drift  |  99 (n=83) |
-| coverage       | 100 (n=6)  |
+| bloat          | 100 (n=2)  |
+| orphans        | 100 (n=8)  |
+| routing_drift  | 100 (n=51) |
+| coverage       | 100 (n=7)  |
 
-## high (1)
-- routing_path_missing  CLAUDE.md:131 — router path does not resolve to an existing file
-    (evidence: planning/decisions/YYYY-MM-DD_title.md — a literal placeholder in the TBD-policy text)
-
-## medium (24)
-- orphan  docs/superpowers/plans/2026-08-21-agents-md-router-recognition.md — in-scope doc unreachable from any routing root
-- …23 more orphans, all dated plan / calibration docs. They are recognised as archival by
-  layout, so none is scored as genuine-abandoned rot — which is why the orphans sub-score is 100
-  while the finding list still shows every one of them.
-
-## low (3)
+## low (1)
 - bloat  CLAUDE.md — routing file is large; a reader must load it all to orient here
-    (evidence: router_tokens=3665)
-- …2 malformed links in an old plan doc
+    (evidence: router_tokens=3869)
 
-## info (55)
-- broken_ref  … — example / placeholder links inside planning docs: reported, never scored
+## info (1)
+- broken_ref  src/API.md — a link points at a path that does not exist: reported, never scored
 
 ## stats
-- docs_in_scope: 88, routing_files: 4, routing_tokens: 6266
+- docs_in_scope: 11, routing_files: 2, routing_tokens: 5352
 
 > coverage measures whether the routing layer claims your code, not whether the claim is
 > accurate — content accuracy is doc_drift's job.
@@ -91,7 +80,7 @@ It also serves the five gates on `prompts/list` — invoke them as slash command
 
 Two things that report is doing on purpose:
 
-- **The finding list and the score are different questions.** Every orphaned doc is *listed* (so you can see it), but only genuine-abandoned rot is *scored* — dated archival plans, skill directories, and agent-runtime config are recognised as intentional layout, not failure. That is why a repo with 20 orphan findings can still score 100 on the orphans sub-score.
+- **The finding list and the score are different questions.** The one `broken_ref` above is *listed* (so you can see it) but never *scored* — a broken link outside a routing doc is information, not routing rot. The same separation applies to orphans: in a repo with dated archival plans, skill directories, or agent-runtime config, every such doc is *listed* yet recognised as intentional layout, so a pile of orphan findings can still score 100 on the orphans sub-score.
 - **It refuses to publish a number it can't defend.** Through calibration the score printed with an `uncalibrated … not a published figure` caveat; that calibration is now closed — the four sub-score weights and every score-driving threshold were ratified against a pinned corpus of real repositories — so the number above is published clean. The flag is a real switch, not decoration: the tool would still rather show a caveat than a confident wrong number.
 
 ---
