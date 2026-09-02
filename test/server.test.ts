@@ -58,6 +58,38 @@ test("server calls context_audit over stdio and returns rendered + structuredCon
   await client.close();
 });
 
+test("server lists five prompts over stdio", async () => {
+  const transport = new StdioClientTransport({ command: "node", args: ["dist/src/index.js"] });
+  const client = new Client({ name: "b-a-mcp-test", version: "0.0.0" }, { capabilities: {} });
+  await client.connect(transport);
+  const { prompts } = await client.listPrompts();
+  const names = prompts.map((p) => p.name).sort();
+  assert.deepEqual(names, ["decisions", "design-doc", "handoff", "intake", "problem-fit"]);
+  await client.close();
+});
+
+test("server get intake substitutes $ARGUMENTS server-side", async () => {
+  const transport = new StdioClientTransport({ command: "node", args: ["dist/src/index.js"] });
+  const client = new Client({ name: "b-a-mcp-test", version: "0.0.0" }, { capabilities: {} });
+  await client.connect(transport);
+  const res: any = await client.getPrompt({ name: "intake", arguments: { idea: "add CSV export" } });
+  const text = res.messages[0].content.text;
+  assert.ok(text.includes("add CSV export"));
+  assert.ok(!text.includes("$ARGUMENTS"));
+  await client.close();
+});
+
+test("server get of an unknown prompt rejects (InvalidParams), tools unaffected", async () => {
+  const transport = new StdioClientTransport({ command: "node", args: ["dist/src/index.js"] });
+  const client = new Client({ name: "b-a-mcp-test", version: "0.0.0" }, { capabilities: {} });
+  await client.connect(transport);
+  await assert.rejects(() => client.getPrompt({ name: "not_a_gate" }));
+  // tools still work after a prompt error
+  const { tools } = await client.listTools();
+  assert.equal(tools.length, 3);
+  await client.close();
+});
+
 test("calling an unknown tool name returns the structured UNKNOWN_TOOL error, not a thrown exception", async () => {
   const transport = new StdioClientTransport({ command: "node", args: ["dist/src/index.js"] });
   const client = new Client({ name: "b-a-mcp-test", version: "0.0.0" }, { capabilities: {} });

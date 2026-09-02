@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-test("packed tarball installs and the installed bin lists three tools", async () => {
+test("packed tarball installs and the installed bin lists three tools and five prompts", async () => {
   const projectRoot = process.cwd();
 
   // Pack the current package into a temp dir.
@@ -44,6 +44,10 @@ test("packed tarball installs and the installed bin lists three tools", async ()
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     assert.deepEqual(names, ["context_audit", "doc_drift", "override_log"]);
+    // installed-layout resolver path: prompts/ sits at the package root beside dist/src
+    const { prompts } = await client.listPrompts();
+    const promptNames = prompts.map((p) => p.name).sort();
+    assert.deepEqual(promptNames, ["decisions", "design-doc", "handoff", "intake", "problem-fit"]);
   } finally {
     if (connected) {
       try {
