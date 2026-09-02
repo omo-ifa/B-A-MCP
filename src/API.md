@@ -24,7 +24,21 @@ The five gate prompts are the product. `prompts/` is the **source of truth** —
 
 Naming: MCP prompt names are kebab-case, matching their source filename without the extension.
 
-**Not yet served.** These prompts exist as markdown files in `prompts/` and as generated `.claude/commands/` entries (see rule 1 in `CLAUDE.md`), but are not yet registered on an MCP `prompts/list` / `prompts/get` surface. Serving them over MCP is a later feature; this table will gain an input-schema column when that lands.
+**Served.** All five prompts are registered on the MCP `prompts/list` / `prompts/get` surface. `prompts/list` returns each prompt's `name`, `description` (from frontmatter), and `arguments`; `prompts/get` returns `{ description, messages: [{ role: "user", content: { type: "text", text } }] }` with the frontmatter stripped and `$ARGUMENTS` substituted server-side. The servable set is the dynamic `prompts/*.md` glob (rule 1: single source of truth) — no hardcoded name list; a CI validation/drift test pins the set to exactly the five names below.
+
+**Argument contract.** Arguments are derived from each prompt's frontmatter `argument-hint`; a prompt with no hint declares no arguments.
+
+| Prompt name  | Argument | Required | Notes |
+|--------------|----------|----------|-------|
+| `problem-fit`| `idea`   | no       | The problem/idea being weighed; substituted into the body. Empty when absent. |
+| `intake`     | `idea`   | no       | The raw feature idea; substituted into the body. Empty when absent. |
+| `decisions`  | —        | —        | Runs on the conversation above; no argument. |
+| `design-doc` | —        | —        | Runs on the conversation above; no argument. |
+| `handoff`    | —        | —        | Runs on the live repo; no argument. |
+
+**Failure model.** An unknown prompt name or an unreadable prompt file returns `McpError(InvalidParams)` (a JSON-RPC protocol error), never an internal path. A missing `prompts/` directory makes `prompts/list` return `McpError(InternalError, "prompt directory unavailable")` rather than a silent empty list. Prompt faults are isolated: the three tools are unaffected. (The prompt surface uses `McpError`; the tools' in-band `{ error: { code, message } }` envelope with `isError: true` is unchanged and independent.)
+
+**$ARGUMENTS.** The MCP server substitutes `$ARGUMENTS` server-side (there is no client-side prompt templating in MCP spec rev 2025-06-18). The generated `.claude/commands/` copies preserve `$ARGUMENTS` literally — Claude Code substitutes at slash-command time. The two channels handle the token oppositely by design.
 
 ---
 

@@ -155,8 +155,8 @@ Full list and status live in `src/TDD.md`.
 
 - [x] Repo created (`B-A-MCP`), structure scaffolded per the design doc
 - [x] `LICENSE` + `THIRD_PARTY_NOTICES.md` at root (2026-08-27 — TBD-1/TBD-7 resolved 2026-08-20; **TBD-2 + TBD-4 resolved 2026-08-27**, notices file finalized: all five bundled blocks + both runtime deps filled from source, STUB banner removed)
-- [x] Five prompts authored in `prompts/` (`problem-fit`, `intake`, `decisions`, `design-doc`, `handoff`)
-- [ ] Build step generates `.claude/commands/` from `prompts/` — **NOT built** (no generator script; `.claude/commands/` is empty). Rule-1 guardrail against prompts/commands drift; **not publish-blocking** — `.claude/commands/` is not in the npm `files` whitelist and the prompts are not yet MCP-served (API.md §prompts). Its own later loop.
+- [x] Five prompts authored in `prompts/` (`problem-fit`, `intake`, `decisions`, `design-doc`, `handoff`) — **served over MCP** `prompts/list` / `prompts/get` (2026-09-01, Track B; `problem-fit`/`intake` take an optional `idea` arg, `$ARGUMENTS` substituted server-side; API.md §Prompts Served; user-controlled so outside the rule-2 budget — CONTEXT.md prompt-surface note)
+- [x] Build step generates `.claude/commands/` from `prompts/` (2026-09-01, Track B — `scripts/gen-commands.mjs` + generator core `src/prompts/generate.ts`; run at `/handoff`, never hand-edited; committed for dogfooding + the rule-1 drift guard `test/prompts/validation.test.ts`; stays out of the npm `files` whitelist). `.gitignore` un-ignore recorded.
 - [x] `context_audit` tool (built, live, registered; calibration closed 2026-08-26)
 - [x] `doc_drift` tool (2026-08-27, PR #65 — free/keyless provided/inline schema-drift differ; TBD-9 resolved; API.md §doc_drift Shipped; ledger 1023/~4000; orientation walk-test / framework parsing / canonical self-discovery deferred to TBD-22/23/24)
 - [x] `override_log` tool (2026-08-27, PR #59 — free/keyless generator/validator; API.md §override_log; ledger 633/~4000; TBD-21 stubbed)
