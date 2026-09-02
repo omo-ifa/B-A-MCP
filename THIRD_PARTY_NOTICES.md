@@ -19,7 +19,7 @@ its block here in the same commit.
 
 Licenses and copyright lines below were read from each component's own
 `LICENSE`/`NOTICE`/`README` at the pinned commit (TBD-2, resolved
-2026-08-27 — see `planning/decisions/2026-08-27_tbd-2-4-resolved.md`), not from
+2026-08-27 — decision record in the private B-A-MCP-internal repo), not from
 third-party listings.
 
 ---
@@ -209,7 +209,7 @@ SOFTWARE.
 
 Packages the published `b-a-mcp` package declares in `package.json` and
 redistributes on install. Tracked here separately from the bundled skills
-above; pinned versions must match `package.json` and `Integration_Spec.md`.
+above; pinned versions must match `package.json` and the Integration Spec (private B-A-MCP-internal repo).
 
 ### @modelcontextprotocol/sdk
 

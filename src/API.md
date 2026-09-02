@@ -46,17 +46,17 @@ Naming: MCP prompt names are kebab-case, matching their source filename without 
 
 `tools/list` returns three tools — `context_audit`, `override_log`, and `doc_drift`.
 
-| Tool name       | Status      | Design doc |
+| Tool name       | Status      | Design doc (private B-A-MCP-internal repo) |
 |------------------|-------------|------------|
-| `context_audit`  | **Shipped** | `planning/designs/2026-08-18_context-audit-design.md` |
-| `override_log`   | **Shipped** | `planning/designs/2026-08-27_override-log-design.md` |
-| `doc_drift`      | **Shipped** | `planning/designs/2026-08-27_doc-drift-design.md` |
+| `context_audit`  | **Shipped** | `2026-08-18_context-audit-design.md` |
+| `override_log`   | **Shipped** | `2026-08-27_override-log-design.md` |
+| `doc_drift`      | **Shipped** | `2026-08-27_doc-drift-design.md` |
 
 Naming: MCP tool names are snake_case.
 
 ### `context_audit`
 
-A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / `AGENTS.md` / `CONTEXT.md` tree — and returns a scored, unfakeable diagnosis of routing bloat, orphan docs, broken references, routing drift, and documentation coverage gaps. It reads the user's real files locally; it never writes and never inspects source-file contents. See `planning/designs/2026-08-18_context-audit-design.md` for the full rationale.
+A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / `AGENTS.md` / `CONTEXT.md` tree — and returns a scored, unfakeable diagnosis of routing bloat, orphan docs, broken references, routing drift, and documentation coverage gaps. It reads the user's real files locally; it never writes and never inspects source-file contents. See the `context_audit` design doc (private B-A-MCP-internal repo) for the full rationale.
 
 **Input schema:**
 
@@ -153,12 +153,12 @@ A read-only tool that audits a repository's routing layer — the `CLAUDE.md` / 
 - **Never follows symlinks** — a symlink pointing at something in scope is recorded as a `symlink` finding, not traversed. The one exception is a symlink that merely **aliases a router already in scope** (e.g. `CLAUDE.md → AGENTS.md`, the convention app repos ship): it is deduped — no finding — and the router is scored once via its own real entry. The dedup applies only when the target's realpath is a structural router name, stays under root, and is itself in walk scope; otherwise the `symlink` finding is kept.
 - **Stateless / no cache** — a cold walk every invocation; same tree in, same score out.
 - **Tool owns rendering** — `rendered` is built by the tool from the structured result, never narrated by the agent.
-- **Stable severity scale** — the five-level `severity` enum (`info`/`low`/`medium`/`high`/`critical`) is a fixed contract so historical `export_record` artifacts stay comparable, even as the underlying rubric evolves. An uncovered significant **source** directory is category `coverage` (severity `high`); an uncovered significant **test** directory — any path segment named `test`/`tests`/`__tests__`/`spec`, case-insensitive — is the distinct category `coverage_test` (severity `medium`). See `planning/decisions/2026-08-20_test-dir-coverage-severity.md`. Both remain gated behind the TBD-12 build guard and emit nothing on the default (no-opts) path.
+- **Stable severity scale** — the five-level `severity` enum (`info`/`low`/`medium`/`high`/`critical`) is a fixed contract so historical `export_record` artifacts stay comparable, even as the underlying rubric evolves. An uncovered significant **source** directory is category `coverage` (severity `high`); an uncovered significant **test** directory — any path segment named `test`/`tests`/`__tests__`/`spec`, case-insensitive — is the distinct category `coverage_test` (severity `medium`). See the test-dir-coverage-severity decision record (private B-A-MCP-internal repo). Both remain gated behind the TBD-12 build guard and emit nothing on the default (no-opts) path.
 - **Normalized ordering** — findings are emitted in normalized (sorted) path order so two identical audits produce identical records.
 
 ### `override_log`
 
-A free, keyless tool that turns guidance-with-override *events* into a canonical, rendered override log with a completeness score and a finding per missing required field. It reads no repository files, makes no network call, and persists nothing — generating and rendering the record is the free tier's *reasoning* act; persisting it is `export_record`'s (paid). See `planning/designs/2026-08-27_override-log-design.md`.
+A free, keyless tool that turns guidance-with-override *events* into a canonical, rendered override log with a completeness score and a finding per missing required field. It reads no repository files, makes no network call, and persists nothing — generating and rendering the record is the free tier's *reasoning* act; persisting it is `export_record`'s (paid). See the `override_log` design doc (private B-A-MCP-internal repo).
 
 **Input schema:**
 
@@ -254,7 +254,7 @@ Absence of *fields* is never an error — it is scored and flagged as findings (
 
 ### `doc_drift`
 
-A free, keyless tool that diagnoses schema-of-record drift: it takes an array of caller-supplied `{declared, canonical}` JSON-Schema pairs and returns a structural diagnosis of where they disagree — a completeness score, one finding per drifted field, and a rendered report. It is a **pure structural differ** — it reads no repository files, makes no network call, executes nothing, and persists nothing. Obtaining the canonical truth (a `tools/list` payload, an `openapi.json`, a GraphQL introspection result, etc.) is the calling agent's job; `doc_drift` only diffs the pair it is handed. Generating and rendering the record is the free tier's *reasoning* act; persisting it is `export_record`'s (paid). See `planning/designs/2026-08-27_doc-drift-design.md`.
+A free, keyless tool that diagnoses schema-of-record drift: it takes an array of caller-supplied `{declared, canonical}` JSON-Schema pairs and returns a structural diagnosis of where they disagree — a completeness score, one finding per drifted field, and a rendered report. It is a **pure structural differ** — it reads no repository files, makes no network call, executes nothing, and persists nothing. Obtaining the canonical truth (a `tools/list` payload, an `openapi.json`, a GraphQL introspection result, etc.) is the calling agent's job; `doc_drift` only diffs the pair it is handed. Generating and rendering the record is the free tier's *reasoning* act; persisting it is `export_record`'s (paid). See the `doc_drift` design doc (private B-A-MCP-internal repo).
 
 **Input schema:**
 
@@ -351,7 +351,7 @@ A free, keyless tool that diagnoses schema-of-record drift: it takes an array of
 
 ## Paid Tool
 
-`export_record` — Phase 2. Client-only; not part of the published `b-a-mcp` package. See `planning/Integration_Spec.md` when that phase begins.
+`export_record` — Phase 2. Client-only; not part of the published `b-a-mcp` package. See the Integration Spec (private B-A-MCP-internal repo) when that phase begins.
 
 ---
 

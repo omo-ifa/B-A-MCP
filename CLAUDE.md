@@ -40,13 +40,11 @@ This project is organized into workspaces, each with a `CONTEXT.md` routing file
 | Workspace   | Holds                                                                        | Read first          |
 |-------------|------------------------------------------------------------------------------|---------------------|
 | `prompts/`  | The five shipped gate prompts — **source of truth for the product**          | (this file)         |
-| `planning/` | Design docs, decision log, roadmap, the cross-repo integration contract      | `planning/CONTEXT.md` |
 | `src/`      | Server + tool code **and** the MCP-surface doc that binds to it (`API.md`)   | `src/CONTEXT.md`    |
-| `ops/`      | The release runbook (`npm publish` on a semver tag)                          | `ops/CONTEXT.md`    |
 
 `.claude/commands/` is **generated** from `prompts/` at build time. Never edit it by hand — see rule 1.
 
-There is no `docs/` workspace (no external-reader output yet), no database, and no `ops/` deploy pipeline beyond publishing.
+**Build-process docs live in a private companion repo.** The design docs, decision records, calibration runs, implementation plans, roadmap, cross-repo integration spec, session handoffs, release runbook, and the Master TBD Tracker are in the private **B-A-MCP-internal** repo (https://github.com/omo-ifa/B-A-MCP-internal) — dev-time material, not shipped and not part of the MCP server. This public repo keeps the product plus the lean operating docs a contributor needs day-to-day (this file, `WORKFLOW.md`, `src/CONTEXT.md`, `src/API.md`). There is no `docs/` workspace here, no database, and no deploy pipeline beyond publishing.
 
 ---
 
@@ -70,16 +68,18 @@ Read the document listed **before** doing the work described.
 |----------------|------------------------------------------------------------------------------------------------------|
 | `src/API.md`   | Before changing any prompt definition or tool schema. Source of truth for the MCP surface: prompt names, tool names, input/output JSON schemas. Update in the same commit as the code that changes it. |
 | `src/CONTEXT.md` | Before writing server or tool code. Conventions, patterns, and the **context-budget** ledger (see rule 2). |
-| `src/TDD.md`   | Before starting any tool. Holds the Master TBD Tracker.                                               |
 
-### `planning/` — specs and decisions (read before building)
+### Build-process docs — in the private **B-A-MCP-internal** repo
 
-| Document                        | When to Read It                                                                     |
-|---------------------------------|-------------------------------------------------------------------------------------|
-| `planning/designs/`             | Before building any feature. The design doc states the WHAT and WHY.               |
-| `planning/Integration_Spec.md`  | Before touching `export_record` or any bundled component. Holds the cross-repo `export_record` request/response contract and the pinned versions of every bundled third-party component. |
-| `planning/Roadmap.md`           | Before starting a new phase. Phase definitions and dependency order.               |
-| `planning/decisions/`           | When you need the *why* behind a resolved TBD.                                       |
+The specs and deliberation live in the private companion repo (https://github.com/omo-ifa/B-A-MCP-internal), not here. Read them there:
+
+| Document (private repo) | When to Read It                                                                     |
+|-------------------------|-------------------------------------------------------------------------------------|
+| Design docs             | Before building any feature. The design doc states the WHAT and WHY.               |
+| Integration Spec        | Before touching `export_record` or any bundled component. Holds the cross-repo `export_record` request/response contract and the pinned versions of every bundled third-party component. |
+| Roadmap                 | Before starting a new phase. Phase definitions and dependency order.               |
+| Decision records        | When you need the *why* behind a resolved TBD.                                       |
+| Master TBD Tracker      | Before starting any tool. Tracks every open/resolved TBD.                          |
 
 ### Root
 
@@ -93,9 +93,9 @@ Read the document listed **before** doing the work described.
 
 ## How Work Reaches This Repo
 
-High-level planning happens on Claude web/desktop and produces a **design doc** (the WHAT and WHY) plus resolved decisions, carried here via `SESSION_HANDOFF.md`. Claude Code does the build, using the Superpowers skills:
+High-level planning happens on Claude web/desktop and produces a **design doc** (the WHAT and WHY) plus resolved decisions, carried via the session handoff. The design doc, decisions, and `SESSION_HANDOFF.md` live in the private **B-A-MCP-internal** repo; the code is built here. Claude Code does the build, using the Superpowers skills:
 
-1. Read `SESSION_HANDOFF.md` and the design doc.
+1. Read `SESSION_HANDOFF.md` and the design doc (private repo).
 2. `superpowers:writing-plans` turns the design doc into a chunked implementation plan; the plan-document-reviewer checks it.
 3. `superpowers:executing-plans` (or `subagent-driven-development`) builds it under `superpowers:test-driven-development`.
 4. `src/API.md` updates in the same commit as any change to a prompt or tool schema.
@@ -122,30 +122,29 @@ These rules apply to every commit in this project. No exceptions.
 
 ## TBD Policy
 
-All TBDs are tracked in the Master TBD Tracker in `src/TDD.md`. When you encounter a TBD reference in any document:
+All TBDs are tracked in the Master TBD Tracker in the private **B-A-MCP-internal** repo. When you encounter a TBD reference in any document:
 
-1. Look it up in `src/TDD.md`.
+1. Look it up in the Master TBD Tracker (private repo).
 2. If status is **open**: stub the implementation, leave a `TODO: TBD-XXX` comment, and continue.
 3. **Never guess** at the resolution of a TBD.
 
-When a TBD is **resolved**, record the reasoning in `planning/decisions/YYYY-MM-DD_title.md` (the tracker holds the status; the decision record holds the why).
+When a TBD is **resolved**, record the reasoning in a dated decision record in the private repo (the tracker holds the status; the decision record holds the why).
 
 ### Key Open TBDs
 
 **No open TBD blocks the Phase-1 free-tier release.** The release-gating and
 launch decisions all resolved 2026-08-27:
 
-- TBD-2 (bundled licenses) + TBD-4 (ICM reproduce) → `planning/decisions/2026-08-27_tbd-2-4-resolved.md`
-- TBD-5 ($9/mo subscription) + TBD-8 (split launch, free first) → `planning/decisions/2026-08-27_tbd-5-8-pricing-and-launch.md`
-- TBD-3 (DO Functions allowance = 90,000 GiB-s, non-load-bearing) → `src/TDD.md`
+- TBD-2 (bundled licenses) + TBD-4 (ICM reproduce) — resolved 2026-08-27 (decision record in the private repo)
+- TBD-5 ($9/mo subscription) + TBD-8 (split launch, free first) — resolved 2026-08-27 (private repo)
+- TBD-3 (DO Functions allowance = 90,000 GiB-s, non-load-bearing) — see the Master TBD Tracker (private repo)
 
 What remains open is **non-blocking**: `context_audit` calibration refinements
 (TBD-12 coverage basis, TBD-15 AGENTS.md v1.1),
-deferred tool v1.1 (TBD-21/22/23/24), and the `.claude/commands/` generation
-build step (rule-1 guardrail, not shipped). The paid tier (Phase 2) is blocked
+deferred tool v1.1 (TBD-21/22/23/24). The paid tier (Phase 2) is blocked
 on the **site-repo** consent-gated checkout, external to this repo.
 
-Full list and status live in `src/TDD.md`.
+Full list and status live in the Master TBD Tracker (private **B-A-MCP-internal** repo).
 
 ---
 
@@ -167,7 +166,7 @@ Full list and status live in `src/TDD.md`.
 **Phase 2 — Paid tier (`export_record`)** · Blocked on the site repo's consent-gated checkout
 
 - [ ] `export_record` client in `src/client/`
-- [ ] Cross-repo contract recorded in `planning/Integration_Spec.md`
+- [ ] Cross-repo contract recorded in the Integration Spec (private **B-A-MCP-internal** repo)
 - [ ] Key issuance + validation against Stripe customer metadata (site repo)
 - [ ] EULA carve-out counsel-reviewed
 - [ ] Sales-page disclosure naming each bundled component, above the buy button

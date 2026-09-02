@@ -1,6 +1,6 @@
 # src/CONTEXT.md — Routing File for `src/`
 
-Read this before writing any server or tool code in this workspace. It holds the `src/` conventions and the context-budget ledger required by `CLAUDE.md` rule 2. `src/API.md` (the MCP-surface schema-of-record) and `src/TDD.md` (the Master TBD Tracker) are separate documents — read them per their own "when to read" entries in the root `CLAUDE.md` document index; this file does not duplicate their content.
+Read this before writing any server or tool code in this workspace. It holds the `src/` conventions and the context-budget ledger required by `CLAUDE.md` rule 2. `src/API.md` (the MCP-surface schema-of-record) is a separate document — read it per its own "when to read" entry in the root `CLAUDE.md` document index. The Master TBD Tracker lives in the private **B-A-MCP-internal** repo. This file does not duplicate their content.
 
 ---
 
